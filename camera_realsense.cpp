@@ -13,6 +13,13 @@
 #include <tuple>
 #include <vector>
 
+#include <viam/sdk/components/component.hpp>
+#include <viam/sdk/module/service.hpp>
+#include <viam/sdk/registry/registry.hpp>
+#include <viam/sdk/rpc/server.hpp>
+#include <viam/sdk/components/camera/camera.hpp>
+#include <viam/sdk/components/camera/server.hpp>
+
 #include "common/v1/common.grpc.pb.h"
 #include "common/v1/common.pb.h"
 #include "component/camera/v1/camera.grpc.pb.h"
@@ -79,6 +86,7 @@ struct RealSenseProperties {
     CameraProperties color;
     CameraProperties depth;
     float depthScaleMm;
+    string mainSensor;
 };
 
 struct PipelineWithProperties {
@@ -323,7 +331,7 @@ grpc::Status encodeDepthRAWToResponse(GetImageResponse* response, const unsigned
 }
 
 // CAMERA service
-class CameraServiceImpl final : public CameraService::Service {
+class RealSenseCameraService final : public CameraService::Service, public Component {
    private:
     RealSenseProperties props;
     AtomicFrameSet& frameSet;
@@ -331,16 +339,21 @@ class CameraServiceImpl final : public CameraService::Service {
     const bool disableDepth;
 
    public:
-    CameraServiceImpl(RealSenseProperties props, AtomicFrameSet& frameSet, const bool disableColor,
-                      const bool disableDepth)
-        : props(props),
-          frameSet(frameSet),
-          disableColor(disableColor),
-          disableDepth(disableDepth){};
+	RealSenseCameraService(ResourceConfig cfg, AtomicFrameSet& fs) {
+        frameSet = fs;
+        tie(props, disableColor, disableDepth) = initialize(cfg);
+    }
+
+    void reconfigure(Dependencies deps, ResourceConfig cfg) override {
+        tie(props, disableColor, disableDepth) = initialize(cfg);
+    }
+
+    API dynamic_api() const override {
+        return Camera::static_api();
+    }
 
     ::grpc::Status GetImage(ServerContext* context, const GetImageRequest* request,
                             GetImageResponse* response) override {
-        const string reqName = request->name();
         const string reqMimeType = request->mime_type();
 
         auto start = chrono::high_resolution_clock::now();
@@ -352,7 +365,7 @@ class CameraServiceImpl final : public CameraService::Service {
         auto latestDepthFrame = this->frameSet.depthFrame;
         this->frameSet.mutex.unlock();
 
-        if (reqName.compare("color") == 0) {
+        if (props.mainSensor.compare("color") == 0) {
             if (this->disableColor) {
                 return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "color disabled");
             }
@@ -368,7 +381,7 @@ class CameraServiceImpl final : public CameraService::Service {
                 encodeJPEGToResponse(response, (const unsigned char*)latestColorFrame.get_data(),
                                      this->props.color.width, this->props.color.height);
             }
-        } else if (reqName.compare("depth") == 0) {
+        } else if (props.mainSensor.compare("depth") == 0) {
             if (this->disableDepth) {
                 return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "depth disabled");
             }
@@ -395,7 +408,6 @@ class CameraServiceImpl final : public CameraService::Service {
         IntrinsicParameters* intrinsics = response->mutable_intrinsic_parameters();
         DistortionParameters* distortion = response->mutable_distortion_parameters();
 
-        const string reqName = request->name();
 
         auto fillResp = [response, intrinsics, distortion](auto props, bool supportsPCD) {
             response->set_supports_pcd(supportsPCD);
@@ -411,31 +423,12 @@ class CameraServiceImpl final : public CameraService::Service {
             }
         };
 
-        if (reqName.compare("color") == 0) {
+        if (props.mainSensor.compare("color") == 0) {
             fillResp(this->props.color, false);
-        } else if (reqName.compare("depth") == 0) {
+        } else if (props.mainSensor.compare("depth") == 0) {
             fillResp(this->props.depth, true);
         }
 
-        return grpc::Status::OK;
-    }
-};
-
-class RobotServiceImpl final : public RobotService::Service {
-   public:
-    grpc::Status ResourceNames(ServerContext* context, const ResourceNamesRequest* request,
-                               ResourceNamesResponse* response) override {
-        ResourceName* colorName = response->add_resources();
-        colorName->set_namespace_("rdk");
-        colorName->set_type("component");
-        colorName->set_subtype("camera");
-        colorName->set_name("color");
-
-        ResourceName* depthName = response->add_resources();
-        depthName->set_namespace_("rdk");
-        depthName->set_type("component");
-        depthName->set_subtype("camera");
-        depthName->set_name("depth");
         return grpc::Status::OK;
     }
 };
@@ -676,97 +669,56 @@ void on_device_reconnect(rs2::event_information& info, DeviceProperties& context
     }
 };
 
-int main(const int argc, const char* argv[]) {
-    fpng::fpng_init();
+// validate will validate the ResourceConfig. If there is an error, it will throw an exception.
+std::vector<std::string> validate(ResourceConfig cfg) {
+    return {};
+}
 
-    cout << "Intel RealSense gRPC server" << endl;
-    if (argc == 2 && string("--help").compare(string(argv[1])) == 0) {
-        cout << "usage: intelrealgrpcserver [port_number] [color_width] [color_height] "
-                "[depth_width] [depth_height]"
-                "[--disable-depth] [--disable-color]"
-             << endl;
-        return 0;
+// initialize will use the ResourceConfigs to begin the realsense pipeline. 
+tuple<RealSenseProperties, bool, bool> initialize(ResourceConfig cfg) {
+    cout << "initializing the Intel RealSense Camera Module" << endl;
+    // set variables from config
+    int width = 0;
+    int height = 0;
+	if (cfg.attributes()->find("width") != cfg.attributes()->end()) {
+        width = cfg.attributes()->at("width");
+	}
+	if (cfg.attributes()->find("height") != cfg.attributes()->end()) {
+        height = cfg.attributes()->at("width");
+	}
+    if (width == 0 || height == 0) {
+        cout << "note: will pick any suitable width and height" << endl;
     }
-    string port = "8085";
-    int colorWidth = 0;
-    int colorHeight = 0;
-    int depthWidth = 0;
-    int depthHeight = 0;
-    if (argc > 1) {
-        port = argv[1];
+	if ((cfg.attributes()->find("debug") != cfg.attributes()->end()) && cfg.attributes()->at("debug")) {
+        DEBUG = true;
     }
-
-    auto parseIntArg = [argc, argv](const int pos, const string& name) -> tuple<int, bool> {
-        if (argc <= pos) {
-            return {0, false};
-        }
-        char* endParse;
-        auto parsed = strtol(argv[pos], &endParse, 10);
-        if (argv[pos] == endParse) {
-            cerr << "failed to parse " << name << " \"" << argv[pos] << "\"" << endl;
-            return {0, true};
-        }
-        return {parsed, false};
-    };
-
-    bool err;
-    tie(colorWidth, err) = parseIntArg(2, "color_width");
-    if (err) {
-        return 1;
-    }
-    tie(colorHeight, err) = parseIntArg(3, "color_height");
-    if (err) {
-        return 1;
-    }
-    tie(depthWidth, err) = parseIntArg(4, "depth_width");
-    if (err) {
-        return 1;
-    }
-    tie(depthHeight, err) = parseIntArg(5, "depth_height");
-    if (err) {
-        return 1;
-    }
-
-    if (colorWidth == 0 || colorHeight == 0) {
-        cout << "note: will pick any suitable color_width and color_height" << endl;
-    }
-    if (depthWidth == 0 || depthHeight == 0) {
-        cout << "note: will pick any suitable depth_width and depth_height" << endl;
-    }
-
-    bool disableDepth = false;
-    bool disableColor = false;
-    for (int i = 6; i < argc; i++) {
-        auto argVal = string(argv[i]);
-        if (string("--disable-depth").compare(argVal) == 0) {
-            disableDepth = true;
-        } else if (string("--disable-color").compare(argVal) == 0) {
-            disableColor = true;
-        } else if (string("--debug").compare(argVal) == 0) {
-            DEBUG = true;
+    bool disableDepth = true;
+    bool disableColor = true;
+    if (cfg.attributes()->find("sensors") != cfg.attributes()->end()) {
+        for (const std::string& element : cfg.attributes()->at("sensors")) {
+            if (element == "color") {
+                disableColor = false;
+            }
+            if (element == "depth") {
+                disableDepth = false;
+            }
         }
     }
-
     if (disableColor && disableDepth) {
-        cerr << "cannot disable both color and depth" << endl;
-        return 1;
+        throw std::runtime_error("cannot disable both color and depth");
     }
 
     // DeviceProperties context also holds a bool that can stop the thread if device gets
     // disconnected
-    DeviceProperties deviceProps(colorWidth, colorHeight, disableColor, depthWidth, depthHeight,
+    DeviceProperties deviceProps(width, height, disableColor, width, height,
                                  disableDepth);
 
     // First start of Pipeline
     rs2::pipeline pipe;
     RealSenseProperties props;
-    try {
-        tie(pipe, props) = startPipeline(ref(deviceProps));
-    } catch (const exception& e) {
-        cout << "caught exception: \"" << e.what() << "\"" << endl;
-        return 1;
-    }
+    tie(pipe, props) = startPipeline(ref(deviceProps));
     // First start of camera thread
+    props.mainSensor = "color";
     promise<void> ready;
     thread cameraThread(frameLoop, pipe, ref(latestFrames), ref(ready), ref(deviceProps),
                         props.depthScaleMm);
@@ -778,19 +730,59 @@ int main(const int argc, const char* argv[]) {
     rs2::context ctx;
     ctx.set_devices_changed_callback(
         [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
-
-    // Start the gRPC server
-    RobotServiceImpl robotService;
-    CameraServiceImpl cameraService(props, latestFrames, deviceProps.disableColor,
-                                    deviceProps.disableDepth);
-    const string address = "0.0.0.0:" + port;
-    ServerBuilder builder;
-    builder.AddListeningPort(address, grpc::InsecureServerCredentials());
-    builder.RegisterService(&robotService);
-    builder.RegisterService(&cameraService);
-    unique_ptr<Server> server(builder.BuildAndStart());
-
-    cout << "listening on " << address << endl;
-    server->Wait();
-    return 0;
+    return make_tuple(props, disableColor, disableDepth);
 }
+
+int serve(const std::string& socket_path) {
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGINT);
+    sigaddset(&sigset, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+
+    auto module_registration = std::make_shared<ModelRegistration>(
+        ResourceType{"RealSenseCameraService"},
+        CameraService::static_api(),
+        Model{"viam", "camera", "realsense"},
+        [](Dependencies, ResourceConfig cfg) -> std::shared_ptr<Resource> {
+            return std::make_shared<RealSenseCameraService>(cfg, ref(latestFrames));
+        },
+        [](ResourceConfig cfg) -> std::vector<std::string> { 
+            return validate(cfg); 
+        }
+	);
+
+    Registry::register_model(module_registration);
+    auto module_service = std::make_shared<ModuleService_>(socket_path);
+
+    auto server = std::make_shared<Server>();
+    module_service->add_model_from_registry(
+        server, module_registration->api(), module_registration->model());
+
+    module_service->start(server);
+
+    std::thread server_thread([&server, &sigset]() {
+        server->start();
+        int sig = 0;
+        auto result = sigwait(&sigset, &sig);
+        server->shutdown();
+    });
+
+    server->wait();
+    server_thread.join();
+
+    return EXIT_SUCCESS;
+}
+
+int main(int argc, char* argv[]) {
+    const std::string usage = "usage: camera_realsense /path/to/unix/socket";
+
+    if (argc < 2) {
+        std::cout << "ERROR: insufficient arguments\n";
+        std::cout << usage << "\n";
+        return EXIT_FAILURE;
+    }
+
+    return serve(argv[1]);
+}
+
