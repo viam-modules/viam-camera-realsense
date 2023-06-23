@@ -13,26 +13,18 @@
 #include <tuple>
 #include <vector>
 
-#include <viam/sdk/components/component.hpp>
-#include <viam/sdk/module/service.hpp>
-#include <viam/sdk/registry/registry.hpp>
-#include <viam/sdk/rpc/server.hpp>
-#include <viam/sdk/components/camera/camera.hpp>
-#include <viam/sdk/components/camera/server.hpp>
+#include "viam/sdk/components/component.hpp"
+#include "viam/sdk/module/service.hpp"
+#include "viam/sdk/registry/registry.hpp"
+#include "viam/sdk/rpc/server.hpp"
+#include "viam/sdk/components/camera/camera.hpp"
+#include "viam/sdk/components/camera/server.hpp"
 
-#include "common/v1/common.grpc.pb.h"
-#include "common/v1/common.pb.h"
-#include "component/camera/v1/camera.grpc.pb.h"
-#include "component/camera/v1/camera.pb.h"
-#include "robot/v1/robot.grpc.pb.h"
-#include "robot/v1/robot.pb.h"
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
 using namespace std;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
+using namespace viam::sdk;
 using viam::common::v1::ResourceName;
 using viam::component::camera::v1::CameraService;
 using viam::component::camera::v1::DistortionParameters;
@@ -41,9 +33,6 @@ using viam::component::camera::v1::GetImageResponse;
 using viam::component::camera::v1::GetPropertiesRequest;
 using viam::component::camera::v1::GetPropertiesResponse;
 using viam::component::camera::v1::IntrinsicParameters;
-using viam::robot::v1::ResourceNamesRequest;
-using viam::robot::v1::ResourceNamesResponse;
-using viam::robot::v1::RobotService;
 
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
@@ -122,6 +111,16 @@ const size_t depthWidthByteCount =
 const size_t depthHeightByteCount =
     sizeof(uint64_t);  // number of bytes used to represent depth image height
 
+// helper function to turn data pointer in a data vector for vsdk::raw_image
+std::vector<unsigned char> convertToVector(const unsigned char* data, size_t size) {
+    const unsigned char* begin = data;
+    const unsigned char* end = data + size;
+    std::vector<unsigned char> vec(begin, end);
+    return vec;
+}
+
+namespace vsdk = ::viam::sdk;
+
 // COLOR responses
 tuple<vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width,
                                             const int height) {
@@ -145,15 +144,15 @@ tuple<vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width
     return {encoded, true};
 }
 
-grpc::Status encodeColorPNGToResponse(GetImageResponse* response, const uint8_t* data,
+void encodeColorPNGToResponse(vsdk::raw_image* response, const uint8_t* data,
                                       const int width, const int height) {
     const auto& [encoded, ok] = encodeColorPNG(data, width, height);
     if (!ok) {
-        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to encode color PNG");
+        throw std::runtime_error("failed to encode color PNG");
     }
-    response->set_mime_type("image/png");
-    response->set_image(encoded.data(), encoded.size());
-    return grpc::Status::OK;
+    response->mime_type = "image/png";
+    response->bytes = encoded;
+    //response->bytes = std::vector<unsigned char>(encoded.data().begin(), encoded.data().end());
 }
 
 tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
@@ -183,16 +182,16 @@ tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* d
     return {encoded, encodedSize, true};
 }
 
-grpc::Status encodeJPEGToResponse(GetImageResponse* response, const unsigned char* data,
+void encodeJPEGToResponse(vsdk::raw_image* response, const unsigned char* data,
                                   const int width, const int height) {
     const auto& [encoded, encodedSize, ok] = encodeJPEG(data, width, height);
     if (!ok) {
-        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to encode color JPEG");
+        tjFree(encoded);
+        throw std::runtime_error("failed to encode color JPEG");
     }
-    response->set_mime_type("image/jpeg");
-    response->set_image(encoded, encodedSize);
+    response->mime_type = "image/jpeg";
+    response->bytes = convertToVector(encoded, encodedSize);
     tjFree(encoded);
-    return grpc::Status::OK;
 }
 
 tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, const uint32_t width,
@@ -233,17 +232,16 @@ tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, co
     return {rawBuf, totalByteCount, true};
 }
 
-grpc::Status encodeColorRAWToResponse(GetImageResponse* response, const unsigned char* data,
+void encodeColorRAWToResponse(vsdk::raw_image* response, const unsigned char* data,
                                       const uint width, const uint height) {
     const auto& [encoded, encodedSize, ok] = encodeColorRAW(data, width, height);
     if (!ok) {
         std::free(encoded);
-        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to encode color RAW");
+        throw std::runtime_error("failed to encode color RAW");
     }
-    response->set_mime_type("image/vnd.viam.rgba");
-    response->set_image(encoded, encodedSize);
+    response->mime_type = "image/vnd.viam.rgba";
+    response->bytes = convertToVector(encoded, encodedSize);
     std::free(encoded);
-    return grpc::Status::OK;
 }
 
 // DEPTH responses
@@ -272,16 +270,16 @@ tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, co
     return {encoded, encoded_size, true};
 }
 
-grpc::Status encodeDepthPNGToResponse(GetImageResponse* response, const unsigned char* data,
+void encodeDepthPNGToResponse(vsdk::raw_image* response, const unsigned char* data,
                                       const uint width, const uint height) {
     const auto& [encoded, encoded_size, ok] = encodeDepthPNG(data, width, height);
     if (!ok) {
-        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to encode depth PNG");
+        std::free(encoded);
+        throw std::runtime_error("failed to encode depth PNG");
     }
-    response->set_mime_type("image/png");
-    response->set_image(encoded, encoded_size);
+    response->mime_type = "image/png";
+    response->bytes = convertToVector(encoded, encoded_size);
     std::free(encoded);
-    return grpc::Status::OK;
 }
 
 tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, const uint64_t width,
@@ -317,21 +315,22 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
     return {rawBuf, totalByteCount, true};
 }
 
-grpc::Status encodeDepthRAWToResponse(GetImageResponse* response, const unsigned char* data,
+void encodeDepthRAWToResponse(vsdk::raw_image* response, const unsigned char* data,
                                       const uint width, const uint height) {
     const auto& [encoded, encodedSize, ok] = encodeDepthRAW(data, width, height);
     if (!ok) {
         std::free(encoded);
-        return grpc::Status(grpc::StatusCode::INTERNAL, "failed to encode depth RAW");
+        throw std::runtime_error("failed to encode depth RAW");
     }
-    response->set_mime_type("image/vnd.viam.dep");
-    response->set_image(encoded, encodedSize);
+    response->mime_type = "image/vnd.viam.dep";
+    response->bytes = convertToVector(encoded, encodedSize);
     std::free(encoded);
-    return grpc::Status::OK;
 }
 
+constexpr char service_name[] = "cameraservice_realsense";
+
 // CAMERA service
-class RealSenseCameraService final : public CameraService::Service, public Component {
+class RealSenseCameraService : public vsdk::CameraService {
    private:
     RealSenseProperties props;
     AtomicFrameSet& frameSet;
@@ -339,23 +338,16 @@ class RealSenseCameraService final : public CameraService::Service, public Compo
     const bool disableDepth;
 
    public:
-	RealSenseCameraService(ResourceConfig cfg, AtomicFrameSet& fs) {
+	explicit RealSenseCameraService(vsdk::ResourceConfig cfg, AtomicFrameSet& fs) {
         frameSet = fs;
         tie(props, disableColor, disableDepth) = initialize(cfg);
     }
 
-    void reconfigure(Dependencies deps, ResourceConfig cfg) override {
+    void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
         tie(props, disableColor, disableDepth) = initialize(cfg);
     }
 
-    API dynamic_api() const override {
-        return Camera::static_api();
-    }
-
-    ::grpc::Status GetImage(ServerContext* context, const GetImageRequest* request,
-                            GetImageResponse* response) override {
-        const string reqMimeType = request->mime_type();
-
+    vsdk::raw_image get_image(std::string mime_type) override {
         auto start = chrono::high_resolution_clock::now();
 
         // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
@@ -365,31 +357,32 @@ class RealSenseCameraService final : public CameraService::Service, public Compo
         auto latestDepthFrame = this->frameSet.depthFrame;
         this->frameSet.mutex.unlock();
 
+        vsdk::raw_image response{};
         if (props.mainSensor.compare("color") == 0) {
             if (this->disableColor) {
-                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "color disabled");
+                throw std::invalid_argument("color disabled");
             }
-            if (reqMimeType.compare("image/png") == 0 ||
-                reqMimeType.compare("image/png+lazy") == 0) {
-                encodeColorPNGToResponse(response, (const uint8_t*)latestColorFrame.get_data(),
+            if (mime_type.compare("image/png") == 0 ||
+                mime_type.compare("image/png+lazy") == 0) {
+                encodeColorPNGToResponse(std::ref(response), (const uint8_t*)latestColorFrame.get_data(),
                                          this->props.color.width, this->props.color.height);
-            } else if (reqMimeType.compare("image/vnd.viam.rgba") == 0) {
-                encodeColorRAWToResponse(response,
+            } else if (mime_type.compare("image/vnd.viam.rgba") == 0) {
+                encodeColorRAWToResponse(ref(response),
                                          (const unsigned char*)latestColorFrame.get_data(),
                                          this->props.color.width, this->props.color.height);
             } else {
-                encodeJPEGToResponse(response, (const unsigned char*)latestColorFrame.get_data(),
+                encodeJPEGToResponse(ref(response), (const unsigned char*)latestColorFrame.get_data(),
                                      this->props.color.width, this->props.color.height);
             }
         } else if (props.mainSensor.compare("depth") == 0) {
             if (this->disableDepth) {
-                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "depth disabled");
+                throw std::invalud_argument("depth disabled");
             }
-            if (reqMimeType.compare("image/vnd.viam.dep") == 0) {
-                encodeDepthRAWToResponse(response, (const unsigned char*)latestDepthFrame->data(),
+            if (mime_type.compare("image/vnd.viam.dep") == 0) {
+                encodeDepthRAWToResponse(ref(response), (const unsigned char*)latestDepthFrame->data(),
                                          this->props.depth.width, this->props.depth.height);
             } else {
-                encodeDepthPNGToResponse(response, (const unsigned char*)latestDepthFrame->data(),
+                encodeDepthPNGToResponse(ref(response), (const unsigned char*)latestDepthFrame->data(),
                                          this->props.depth.width, this->props.depth.height);
             }
         }
@@ -397,39 +390,40 @@ class RealSenseCameraService final : public CameraService::Service, public Compo
         if (DEBUG) {
             auto stop = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-            cout << "[GetImage]  total:           " << duration.count() << "ms\n";
+            cout << "[get_image]  total:           " << duration.count() << "ms\n";
         }
 
-        return grpc::Status::OK;
+        return response;
     }
 
-    ::grpc::Status GetProperties(ServerContext* context, const GetPropertiesRequest* request,
-                                 GetPropertiesResponse* response) override {
+    vsdk::properties get_properties() override {
+        vsdk::properties response{};
         IntrinsicParameters* intrinsics = response->mutable_intrinsic_parameters();
         DistortionParameters* distortion = response->mutable_distortion_parameters();
 
 
         auto fillResp = [response, intrinsics, distortion](auto props, bool supportsPCD) {
-            response->set_supports_pcd(supportsPCD);
-            intrinsics->set_width_px(props.width);
-            intrinsics->set_height_px(props.height);
-            intrinsics->set_focal_x_px(props.fx);
-            intrinsics->set_focal_y_px(props.fy);
-            intrinsics->set_center_x_px(props.ppx);
-            intrinsics->set_center_y_px(props.ppy);
-            distortion->set_model(props.distortionModel);
+            response.supports_pcd = supportsPCD;
+            response.intrinsic_parameters.width_px = props.width;
+            response.intrinsic_parameters.height_px = props.height;
+            response.intrinsic_parameters.focal_x_px = props.fx;
+            response.intrinsic_parameters.focal_y_px = props.fy;
+            response.intrinsic_parameters.center_x_px = props.ppx;
+            response.intrinsic_parameters.center_y_px = props.ppy;
+            response.distortion_parameters.model = props.distortionModel;
             for (int i = 0; i < 5; i++) {
-                distortion->add_parameters(props.distortionParameters[i]);
+                response.distortion_parameters.parameters.push_back(props.distortionParameters[i]);
             }
         };
 
+        // pcd enabling will be a config parameter, for now, just put false
         if (props.mainSensor.compare("color") == 0) {
             fillResp(this->props.color, false);
         } else if (props.mainSensor.compare("depth") == 0) {
-            fillResp(this->props.depth, true);
+            fillResp(this->props.depth, false);
         }
 
-        return grpc::Status::OK;
+        return response;
     }
 };
 
@@ -740,22 +734,22 @@ int serve(const std::string& socket_path) {
     sigaddset(&sigset, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
-    auto module_registration = std::make_shared<ModelRegistration>(
-        ResourceType{"RealSenseCameraService"},
-        CameraService::static_api(),
-        Model{"viam", "camera", "realsense"},
-        [](Dependencies, ResourceConfig cfg) -> std::shared_ptr<Resource> {
-            return std::make_shared<RealSenseCameraService>(cfg, ref(latestFrames));
+    auto module_registration = std::make_shared<vsdk::ModelRegistration>(
+        vsdk::ResourceType{"RealSenseCameraService"},
+        vsdk::CameraService::static_api(),
+        vsdk::Model{"viam", "camera", "realsense"},
+        [](vsdk::Dependencies, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
+            return std::make_shared<RealSenseCameraService>(cfg, std::ref(latestFrames));
         },
-        [](ResourceConfig cfg) -> std::vector<std::string> { 
+        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { 
             return validate(cfg); 
         }
 	);
 
-    Registry::register_model(module_registration);
-    auto module_service = std::make_shared<ModuleService_>(socket_path);
+    vsdk::Registry::register_model(module_registration);
+    auto module_service = std::make_shared<vsdk::ModuleService_>(socket_path);
 
-    auto server = std::make_shared<Server>();
+    auto server = std::make_shared<vsdk::Server>();
     module_service->add_model_from_registry(
         server, module_registration->api(), module_registration->model());
 

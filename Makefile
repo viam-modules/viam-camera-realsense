@@ -19,7 +19,6 @@ ifeq ($(UNAME), Darwin)
 	# There's a strange bug in the realsense pc file that adds this when it's not necessary at all
 	# when brew is in use. This may break something in the future.
    LIB_FLAGS := $(LIB_FLAGS:-L/usr/local/lib/x86_64-linux-gnu=)
-   include *.make
 endif
 
 GRPC_DIR = ./
@@ -34,6 +33,8 @@ GRPC_DIR=./grpc/cpp/gen
 endif
 endif
 
+SDK_DIR = ./viam-cpp-sdk/src
+
 ifeq ($(shell arch), x86_64)
    GCC_FLAGS += -mpclmul -msse2 -msse4.2
 endif
@@ -45,7 +46,7 @@ GEN_SOURCES += $(GRPC_DIR)/google/api/annotations.pb.cc $(GRPC_DIR)/google/api/h
 GEN_SOURCES += $(GRPC_DIR)/google/api/http.pb.cc
 THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp
 
-default: camerarealsense-release-opt
+default: intelrealgrpcserver-release-opt
 
 format: *.cpp
 	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" *.cpp
@@ -53,7 +54,7 @@ format: *.cpp
 all: default
 
 clean:
-	rm -rf camerarealsense
+	rm -rf intelrealgrpcserver
 
 clean-all: clean
 	git clean -fxd
@@ -74,21 +75,21 @@ $(TOOL_BIN)/protoc-gen-grpc-cpp:
 
 SERVER_TARGETS = $(THIRD_PARTY_SOURCES) $(GEN_SOURCES) camera_realsense.cpp
 CPP_COMPILER = g++
-CPP_FLAGS = -std=c++17 -o camerarealsense -I$(GRPC_DIR) camera_realsense.cpp $(THIRD_PARTY_SOURCES) $(GEN_SOURCES) $(LIB_FLAGS) $(GCC_FLAGS)
+CPP_FLAGS = -std=c++17 -o intelrealgrpcserver -I$(SDK_DIR) -I$(GRPC_DIR) camera_realsense.cpp $(THIRD_PARTY_SOURCES) $(GEN_SOURCES) $(LIB_FLAGS) $(GCC_FLAGS)
 
-camerarealsense: $(SERVER_TARGETS)
+intelrealgrpcserver: $(SERVER_TARGETS)
 	$(CPP_COMPILER) $(CPP_FLAGS_EXTRA) $(CPP_FLAGS)
 
-camerarealsense-debug: CPP_FLAGS_EXTRA = -pg
-camerarealsense-debug: camerarealsense
+intelrealgrpcserver-debug: CPP_FLAGS_EXTRA = -pg
+intelrealgrpcserver-debug: intelrealgrpcserver
 
-camerarealsense-release: camerarealsense
+intelrealgrpcserver-release: intelrealgrpcserver
 
-camerarealsense-release-opt: CPP_FLAGS_EXTRA = -O3
-camerarealsense-release-opt: camerarealsense
+intelrealgrpcserver-release-opt: CPP_FLAGS_EXTRA = -O3
+intelrealgrpcserver-release-opt: intelrealgrpcserver
 
 appimages: clean default
-	cd packaging/appimages && appimage-builder --recipe camerarealsense-`uname -m`.yml
+	cd packaging/appimages && appimage-builder --recipe intelrealgrpcserver-`uname -m`.yml
 	mkdir -p packaging/appimages/deploy/
 	mv packaging/appimages/*.AppImage* packaging/appimages/deploy/
 	chmod 755 packaging/appimages/deploy/*.AppImage
