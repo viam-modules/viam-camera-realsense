@@ -12,30 +12,23 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-
-#include "viam/sdk/components/component.hpp"
-#include "viam/sdk/module/service.hpp"
-#include "viam/sdk/registry/registry.hpp"
-#include "viam/sdk/rpc/server.hpp"
-#include "viam/sdk/components/camera/camera.hpp"
-#include "viam/sdk/components/camera/server.hpp"
+#include <viam/sdk/components/camera/camera.hpp>
+#include <viam/sdk/components/camera/server.hpp>
+#include <viam/sdk/components/component.hpp>
+#include <viam/sdk/module/service.hpp>
+#include <viam/sdk/registry/registry.hpp>
+#include <viam/sdk/rpc/server.hpp>
 
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
-using namespace std;
-using namespace viam::sdk;
-using viam::common::v1::ResourceName;
-using viam::component::camera::v1::CameraService;
-using viam::component::camera::v1::DistortionParameters;
-using viam::component::camera::v1::GetImageRequest;
-using viam::component::camera::v1::GetImageResponse;
-using viam::component::camera::v1::GetPropertiesRequest;
-using viam::component::camera::v1::GetPropertiesResponse;
-using viam::component::camera::v1::IntrinsicParameters;
-
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
+
+
+using namespace std;
+using namespace viam::sdk;
+namespace vsdk = ::viam::sdk;
 
 struct DeviceProperties {
     const int colorWidth;
@@ -111,15 +104,13 @@ const size_t depthWidthByteCount =
 const size_t depthHeightByteCount =
     sizeof(uint64_t);  // number of bytes used to represent depth image height
 
-// helper function to turn data pointer in a data vector for vsdk::raw_image
+// helper function to turn data pointer in a data vector for raw_image
 std::vector<unsigned char> convertToVector(const unsigned char* data, size_t size) {
     const unsigned char* begin = data;
     const unsigned char* end = data + size;
     std::vector<unsigned char> vec(begin, end);
     return vec;
-}
-
-namespace vsdk = ::viam::sdk;
+};
 
 // COLOR responses
 tuple<vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width,
@@ -142,18 +133,21 @@ tuple<vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width
     }
 
     return {encoded, true};
-}
+};
 
-void encodeColorPNGToResponse(vsdk::raw_image* response, const uint8_t* data,
-                                      const int width, const int height) {
+std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t* data,
+                                                                  const int width,
+                                                                  const int height) {
     const auto& [encoded, ok] = encodeColorPNG(data, width, height);
     if (!ok) {
         throw std::runtime_error("failed to encode color PNG");
     }
+    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/png";
     response->bytes = encoded;
-    //response->bytes = std::vector<unsigned char>(encoded.data().begin(), encoded.data().end());
-}
+    return response;
+    // response->bytes = std::vector<unsigned char>(encoded.data().begin(), encoded.data().end());
+};
 
 tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
                                                           const int width, const int height) {
@@ -180,19 +174,20 @@ tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* d
     }
 
     return {encoded, encodedSize, true};
-}
+};
 
-void encodeJPEGToResponse(vsdk::raw_image* response, const unsigned char* data,
-                                  const int width, const int height) {
+std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
+                                                              const int width, const int height) {
     const auto& [encoded, encodedSize, ok] = encodeJPEG(data, width, height);
     if (!ok) {
         tjFree(encoded);
         throw std::runtime_error("failed to encode color JPEG");
     }
+    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/jpeg";
     response->bytes = convertToVector(encoded, encodedSize);
-    tjFree(encoded);
-}
+    return response;
+};
 
 tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, const uint32_t width,
                                                    const uint32_t height) {
@@ -230,19 +225,21 @@ tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, co
     }
 
     return {rawBuf, totalByteCount, true};
-}
+};
 
-void encodeColorRAWToResponse(vsdk::raw_image* response, const unsigned char* data,
-                                      const uint width, const uint height) {
+std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
+                                                                  const uint width,
+                                                                  const uint height) {
     const auto& [encoded, encodedSize, ok] = encodeColorRAW(data, width, height);
     if (!ok) {
         std::free(encoded);
         throw std::runtime_error("failed to encode color RAW");
     }
+    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/vnd.viam.rgba";
     response->bytes = convertToVector(encoded, encodedSize);
-    std::free(encoded);
-}
+    return response;
+};
 
 // DEPTH responses
 tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, const uint width,
@@ -268,19 +265,21 @@ tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, co
     }
 
     return {encoded, encoded_size, true};
-}
+};
 
-void encodeDepthPNGToResponse(vsdk::raw_image* response, const unsigned char* data,
-                                      const uint width, const uint height) {
+std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
+                                                                  const uint width,
+                                                                  const uint height) {
     const auto& [encoded, encoded_size, ok] = encodeDepthPNG(data, width, height);
     if (!ok) {
         std::free(encoded);
         throw std::runtime_error("failed to encode depth PNG");
     }
+    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/png";
     response->bytes = convertToVector(encoded, encoded_size);
-    std::free(encoded);
-}
+    return response;
+};
 
 tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, const uint64_t width,
                                                    const uint64_t height) {
@@ -313,24 +312,88 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
     }
 
     return {rawBuf, totalByteCount, true};
-}
+};
 
-void encodeDepthRAWToResponse(vsdk::raw_image* response, const unsigned char* data,
-                                      const uint width, const uint height) {
+std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
+                                                                  const uint width,
+                                                                  const uint height) {
     const auto& [encoded, encodedSize, ok] = encodeDepthRAW(data, width, height);
     if (!ok) {
         std::free(encoded);
         throw std::runtime_error("failed to encode depth RAW");
     }
+    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/vnd.viam.dep";
     response->bytes = convertToVector(encoded, encodedSize);
-    std::free(encoded);
+    return response;
+};
+
+// Loop functions
+
+// initialize will use the ResourceConfigs to begin the realsense pipeline.
+tuple<RealSenseProperties, bool, bool> initialize(ResourceConfig cfg) {
+    cout << "initializing the Intel RealSense Camera Module" << endl;
+    // set variables from config
+    int width = 0;
+    int height = 0;
+    if (cfg.attributes()->find("width") != cfg.attributes()->end()) {
+        width = cfg.attributes()->at("width");
+    }
+    if (cfg.attributes()->find("height") != cfg.attributes()->end()) {
+        height = cfg.attributes()->at("width");
+    }
+    if (width == 0 || height == 0) {
+        cout << "note: will pick any suitable width and height" << endl;
+    }
+    if ((cfg.attributes()->find("debug") != cfg.attributes()->end()) &&
+        cfg.attributes()->at("debug")) {
+        DEBUG = true;
+    }
+    bool disableDepth = true;
+    bool disableColor = true;
+    if (cfg.attributes()->find("sensors") != cfg.attributes()->end()) {
+        for (const std::string& element : cfg.attributes()->at("sensors")) {
+            if (element == "color") {
+                disableColor = false;
+            }
+            if (element == "depth") {
+                disableDepth = false;
+            }
+        }
+    }
+    if (disableColor && disableDepth) {
+        throw std::runtime_error("cannot disable both color and depth");
+    }
+
+    // DeviceProperties context also holds a bool that can stop the thread if device gets
+    // disconnected
+    DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
+
+    // First start of Pipeline
+    rs2::pipeline pipe;
+    RealSenseProperties props;
+    tie(pipe, props) = startPipeline(ref(deviceProps));
+    // First start of camera thread
+    props.mainSensor = "color";
+    promise<void> ready;
+    thread cameraThread(frameLoop, pipe, ref(latestFrames), ref(ready), ref(deviceProps),
+                        props.depthScaleMm);
+    cout << "waiting for camera frame loop thread to be ready..." << flush;
+    ready.get_future().wait();
+    cout << " ready!" << endl;
+    // start the callback function that will look for camera disconnects and reconnects.
+    // on reconnects, it will close and restart the pipeline and thread.
+    rs2::context ctx;
+    ctx.set_devices_changed_callback(
+        [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
+    return make_tuple(props, disableColor, disableDepth);
 }
 
-constexpr char service_name[] = "cameraservice_realsense";
 
-// CAMERA service
-class RealSenseCameraService : public vsdk::CameraService {
+constexpr char service_name[] = "camera_realsense";
+
+// CAMERA module
+class CameraRealSense : public vsdk::Camera {
    private:
     RealSenseProperties props;
     AtomicFrameSet& frameSet;
@@ -338,7 +401,7 @@ class RealSenseCameraService : public vsdk::CameraService {
     const bool disableDepth;
 
    public:
-	explicit RealSenseCameraService(vsdk::ResourceConfig cfg, AtomicFrameSet& fs) {
+    explicit CameraRealSense(vsdk::ResourceConfig cfg, AtomicFrameSet& fs) {
         frameSet = fs;
         tie(props, disableColor, disableDepth) = initialize(cfg);
     }
@@ -347,7 +410,7 @@ class RealSenseCameraService : public vsdk::CameraService {
         tie(props, disableColor, disableDepth) = initialize(cfg);
     }
 
-    vsdk::raw_image get_image(std::string mime_type) override {
+    vsdk::Camera::raw_image get_image(std::string mime_type) override {
         auto start = chrono::high_resolution_clock::now();
 
         // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
@@ -357,33 +420,35 @@ class RealSenseCameraService : public vsdk::CameraService {
         auto latestDepthFrame = this->frameSet.depthFrame;
         this->frameSet.mutex.unlock();
 
-        vsdk::raw_image response{};
+        std::unique_ptr<vsdk::Camera::raw_image> response;
         if (props.mainSensor.compare("color") == 0) {
             if (this->disableColor) {
                 throw std::invalid_argument("color disabled");
             }
-            if (mime_type.compare("image/png") == 0 ||
-                mime_type.compare("image/png+lazy") == 0) {
-                encodeColorPNGToResponse(std::ref(response), (const uint8_t*)latestColorFrame.get_data(),
-                                         this->props.color.width, this->props.color.height);
+            if (mime_type.compare("image/png") == 0 || mime_type.compare("image/png+lazy") == 0) {
+                response =
+                    encodeColorPNGToResponse((const uint8_t*)latestColorFrame.get_data(),
+                                             this->props.color.width, this->props.color.height);
             } else if (mime_type.compare("image/vnd.viam.rgba") == 0) {
-                encodeColorRAWToResponse(ref(response),
-                                         (const unsigned char*)latestColorFrame.get_data(),
-                                         this->props.color.width, this->props.color.height);
+                response =
+                    encodeColorRAWToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                             this->props.color.width, this->props.color.height);
             } else {
-                encodeJPEGToResponse(ref(response), (const unsigned char*)latestColorFrame.get_data(),
-                                     this->props.color.width, this->props.color.height);
+                response = encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                                this->props.color.width, this->props.color.height);
             }
         } else if (props.mainSensor.compare("depth") == 0) {
             if (this->disableDepth) {
-                throw std::invalud_argument("depth disabled");
+                throw std::invalid_argument("depth disabled");
             }
             if (mime_type.compare("image/vnd.viam.dep") == 0) {
-                encodeDepthRAWToResponse(ref(response), (const unsigned char*)latestDepthFrame->data(),
-                                         this->props.depth.width, this->props.depth.height);
+                response =
+                    encodeDepthRAWToResponse((const unsigned char*)latestDepthFrame->data(),
+                                             this->props.depth.width, this->props.depth.height);
             } else {
-                encodeDepthPNGToResponse(ref(response), (const unsigned char*)latestDepthFrame->data(),
-                                         this->props.depth.width, this->props.depth.height);
+                response =
+                    encodeDepthPNGToResponse((const unsigned char*)latestDepthFrame->data(),
+                                             this->props.depth.width, this->props.depth.height);
             }
         }
 
@@ -393,14 +458,13 @@ class RealSenseCameraService : public vsdk::CameraService {
             cout << "[get_image]  total:           " << duration.count() << "ms\n";
         }
 
-        return response;
+        return *response;
     }
 
-    vsdk::properties get_properties() override {
-        vsdk::properties response{};
+    vsdk::Camera::properties get_properties() override {
+        vsdk::Camera::properties response{};
         IntrinsicParameters* intrinsics = response->mutable_intrinsic_parameters();
         DistortionParameters* distortion = response->mutable_distortion_parameters();
-
 
         auto fillResp = [response, intrinsics, distortion](auto props, bool supportsPCD) {
             response.supports_pcd = supportsPCD;
@@ -524,7 +588,6 @@ void frameLoop(rs2::pipeline pipeline, AtomicFrameSet& frameSet, promise<void>& 
         }
     }
 };
-
 
 // gives the pixel to mm conversion for the depth sensor
 float getDepthScale(rs2::device dev) {
@@ -665,68 +728,7 @@ void on_device_reconnect(rs2::event_information& info, DeviceProperties& context
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
-std::vector<std::string> validate(ResourceConfig cfg) {
-    return {};
-}
-
-// initialize will use the ResourceConfigs to begin the realsense pipeline. 
-tuple<RealSenseProperties, bool, bool> initialize(ResourceConfig cfg) {
-    cout << "initializing the Intel RealSense Camera Module" << endl;
-    // set variables from config
-    int width = 0;
-    int height = 0;
-	if (cfg.attributes()->find("width") != cfg.attributes()->end()) {
-        width = cfg.attributes()->at("width");
-	}
-	if (cfg.attributes()->find("height") != cfg.attributes()->end()) {
-        height = cfg.attributes()->at("width");
-	}
-    if (width == 0 || height == 0) {
-        cout << "note: will pick any suitable width and height" << endl;
-    }
-	if ((cfg.attributes()->find("debug") != cfg.attributes()->end()) && cfg.attributes()->at("debug")) {
-        DEBUG = true;
-    }
-    bool disableDepth = true;
-    bool disableColor = true;
-    if (cfg.attributes()->find("sensors") != cfg.attributes()->end()) {
-        for (const std::string& element : cfg.attributes()->at("sensors")) {
-            if (element == "color") {
-                disableColor = false;
-            }
-            if (element == "depth") {
-                disableDepth = false;
-            }
-        }
-    }
-    if (disableColor && disableDepth) {
-        throw std::runtime_error("cannot disable both color and depth");
-    }
-
-    // DeviceProperties context also holds a bool that can stop the thread if device gets
-    // disconnected
-    DeviceProperties deviceProps(width, height, disableColor, width, height,
-                                 disableDepth);
-
-    // First start of Pipeline
-    rs2::pipeline pipe;
-    RealSenseProperties props;
-    tie(pipe, props) = startPipeline(ref(deviceProps));
-    // First start of camera thread
-    props.mainSensor = "color";
-    promise<void> ready;
-    thread cameraThread(frameLoop, pipe, ref(latestFrames), ref(ready), ref(deviceProps),
-                        props.depthScaleMm);
-    cout << "waiting for camera frame loop thread to be ready..." << flush;
-    ready.get_future().wait();
-    cout << " ready!" << endl;
-    // start the callback function that will look for camera disconnects and reconnects.
-    // on reconnects, it will close and restart the pipeline and thread.
-    rs2::context ctx;
-    ctx.set_devices_changed_callback(
-        [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
-    return make_tuple(props, disableColor, disableDepth);
-}
+std::vector<std::string> validate(ResourceConfig cfg) { return {}; }
 
 int serve(const std::string& socket_path) {
     sigset_t sigset;
@@ -736,23 +738,19 @@ int serve(const std::string& socket_path) {
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     auto module_registration = std::make_shared<vsdk::ModelRegistration>(
-        vsdk::ResourceType{"RealSenseCameraService"},
-        vsdk::CameraService::static_api(),
+        vsdk::ResourceType{"CameraRealSense"}, vsdk::CameraService::static_api(),
         vsdk::Model{"viam", "camera", "realsense"},
         [](vsdk::Dependencies, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
-            return std::make_shared<RealSenseCameraService>(cfg, std::ref(latestFrames));
+            return std::make_shared<CameraRealSense>(cfg, std::ref(latestFrames));
         },
-        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { 
-            return validate(cfg); 
-        }
-	);
+        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
 
     vsdk::Registry::register_model(module_registration);
     auto module_service = std::make_shared<vsdk::ModuleService_>(socket_path);
 
     auto server = std::make_shared<vsdk::Server>();
-    module_service->add_model_from_registry(
-        server, module_registration->api(), module_registration->model());
+    module_service->add_model_from_registry(server, module_registration->api(),
+                                            module_registration->model());
 
     module_service->start(server);
 
@@ -780,4 +778,3 @@ int main(int argc, char* argv[]) {
 
     return serve(argv[1]);
 }
-
