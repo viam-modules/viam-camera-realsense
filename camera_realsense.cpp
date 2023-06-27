@@ -4,11 +4,15 @@
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
+#include <pthread.h>
+#include <signal.h>
 #include <turbojpeg.h>
 
 #include <future>
 #include <iostream>
 #include <librealsense2/rs.hpp>
+#include <mutex>
+#include <stdexcept>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -24,7 +28,6 @@
 
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
-
 
 using namespace std;
 using namespace viam::sdk;
@@ -83,7 +86,7 @@ struct AtomicFrameSet {
 };
 
 // Global AtomicFrameSet
-AtomicFrameSet latestFrames;
+AtomicFrameSet GLOBAL_LATEST_FRAMES;
 
 bool DEBUG = false;
 const uint32_t rgbaMagicNumber =
@@ -330,172 +333,11 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
 
 // Loop functions
 
-// initialize will use the ResourceConfigs to begin the realsense pipeline.
-tuple<RealSenseProperties, bool, bool> initialize(ResourceConfig cfg) {
-    cout << "initializing the Intel RealSense Camera Module" << endl;
-    // set variables from config
-    int width = 0;
-    int height = 0;
-    if (cfg.attributes()->find("width") != cfg.attributes()->end()) {
-        width = cfg.attributes()->at("width");
-    }
-    if (cfg.attributes()->find("height") != cfg.attributes()->end()) {
-        height = cfg.attributes()->at("width");
-    }
-    if (width == 0 || height == 0) {
-        cout << "note: will pick any suitable width and height" << endl;
-    }
-    if ((cfg.attributes()->find("debug") != cfg.attributes()->end()) &&
-        cfg.attributes()->at("debug")) {
-        DEBUG = true;
-    }
-    bool disableDepth = true;
-    bool disableColor = true;
-    if (cfg.attributes()->find("sensors") != cfg.attributes()->end()) {
-        for (const std::string& element : cfg.attributes()->at("sensors")) {
-            if (element == "color") {
-                disableColor = false;
-            }
-            if (element == "depth") {
-                disableDepth = false;
-            }
-        }
-    }
-    if (disableColor && disableDepth) {
-        throw std::runtime_error("cannot disable both color and depth");
-    }
-
-    // DeviceProperties context also holds a bool that can stop the thread if device gets
-    // disconnected
-    DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
-
-    // First start of Pipeline
-    rs2::pipeline pipe;
-    RealSenseProperties props;
-    tie(pipe, props) = startPipeline(ref(deviceProps));
-    // First start of camera thread
-    props.mainSensor = "color";
-    promise<void> ready;
-    thread cameraThread(frameLoop, pipe, ref(latestFrames), ref(ready), ref(deviceProps),
-                        props.depthScaleMm);
-    cout << "waiting for camera frame loop thread to be ready..." << flush;
-    ready.get_future().wait();
-    cout << " ready!" << endl;
-    // start the callback function that will look for camera disconnects and reconnects.
-    // on reconnects, it will close and restart the pipeline and thread.
-    rs2::context ctx;
-    ctx.set_devices_changed_callback(
-        [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
-    return make_tuple(props, disableColor, disableDepth);
-}
-
-
-constexpr char service_name[] = "camera_realsense";
-
-// CAMERA module
-class CameraRealSense : public vsdk::Camera {
-   private:
-    RealSenseProperties props;
-    AtomicFrameSet& frameSet;
-    const bool disableColor;
-    const bool disableDepth;
-
-   public:
-    explicit CameraRealSense(vsdk::ResourceConfig cfg, AtomicFrameSet& fs) {
-        frameSet = fs;
-        tie(props, disableColor, disableDepth) = initialize(cfg);
-    }
-
-    void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
-        tie(props, disableColor, disableDepth) = initialize(cfg);
-    }
-
-    vsdk::Camera::raw_image get_image(std::string mime_type) override {
-        auto start = chrono::high_resolution_clock::now();
-
-        // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
-        // are ahead of the frame loop.
-        this->frameSet.mutex.lock();
-        auto latestColorFrame = this->frameSet.colorFrame;
-        auto latestDepthFrame = this->frameSet.depthFrame;
-        this->frameSet.mutex.unlock();
-
-        std::unique_ptr<vsdk::Camera::raw_image> response;
-        if (props.mainSensor.compare("color") == 0) {
-            if (this->disableColor) {
-                throw std::invalid_argument("color disabled");
-            }
-            if (mime_type.compare("image/png") == 0 || mime_type.compare("image/png+lazy") == 0) {
-                response =
-                    encodeColorPNGToResponse((const uint8_t*)latestColorFrame.get_data(),
-                                             this->props.color.width, this->props.color.height);
-            } else if (mime_type.compare("image/vnd.viam.rgba") == 0) {
-                response =
-                    encodeColorRAWToResponse((const unsigned char*)latestColorFrame.get_data(),
-                                             this->props.color.width, this->props.color.height);
-            } else {
-                response = encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
-                                                this->props.color.width, this->props.color.height);
-            }
-        } else if (props.mainSensor.compare("depth") == 0) {
-            if (this->disableDepth) {
-                throw std::invalid_argument("depth disabled");
-            }
-            if (mime_type.compare("image/vnd.viam.dep") == 0) {
-                response =
-                    encodeDepthRAWToResponse((const unsigned char*)latestDepthFrame->data(),
-                                             this->props.depth.width, this->props.depth.height);
-            } else {
-                response =
-                    encodeDepthPNGToResponse((const unsigned char*)latestDepthFrame->data(),
-                                             this->props.depth.width, this->props.depth.height);
-            }
-        }
-
-        if (DEBUG) {
-            auto stop = chrono::high_resolution_clock::now();
-            auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-            cout << "[get_image]  total:           " << duration.count() << "ms\n";
-        }
-
-        return *response;
-    }
-
-    vsdk::Camera::properties get_properties() override {
-        vsdk::Camera::properties response{};
-        IntrinsicParameters* intrinsics = response->mutable_intrinsic_parameters();
-        DistortionParameters* distortion = response->mutable_distortion_parameters();
-
-        auto fillResp = [response, intrinsics, distortion](auto props, bool supportsPCD) {
-            response.supports_pcd = supportsPCD;
-            response.intrinsic_parameters.width_px = props.width;
-            response.intrinsic_parameters.height_px = props.height;
-            response.intrinsic_parameters.focal_x_px = props.fx;
-            response.intrinsic_parameters.focal_y_px = props.fy;
-            response.intrinsic_parameters.center_x_px = props.ppx;
-            response.intrinsic_parameters.center_y_px = props.ppy;
-            response.distortion_parameters.model = props.distortionModel;
-            for (int i = 0; i < 5; i++) {
-                response.distortion_parameters.parameters.push_back(props.distortionParameters[i]);
-            }
-        };
-
-        // pcd enabling will be a config parameter, for now, just put false
-        if (props.mainSensor.compare("color") == 0) {
-            fillResp(this->props.color, false);
-        } else if (props.mainSensor.compare("depth") == 0) {
-            fillResp(this->props.depth, false);
-        }
-
-        return response;
-    }
-};
-
 // align to the color camera's origin when color and depth enabled
 const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 
-void frameLoop(rs2::pipeline pipeline, AtomicFrameSet& frameSet, promise<void>& ready,
-               DeviceProperties& deviceProps, float depthScaleMm) {
+void frameLoop(rs2::pipeline pipeline, promise<void>& ready, DeviceProperties& deviceProps,
+               float depthScaleMm) {
     bool readyOnce = false;
     {
         std::lock_guard<std::mutex> lock(deviceProps.mutex);
@@ -571,10 +413,10 @@ void frameLoop(rs2::pipeline pipeline, AtomicFrameSet& frameSet, promise<void>& 
                 }
             }
         }
-        frameSet.mutex.lock();
-        frameSet.colorFrame = frames.get_color_frame();
-        frameSet.depthFrame = move(depthFrameScaled);
-        frameSet.mutex.unlock();
+        GLOBAL_LATEST_FRAMES.mutex.lock();
+        GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
+        GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
+        GLOBAL_LATEST_FRAMES.mutex.unlock();
 
         if (DEBUG) {
             auto stop = chrono::high_resolution_clock::now();
@@ -712,8 +554,7 @@ void on_device_reconnect(rs2::event_information& info, DeviceProperties& context
         }
         // Start the camera thread
         promise<void> ready;
-        thread cameraThread(frameLoop, pipeline, ref(latestFrames), ref(ready), ref(context),
-                            props.depthScaleMm);
+        thread cameraThread(frameLoop, pipeline, ref(ready), ref(context), props.depthScaleMm);
         cout << "waiting for camera frame loop thread to be ready..." << flush;
         ready.get_future().wait();
         cout << " ready!" << endl;
@@ -727,8 +568,210 @@ void on_device_reconnect(rs2::event_information& info, DeviceProperties& context
     }
 };
 
+// initialize will use the ResourceConfigs to begin the realsense pipeline.
+tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
+    cout << "initializing the Intel RealSense Camera Module" << endl;
+    // set variables from config
+    int width = 0;
+    int height = 0;
+    auto attrs = cfg.attributes();
+    if (attrs->count("width_px") == 1) {
+        std::shared_ptr<ProtoType> width_proto = attrs->at("width_px");
+        auto width_value = width_proto->proto_value();
+        if (width_value.has_number_value()) {
+            int width_num = static_cast<int>(width_value.number_value());
+            width = width_num;
+        }
+    }
+    if (attrs->count("height_px") == 1) {
+        std::shared_ptr<ProtoType> height_proto = attrs->at("height_px");
+        auto height_value = height_proto->proto_value();
+        if (height_value.has_number_value()) {
+            int height_num = static_cast<int>(height_value.number_value());
+            height = height_num;
+        }
+    }
+    if (width == 0 || height == 0) {
+        cout << "note: will pick any suitable width and height" << endl;
+    }
+    if (attrs->count("debug") == 1) {
+        std::shared_ptr<ProtoType> debug_proto = attrs->at("debug");
+        auto debug_value = debug_proto->proto_value();
+        if (debug_value.has_bool_value()) {
+            bool debug_bool = static_cast<bool>(debug_value.bool_value());
+            DEBUG = debug_bool;
+        }
+    }
+    bool disableDepth = true;
+    bool disableColor = true;
+    std::vector<std::string> sensors;
+    if (attrs->count("sensors") == 1) {
+        std::shared_ptr<ProtoType> sensor_proto = attrs->at("sensors");
+        auto sensor_value = sensor_proto->proto_value();
+        if (sensor_value.has_list_value()) {
+            auto sensor_list = sensor_value.list_value();
+            for (const auto element : sensor_list.values()) {
+                if (element.has_string_value()) {
+                    std::string sensor_name = static_cast<std::string>(element.string_value());
+                    if (sensor_name == "color") {
+                        disableColor = false;
+                        sensors.push_back("color");
+                    }
+                    if (sensor_name == "depth") {
+                        disableDepth = false;
+                        sensors.push_back("depth");
+                    }
+                }
+            }
+        }
+    }
+    if (disableColor && disableDepth) {
+        throw std::runtime_error("cannot disable both color and depth");
+    }
+
+    // DeviceProperties context also holds a bool that can stop the thread if device gets
+    // disconnected
+    DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
+
+    // First start of Pipeline
+    rs2::pipeline pipe;
+    RealSenseProperties props;
+    tie(pipe, props) = startPipeline(ref(deviceProps));
+    // First start of camera thread
+    props.mainSensor = sensors[0];
+    promise<void> ready;
+    thread cameraThread(frameLoop, pipe, ref(ready), ref(deviceProps), props.depthScaleMm);
+    cout << "waiting for camera frame loop thread to be ready..." << flush;
+    ready.get_future().wait();
+    cout << " ready!" << endl;
+    // start the callback function that will look for camera disconnects and reconnects.
+    // on reconnects, it will close and restart the pipeline and thread.
+    rs2::context ctx;
+    ctx.set_devices_changed_callback(
+        [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
+    return make_tuple(props, disableColor, disableDepth);
+}
+
+constexpr char service_name[] = "camera_realsense";
+
+// CAMERA module
+class CameraRealSense : public vsdk::Camera {
+   private:
+    RealSenseProperties props_;
+    bool disableColor_;
+    bool disableDepth_;
+
+   public:
+    explicit CameraRealSense(vsdk::Dependencies deps, vsdk::ResourceConfig cfg)
+        : Camera(cfg.name()) {
+        auto [props, disableColor, disableDepth] = initialize(cfg);
+        this->props_ = props;
+        this->disableColor_ = disableColor;
+        this->disableDepth_ = disableDepth;
+    }
+
+    void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
+        auto [props, disableColor, disableDepth] = initialize(cfg);
+        this->props_ = props;
+        this->disableColor_ = disableColor;
+        this->disableDepth_ = disableDepth;
+    }
+
+    vsdk::Camera::raw_image get_image(std::string mime_type) override {
+        auto start = chrono::high_resolution_clock::now();
+
+        // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
+        // are ahead of the frame loop.
+        GLOBAL_LATEST_FRAMES.mutex.lock();
+        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
+        GLOBAL_LATEST_FRAMES.mutex.unlock();
+
+        std::unique_ptr<vsdk::Camera::raw_image> response;
+        if (this->props_.mainSensor.compare("color") == 0) {
+            if (this->disableColor_) {
+                throw std::invalid_argument("color disabled");
+            }
+            if (mime_type.compare("image/png") == 0 || mime_type.compare("image/png+lazy") == 0) {
+                response =
+                    encodeColorPNGToResponse((const uint8_t*)latestColorFrame.get_data(),
+                                             this->props_.color.width, this->props_.color.height);
+            } else if (mime_type.compare("image/vnd.viam.rgba") == 0) {
+                response =
+                    encodeColorRAWToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                             this->props_.color.width, this->props_.color.height);
+            } else {
+                response =
+                    encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                         this->props_.color.width, this->props_.color.height);
+            }
+        } else if (this->props_.mainSensor.compare("depth") == 0) {
+            if (this->disableDepth_) {
+                throw std::invalid_argument("depth disabled");
+            }
+            if (mime_type.compare("image/vnd.viam.dep") == 0) {
+                response =
+                    encodeDepthRAWToResponse((const unsigned char*)latestDepthFrame->data(),
+                                             this->props_.depth.width, this->props_.depth.height);
+            } else {
+                response =
+                    encodeDepthPNGToResponse((const unsigned char*)latestDepthFrame->data(),
+                                             this->props_.depth.width, this->props_.depth.height);
+            }
+        }
+
+        if (DEBUG) {
+            auto stop = chrono::high_resolution_clock::now();
+            auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+            cout << "[get_image]  total:           " << duration.count() << "ms\n";
+        }
+
+        return *response;
+    }
+
+    vsdk::Camera::properties get_properties() override {
+        auto fillResp = [](vsdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
+            p->supports_pcd = supportsPCD;
+            p->intrinsic_parameters.width_px = props.width;
+            p->intrinsic_parameters.height_px = props.height;
+            p->intrinsic_parameters.focal_x_px = props.fx;
+            p->intrinsic_parameters.focal_y_px = props.fy;
+            p->intrinsic_parameters.center_x_px = props.ppx;
+            p->intrinsic_parameters.center_y_px = props.ppy;
+            p->distortion_parameters.model = props.distortionModel;
+            for (int i = 0; i < 5; i++) {
+                p->distortion_parameters.parameters.push_back(props.distortionParameters[i]);
+            }
+        };
+
+        vsdk::Camera::properties response{};
+        // pcd enabling will be a config parameter, for now, just put false
+        bool pcdEnabled = false;
+        if (this->props_.mainSensor.compare("color") == 0) {
+            fillResp(&response, this->props_.color, pcdEnabled);
+        } else if (props_.mainSensor.compare("depth") == 0) {
+            fillResp(&response, this->props_.depth, pcdEnabled);
+        }
+
+        return response;
+    }
+
+    vsdk::AttributeMap do_command(vsdk::AttributeMap command) override {
+        std::cerr << "do_command not implemented" << std::endl;
+        return 0;
+    }
+    vsdk::Camera::point_cloud get_point_cloud(std::string mime_type) override {
+        std::cerr << "get_point_cloud not implemented" << std::endl;
+        return vsdk::Camera::point_cloud{};
+    }
+    std::vector<vsdk::GeometryConfig> get_geometries() override {
+        std::cerr << "get_geometries not implemented" << std::endl;
+        return std::vector<vsdk::GeometryConfig>{};
+    }
+};
+
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
-std::vector<std::string> validate(ResourceConfig cfg) { return {}; }
+std::vector<std::string> validate(vsdk::ResourceConfig cfg) { return {}; }
 
 int serve(const std::string& socket_path) {
     sigset_t sigset;
@@ -738,10 +781,10 @@ int serve(const std::string& socket_path) {
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     auto module_registration = std::make_shared<vsdk::ModelRegistration>(
-        vsdk::ResourceType{"CameraRealSense"}, vsdk::CameraService::static_api(),
+        vsdk::ResourceType{"CameraRealSense"}, vsdk::Camera::static_api(),
         vsdk::Model{"viam", "camera", "realsense"},
-        [](vsdk::Dependencies, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
-            return std::make_shared<CameraRealSense>(cfg, std::ref(latestFrames));
+        [](vsdk::Dependencies deps, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
+            return std::make_shared<CameraRealSense>(deps, cfg);
         },
         [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
 
