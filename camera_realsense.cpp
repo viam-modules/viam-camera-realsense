@@ -786,15 +786,19 @@ int serve(const std::string& socket_path) {
         [](vsdk::Dependencies deps, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
             return std::make_shared<CameraRealSense>(deps, cfg);
         },
-        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
+        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); }
+    );
 
+    std::cout << "registering the module" << std::endl;
     vsdk::Registry::register_model(module_registration);
+    std::cout << "creating the module service" << std::endl;
     auto module_service = std::make_shared<vsdk::ModuleService_>(socket_path);
 
     auto server = std::make_shared<vsdk::Server>();
     module_service->add_model_from_registry(server, module_registration->api(),
                                             module_registration->model());
 
+    std::cout << "starting the module service" << std::endl;
     module_service->start(server);
 
     std::thread server_thread([&server, &sigset]() {
@@ -811,6 +815,7 @@ int serve(const std::string& socket_path) {
 }
 
 int main(int argc, char* argv[]) {
+    std::cout << "the first line of main" << std::endl;
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";
 
     if (argc < 2) {
@@ -818,6 +823,7 @@ int main(int argc, char* argv[]) {
         std::cout << usage << "\n";
         return EXIT_FAILURE;
     }
+    std::cout << "About to servce on socket " << argv[1] << std::endl;
 
     return serve(argv[1]);
 }
