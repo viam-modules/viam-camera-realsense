@@ -120,6 +120,9 @@ CPP_FLAGS = -std=c++17 -o intelrealgrpcserver camera_realsense.cpp $(THIRD_PARTY
 intelrealgrpcserver: $(SERVER_TARGETS)
 	$(CPP_COMPILER) $(CPP_FLAGS_EXTRA) $(CPP_FLAGS)
 
+camera-module: $(SERVER_TARGETS)
+	$(CPP_COMPILER) -std=c++17 -o camera_module camera_realsense.cpp third_party/fpng.cpp third_party/lodepng.cpp -I/usr/local/include -I/usr/local/include/viam/api -L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -lturbojpeg -lrealsense2 -lviamsdk -lviam_rust_utils -lviamapi -lgrpc++ -lgrpc -lgpr -lprotobuf -pthread -Wl,-ldl
+
 intelrealgrpcserver-debug: CPP_FLAGS_EXTRA = -pg
 intelrealgrpcserver-debug: intelrealgrpcserver
 
