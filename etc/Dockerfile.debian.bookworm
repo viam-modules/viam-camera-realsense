@@ -115,4 +115,4 @@ RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
 ADD ../ ${HOME}/opt/src/camera-realsense
 RUN cd ${HOME}/opt/src && \
     cd camera-realsense  && \
-    make intelrealgrpcserver 
+    make camera-module
