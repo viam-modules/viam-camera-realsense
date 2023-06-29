@@ -33,8 +33,7 @@ bin-module:
 	mkdir -p bin && \
 	docker rm viam-camera-realsense-bin | true && \
 	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
-	docker cp viam-realsense-bin:/root/opt/src/viam-realsense/etc/viam-camera-realsense-0.0.1-aarch64.AppImage ./bin && \
-	docker cp viam-realsense-bin:/root/opt/src/viam-camera-realsense/build/realsense-mr ./bin && \
+	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
 	docker stop viam-realsense-bin
 
 # SDK
