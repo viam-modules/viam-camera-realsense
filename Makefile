@@ -21,7 +21,7 @@ run-docker:
 	docker run \
 		--device /dev/fuse \
 		--cap-add SYS_ADMIN \
-		-it viam-camera-realsense:$(TAG_VERSION)
+		-it --name camera-realsense viam-camera-realsense:$(TAG_VERSION)
 
 package:
 	cd etc && \
@@ -34,7 +34,7 @@ bin-module:
 	docker rm viam-camera-realsense-bin | true && \
 	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
 	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
-	docker stop viam-realsense-bin
+	docker stop viam-camera-realsense-bin
 
 # SDK
 .PHONY: build-sdk
