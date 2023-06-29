@@ -117,7 +117,7 @@ RUN cd ${HOME}/opt/src && \
 RUN apt install -y golang-go 
 
 # necessary library for jpeg
-RUN apt install -y libturbojpeg-dev
+RUN apt install -y libturbojpeg-dev vim
 
 # install viam-camera-realsense
 RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
