@@ -8,9 +8,8 @@ TAG_VERSION := latest
 # Module
 # Creates appimage cmake build.
 # Builds docker image with viam-cpp-sdk and camera-realsense installed.
-.PHONY: build-docker
-build-docker:
-	rm -rf build | true && \
+.PHONY: build
+build:
 	docker build -t viam-camera-realsense:$(TAG_VERSION) \
 		--memory=16g \
 		--build-arg TAG=$(TAG_VERSION) \
@@ -34,7 +33,8 @@ bin-module:
 	docker rm viam-camera-realsense-bin | true && \
 	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
 	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
-	docker stop viam-camera-realsense-bin
+	docker stop viam-camera-realsense-bin && \
+	docker rm viam-camera-realsense-bin
 
 # SDK
 .PHONY: build-sdk

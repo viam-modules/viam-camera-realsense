@@ -26,6 +26,10 @@
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
+#define RESOURCE_TYPE "CameraRealSense"
+#define API_NAMESPACE "viam"
+#define API_TYPE "camera"
+#define API_SUBTYPE "realsense"
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
 
@@ -629,27 +633,32 @@ tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
         throw std::runtime_error("cannot disable both color and depth");
     }
 
-    // DeviceProperties context also holds a bool that can stop the thread if device gets
-    // disconnected
-    DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
+    try {
+        // DeviceProperties context also holds a bool that can stop the thread if device gets
+        // disconnected
+        DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
 
-    // First start of Pipeline
-    rs2::pipeline pipe;
-    RealSenseProperties props;
-    tie(pipe, props) = startPipeline(ref(deviceProps));
-    // First start of camera thread
-    props.mainSensor = sensors[0];
-    promise<void> ready;
-    thread cameraThread(frameLoop, pipe, ref(ready), ref(deviceProps), props.depthScaleMm);
-    cout << "waiting for camera frame loop thread to be ready..." << flush;
-    ready.get_future().wait();
-    cout << " ready!" << endl;
-    // start the callback function that will look for camera disconnects and reconnects.
-    // on reconnects, it will close and restart the pipeline and thread.
-    rs2::context ctx;
-    ctx.set_devices_changed_callback(
-        [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
-    return make_tuple(props, disableColor, disableDepth);
+        // First start of Pipeline
+        rs2::pipeline pipe;
+        RealSenseProperties props;
+        tie(pipe, props) = startPipeline(ref(deviceProps));
+        // First start of camera thread
+        props.mainSensor = sensors[0];
+        promise<void> ready;
+        thread cameraThread(frameLoop, pipe, ref(ready), ref(deviceProps), props.depthScaleMm);
+        cout << "waiting for camera frame loop thread to be ready..." << flush;
+        ready.get_future().wait();
+        cout << " ready!" << endl;
+        // start the callback function that will look for camera disconnects and reconnects.
+        // on reconnects, it will close and restart the pipeline and thread.
+        rs2::context ctx;
+        ctx.set_devices_changed_callback(
+            [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
+        cameraThread.detach();
+        return make_tuple(props, disableColor, disableDepth);
+    } catch (const exception& e) {
+        throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
+    }
 }
 
 constexpr char service_name[] = "camera_realsense";
@@ -664,14 +673,20 @@ class CameraRealSense : public vsdk::Camera {
    public:
     explicit CameraRealSense(vsdk::Dependencies deps, vsdk::ResourceConfig cfg)
         : Camera(cfg.name()) {
-        auto [props, disableColor, disableDepth] = initialize(cfg);
+        RealSenseProperties props;
+        bool disableColor;
+        bool disableDepth; 
+        tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
     }
 
     void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
-        auto [props, disableColor, disableDepth] = initialize(cfg);
+        RealSenseProperties props;
+        bool disableColor;
+        bool disableDepth; 
+        tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
@@ -781,24 +796,27 @@ int serve(const std::string& socket_path) {
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     auto module_registration = std::make_shared<vsdk::ModelRegistration>(
-        vsdk::ResourceType{"CameraRealSense"}, vsdk::Camera::static_api(),
-        vsdk::Model{"viam", "camera", "realsense"},
+        vsdk::ResourceType{RESOURCE_TYPE}, vsdk::Camera::static_api(),
+        vsdk::Model{API_NAMESPACE, API_TYPE, API_SUBTYPE},
         [](vsdk::Dependencies deps, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
             return std::make_shared<CameraRealSense>(deps, cfg);
         },
         [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); }
     );
 
-    std::cout << "registering the module" << std::endl;
-    vsdk::Registry::register_model(module_registration);
-    std::cout << "creating the module service" << std::endl;
+    try {
+        vsdk::Registry::register_model(module_registration);
+        std::cout << "registered model " << API_NAMESPACE <<  ":" << API_TYPE << ":" << API_SUBTYPE << std::endl;
+    } catch (const std::runtime_error& e) {
+        std::cerr << "error registering model: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
     auto module_service = std::make_shared<vsdk::ModuleService_>(socket_path);
 
     auto server = std::make_shared<vsdk::Server>();
     module_service->add_model_from_registry(server, module_registration->api(),
                                             module_registration->model());
 
-    std::cout << "starting the module service" << std::endl;
     module_service->start(server);
 
     std::thread server_thread([&server, &sigset]() {
@@ -815,7 +833,6 @@ int serve(const std::string& socket_path) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "the first line of main" << std::endl;
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";
 
     if (argc < 2) {

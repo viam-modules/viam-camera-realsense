@@ -1,0 +1,26 @@
+{
+  "remotes": [],
+  "components": [
+    {
+      "name": "myRealSense",
+      "attributes": {
+        "sensors": [
+          "color",
+          "depth"
+        ]
+      },
+      "namespace": "rdk",
+      "type": "camera",
+      "model": "viam:camera:realsense"
+    }
+  ],
+  "processes": [],
+  "modules": [
+    {
+      "executable_path": "/home/user/viam-camera-realsense",
+      "name": "intel"
+    }
+  ],
+  "packages": [],
+  "services": []
+}
