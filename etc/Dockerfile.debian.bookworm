@@ -51,7 +51,7 @@ RUN apt-get -y install cmake \
 
 RUN mkdir -p ${HOME}/opt/src
 
-# install grpc
+# install grpc from source
 RUN cd ${HOME}/opt/src && \
     git clone --recurse-submodules -b v1.52.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
     cd grpc && \
@@ -109,10 +109,12 @@ RUN apt install -y \
 RUN apt install -y libturbojpeg-dev
     
 
-# install viam-realsense
+# install viam-camera-realsense
 RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
+RUN export LD_LIBRARY_PATH=/usr/local/lib
+
 # install dev files
-ADD ../ ${HOME}/opt/src/camera-realsense
+ADD ../ ${HOME}/opt/src/camera-camera-realsense
 RUN cd ${HOME}/opt/src && \
-    cd camera-realsense  && \
+    cd camera-camera-realsense  && \
     make camera-module
