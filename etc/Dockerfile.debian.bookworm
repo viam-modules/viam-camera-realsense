@@ -105,16 +105,26 @@ RUN apt install -y \
     strace \
     util-linux zsync
 
+RUN pip3 install -U pip setuptools urllib3==1.26.12 requests==2.26.0 --break-system-packages
+
+# install appimage-builder
+RUN cd ${HOME}/opt/src && \
+    git clone https://github.com/AppImageCrafters/appimage-builder.git && \
+    cd appimage-builder && \
+    pip3 install ./ --break-system-packages
+
+# install Go
+RUN apt install -y golang-go 
+
 # necessary library for jpeg
 RUN apt install -y libturbojpeg-dev
-    
 
 # install viam-camera-realsense
 RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
-RUN export LD_LIBRARY_PATH=/usr/local/lib
 
 # install dev files
-ADD ../ ${HOME}/opt/src/camera-camera-realsense
+ADD ../ ${HOME}/opt/src/viam-camera-realsense
 RUN cd ${HOME}/opt/src && \
-    cd camera-camera-realsense  && \
-    make camera-module
+    cd viam-camera-realsense  && \
+    make camera-module && \
+    make package

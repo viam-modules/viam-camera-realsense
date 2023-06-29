@@ -27,9 +27,7 @@ AppDir:
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main
-    - sourceline: deb [trusted=yes] https://us-apt.pkg.dev/projects/static-file-server-310021 bookworm main
     include:
-    - librealsense2:arm64
     - libprotobuf32:arm64
     - libturbojpeg0:arm64
   files:
@@ -37,6 +35,7 @@ AppDir:
     - /usr/local/lib/libviamsdk* 
     - /usr/local/lib/libviamapi* 
     - /usr/local/lib/libviam_rust_utils* 
+    - /usr/local/lib/librealsense2*
     exclude:
     - usr/share/man
     - usr/share/doc
