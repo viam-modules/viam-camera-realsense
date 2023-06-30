@@ -622,7 +622,7 @@ tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
     }
     bool littleEndianDepth = false;
     if (attrs->count("little_endian_depth") == 1) {
-        std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian");
+        std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian_depth");
         auto endian_value = endian_proto->proto_value();
         if (endian_value.has_bool_value()) {
             bool endian_bool = static_cast<bool>(endian_value.bool_value());
