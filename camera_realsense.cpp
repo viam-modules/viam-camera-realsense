@@ -260,8 +260,21 @@ tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, co
 
     unsigned char* encoded = 0;
     size_t encoded_size = 0;
+    // convert data to guarantee big-endian
+    size_t pixelByteCount = 2 * width * height;
+    unsigned char* rawBuf = new unsigned char[pixelByteCount];
+    int offset = 0;
+    int pixelOffset = 0;
+    for (int i = 0; i < width * height; i++) {
+	uint16_t pix;
+	std::memcpy(&pix, data + pixelOffset, 2);
+	uint16_t pixEncode = htons(pix); // PNG expects pixel values to be big-endian
+	std::memcpy(rawBuf + offset, &pixEncode, 2); 
+        pixelOffset += 2;
+        offset += 2;
+    }
     unsigned result =
-        lodepng_encode_memory(&encoded, &encoded_size, data, width, height, LCT_GREY, 16);
+        lodepng_encode_memory(&encoded, &encoded_size, rawBuf, width, height, LCT_GREY, 16);
     if (result != 0) {
         cerr << "[GetImage]  failed to encode depth PNG" << endl;
         return {encoded, encoded_size, false};
@@ -317,10 +330,10 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
 	} else {
 		int pixelOffset = 0;
 		for (int i = 0; i < width * height; i++) {
-		uint16_t pix;
-		std::memcpy(&pix, data + pixelOffset, 2);
-		uint16_t pixEncode = htons(pix); // make sure the pixel values are big-endian 
-		std::memcpy(rawBuf + offset, &pixEncode, 2); 
+            uint16_t pix;
+            std::memcpy(&pix, data + pixelOffset, 2);
+            uint16_t pixEncode = htons(pix); // make sure the pixel values are big-endian 
+            std::memcpy(rawBuf + offset, &pixEncode, 2); 
 			pixelOffset += 2;
 			offset += 2;
 		}
@@ -354,21 +367,21 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
 // align to the color camera's origin when color and depth enabled
 const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 
-void frameLoop(rs2::pipeline pipeline, promise<void>& ready, DeviceProperties& deviceProps,
+void frameLoop(rs2::pipeline pipeline, promise<void>& ready, std::shared_ptr<DeviceProperties> deviceProps,
                float depthScaleMm) {
     bool readyOnce = false;
     {
-        std::lock_guard<std::mutex> lock(deviceProps.mutex);
-        deviceProps.shouldRun = true;
-        deviceProps.isRunning = true;
+        std::lock_guard<std::mutex> lock(deviceProps->mutex);
+        deviceProps->shouldRun = true;
+        deviceProps->isRunning = true;
     }
     while (true) {
         {
-            std::lock_guard<std::mutex> lock(deviceProps.mutex);
-            if (!deviceProps.shouldRun) {
+            std::lock_guard<std::mutex> lock(deviceProps->mutex);
+            if (!deviceProps->shouldRun) {
                 pipeline.stop();
                 cout << "[frameLoop] pipeline stopped exiting thread" << endl;
-                deviceProps.isRunning = false;
+                deviceProps->isRunning = false;
                 break;
             }
         }
@@ -396,7 +409,7 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready, DeviceProperties& d
             cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
         }
 
-        if (!deviceProps.disableColor && !deviceProps.disableDepth) {
+        if (!deviceProps->disableColor && !deviceProps->disableDepth) {
             auto start = chrono::high_resolution_clock::now();
 
             try {
@@ -415,7 +428,7 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready, DeviceProperties& d
         }
         // scale every pixel value to be depth in units of mm
         unique_ptr<vector<uint16_t>> depthFrameScaled;
-        if (!deviceProps.disableDepth) {
+        if (!deviceProps->disableDepth) {
             auto depthFrame = frames.get_depth_frame();
             auto depthWidth = depthFrame.get_width();
             auto depthHeight = depthFrame.get_height();
@@ -461,7 +474,7 @@ float getDepthScale(rs2::device dev) {
     throw std::runtime_error("Device does not have a depth sensor");
 }
 
-tuple<rs2::pipeline, RealSenseProperties> startPipeline(DeviceProperties& devProps) {
+tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth, int depthHeight, bool disableColor, int colorWidth, int colorHeight) {
     rs2::context ctx;
     auto devices = ctx.query_devices();
     if (devices.size() == 0) {
@@ -478,25 +491,26 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(DeviceProperties& devPro
     cout << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR) << "\n";
 
     float depthScaleMm = 0.0;
-    if (!devProps.disableDepth) {
+    if (!disableDepth) {
         depthScaleMm = getDepthScale(selected_device);
     }
 
     rs2::config cfg;
     cfg.enable_device(serial);
 
-    if (!devProps.disableColor) {
-        cfg.enable_stream(RS2_STREAM_COLOR, devProps.colorWidth, devProps.colorHeight,
+    if (!disableColor) {
+        cfg.enable_stream(RS2_STREAM_COLOR, colorWidth, colorHeight,
                           RS2_FORMAT_RGB8);
     }
 
-    if (!devProps.disableDepth) {
-        cfg.enable_stream(RS2_STREAM_DEPTH, devProps.depthWidth, devProps.depthHeight,
+    if (!disableDepth) {
+        cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight,
                           RS2_FORMAT_Z16);
     }
 
     rs2::pipeline pipeline(ctx);
     pipeline.start(cfg);
+
 
     auto fillProps = [](auto intrinsics, string distortionModel) -> CameraProperties {
         CameraProperties camProps;
@@ -515,35 +529,35 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(DeviceProperties& devPro
 
     RealSenseProperties props;
     props.depthScaleMm = depthScaleMm;
-    if (!devProps.disableColor) {
+    if (!disableColor) {
         auto const stream = pipeline.get_active_profile()
                                 .get_stream(RS2_STREAM_COLOR)
                                 .as<rs2::video_stream_profile>();
         auto intrinsics = stream.get_intrinsics();
         props.color = fillProps(intrinsics, "brown_conrady");
     }
-    if (!devProps.disableDepth) {
+    if (!disableDepth) {
         auto const stream = pipeline.get_active_profile()
                                 .get_stream(RS2_STREAM_DEPTH)
                                 .as<rs2::video_stream_profile>();
         auto intrinsics = stream.get_intrinsics();
         props.depth = fillProps(intrinsics, "no_distortion");
-        if (!devProps.disableColor) {
+        if (!disableColor) {
             props.depth.width = props.color.width;
             props.depth.height = props.color.height;
         }
     }
 
     cout << "pipeline started with:\n";
-    cout << "color_enabled:  " << boolalpha << !devProps.disableColor << "\n";
-    if (!devProps.disableColor) {
+    cout << "color_enabled:  " << boolalpha << !disableColor << "\n";
+    if (!disableColor) {
         cout << "color_width:    " << props.color.width << "\n";
         cout << "color_height:   " << props.color.height << "\n";
     }
-    cout << "depth_enabled:  " << !devProps.disableDepth << endl;
-    if (!devProps.disableDepth) {
+    cout << "depth_enabled:  " << !disableDepth << endl;
+    if (!disableDepth) {
         auto alignedText = "";
-        if (!devProps.disableColor) {
+        if (!disableColor) {
             alignedText = " (aligned to color)";
         }
         cout << "depth_width:    " << props.depth.width << alignedText << "\n";
@@ -553,164 +567,179 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(DeviceProperties& devPro
     return make_tuple(pipeline, props);
 };
 
-void on_device_reconnect(rs2::event_information& info, DeviceProperties& context,
-                         rs2::pipeline pipeline) {
-    if (info.was_added(info.get_new_devices().front())) {
-        std::cout << "Device was reconnected, restarting pipeline" << std::endl;
-        {
-            std::lock_guard<std::mutex> lock(context.mutex);
-            context.shouldRun = false;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        // Find and start the first available device
-        RealSenseProperties props;
-        try {
-            tie(pipeline, props) = startPipeline(context);
-        } catch (const exception& e) {
-            cout << "caught exception: \"" << e.what() << "\"" << endl;
-            return;
-        }
-        // Start the camera thread
-        promise<void> ready;
-        thread cameraThread(frameLoop, pipeline, ref(ready), ref(context), props.depthScaleMm);
-        cout << "waiting for camera frame loop thread to be ready..." << flush;
-        ready.get_future().wait();
-        cout << " ready!" << endl;
-        cameraThread.detach();
-    } else {
-        std::cout << "Device disconnected, stopping frame pipeline" << std::endl;
-        {
-            std::lock_guard<std::mutex> lock(context.mutex);
-            context.shouldRun = false;
-        }
-    }
-};
-
-// initialize will use the ResourceConfigs to begin the realsense pipeline.
-tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
-    cout << "initializing the Intel RealSense Camera Module" << endl;
-    // set variables from config
-    int width = 0;
-    int height = 0;
-    auto attrs = cfg.attributes();
-    if (attrs->count("width_px") == 1) {
-        std::shared_ptr<ProtoType> width_proto = attrs->at("width_px");
-        auto width_value = width_proto->proto_value();
-        if (width_value.has_number_value()) {
-            int width_num = static_cast<int>(width_value.number_value());
-            width = width_num;
-        }
-    }
-    if (attrs->count("height_px") == 1) {
-        std::shared_ptr<ProtoType> height_proto = attrs->at("height_px");
-        auto height_value = height_proto->proto_value();
-        if (height_value.has_number_value()) {
-            int height_num = static_cast<int>(height_value.number_value());
-            height = height_num;
-        }
-    }
-    if (width == 0 || height == 0) {
-        cout << "note: will pick any suitable width and height" << endl;
-    }
-    if (attrs->count("debug") == 1) {
-        std::shared_ptr<ProtoType> debug_proto = attrs->at("debug");
-        auto debug_value = debug_proto->proto_value();
-        if (debug_value.has_bool_value()) {
-            bool debug_bool = static_cast<bool>(debug_value.bool_value());
-            DEBUG = debug_bool;
-        }
-    }
-    bool littleEndianDepth = false;
-    if (attrs->count("little_endian_depth") == 1) {
-        std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian_depth");
-        auto endian_value = endian_proto->proto_value();
-        if (endian_value.has_bool_value()) {
-            bool endian_bool = static_cast<bool>(endian_value.bool_value());
-            littleEndianDepth = endian_bool;
-        }
-    }
-    bool enablePointClouds = false;
-    if (attrs->count("enable_point_clouds") == 1) {
-        std::shared_ptr<ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
-        auto pointclouds_value = pointclouds_proto->proto_value();
-        if (pointclouds_value.has_bool_value()) {
-            bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
-            enablePointClouds = pointclouds_bool;
-        }
-    }
-    bool disableDepth = true;
-    bool disableColor = true;
-    std::vector<std::string> sensors;
-    if (attrs->count("sensors") == 1) {
-        std::shared_ptr<ProtoType> sensor_proto = attrs->at("sensors");
-        auto sensor_value = sensor_proto->proto_value();
-        if (sensor_value.has_list_value()) {
-            auto sensor_list = sensor_value.list_value();
-            for (const auto element : sensor_list.values()) {
-                if (element.has_string_value()) {
-                    std::string sensor_name = static_cast<std::string>(element.string_value());
-                    if (sensor_name == "color") {
-                        disableColor = false;
-                        sensors.push_back("color");
-                    }
-                    if (sensor_name == "depth") {
-                        disableDepth = false;
-                        sensors.push_back("depth");
-                    }
-                }
-            }
-        }
-    }
-    if (disableColor && disableDepth) {
-        throw std::runtime_error("cannot disable both color and depth");
-    }
-
-    try {
-        // DeviceProperties context also holds a bool that can stop the thread if device gets
-        // disconnected
-        DeviceProperties deviceProps(width, height, disableColor, width, height, disableDepth);
-
-        // First start of Pipeline
-        rs2::pipeline pipe;
-        RealSenseProperties props;
-        tie(pipe, props) = startPipeline(ref(deviceProps));
-        // First start of camera thread
-        props.mainSensor = sensors[0];
-        props.littleEndianDepth = littleEndianDepth;
-        props.enablePointClouds = enablePointClouds;
-        cout << "main sensor will be " << sensors[0] << endl;
-        promise<void> ready;
-        thread cameraThread(frameLoop, pipe, ref(ready), ref(deviceProps), props.depthScaleMm);
-        cout << "waiting for camera frame loop thread to be ready..." << flush;
-        ready.get_future().wait();
-        cout << " ready!" << endl;
-        // start the callback function that will look for camera disconnects and reconnects.
-        // on reconnects, it will close and restart the pipeline and thread.
-        rs2::context ctx;
-        ctx.set_devices_changed_callback(
-            [&](rs2::event_information& info) { on_device_reconnect(info, deviceProps, pipe); });
-        cameraThread.detach();
-        return make_tuple(props, disableColor, disableDepth);
-    } catch (const exception& e) {
-        throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
-    }
-}
-
 constexpr char service_name[] = "camera_realsense";
 
 // CAMERA module
 class CameraRealSense : public vsdk::Camera {
    private:
+    std::shared_ptr<DeviceProperties> device_;
     RealSenseProperties props_;
     bool disableColor_;
     bool disableDepth_;
+
+    // initialize will use the ResourceConfigs to begin the realsense pipeline.
+    tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
+        if (device_ != nullptr) {
+            std::lock_guard<std::mutex> lock(device_->mutex);
+            device_->shouldRun = false;
+        }
+        cout << "initializing the Intel RealSense Camera Module" << endl;
+        // set variables from config
+        int width = 0;
+        int height = 0;
+        auto attrs = cfg.attributes();
+        if (attrs->count("width_px") == 1) {
+            std::shared_ptr<ProtoType> width_proto = attrs->at("width_px");
+            auto width_value = width_proto->proto_value();
+            if (width_value.has_number_value()) {
+                int width_num = static_cast<int>(width_value.number_value());
+                width = width_num;
+            }
+        }
+        if (attrs->count("height_px") == 1) {
+            std::shared_ptr<ProtoType> height_proto = attrs->at("height_px");
+            auto height_value = height_proto->proto_value();
+            if (height_value.has_number_value()) {
+                int height_num = static_cast<int>(height_value.number_value());
+                height = height_num;
+            }
+        }
+        if (width == 0 || height == 0) {
+            cout << "note: will pick any suitable width and height" << endl;
+        }
+        if (attrs->count("debug") == 1) {
+            std::shared_ptr<ProtoType> debug_proto = attrs->at("debug");
+            auto debug_value = debug_proto->proto_value();
+            if (debug_value.has_bool_value()) {
+                bool debug_bool = static_cast<bool>(debug_value.bool_value());
+                DEBUG = debug_bool;
+            }
+        }
+        bool littleEndianDepth = false;
+        if (attrs->count("little_endian_depth") == 1) {
+            std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian_depth");
+            auto endian_value = endian_proto->proto_value();
+            if (endian_value.has_bool_value()) {
+                bool endian_bool = static_cast<bool>(endian_value.bool_value());
+                littleEndianDepth = endian_bool;
+            }
+        }
+        bool enablePointClouds = false;
+        if (attrs->count("enable_point_clouds") == 1) {
+            std::shared_ptr<ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
+            auto pointclouds_value = pointclouds_proto->proto_value();
+            if (pointclouds_value.has_bool_value()) {
+                bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
+                enablePointClouds = pointclouds_bool;
+            }
+        }
+        bool disableDepth = true;
+        bool disableColor = true;
+        std::vector<std::string> sensors;
+        if (attrs->count("sensors") == 1) {
+            std::shared_ptr<ProtoType> sensor_proto = attrs->at("sensors");
+            auto sensor_value = sensor_proto->proto_value();
+            if (sensor_value.has_list_value()) {
+                auto sensor_list = sensor_value.list_value();
+                for (const auto element : sensor_list.values()) {
+                    if (element.has_string_value()) {
+                        std::string sensor_name = static_cast<std::string>(element.string_value());
+                        if (sensor_name == "color") {
+                            disableColor = false;
+                            sensors.push_back("color");
+                        }
+                        if (sensor_name == "depth") {
+                            disableDepth = false;
+                            sensors.push_back("depth");
+                        }
+                    }
+                }
+            }
+        }
+        if (disableColor && disableDepth) {
+            throw std::runtime_error("cannot disable both color and depth");
+        }
+
+        try {
+            // DeviceProperties context also holds a bool that can stop the thread if device gets
+            // disconnected
+            std::shared_ptr<DeviceProperties> newDevice = std::make_shared<DeviceProperties>(width, height, disableColor, width, height, disableDepth);
+            device_ = std::move(newDevice);
+
+            // First start of Pipeline
+            rs2::pipeline pipe;
+            RealSenseProperties props;
+            tie(pipe, props) = startPipeline(disableDepth, width, height, disableColor, width, height);
+            // First start of camera thread
+            props.mainSensor = sensors[0];
+            cout << "main sensor will be " << sensors[0] << endl;
+            props.littleEndianDepth = littleEndianDepth;
+            if (props.mainSensor == "depth") {
+                std::string endianString = (littleEndianDepth) ? "true" : "false";
+                cout << "depth little endian encoded: " << endianString << endl;
+            }
+            props.enablePointClouds = enablePointClouds;
+            std::string pointcloudString = (enablePointClouds) ? "true" : "false";
+            cout << "point clouds enabled: " << pointcloudString << endl;
+            promise<void> ready;
+            thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
+            cout << "waiting for camera frame loop thread to be ready..." << flush;
+            ready.get_future().wait();
+            cout << " ready!" << endl;
+            // start the callback function that will look for camera disconnects and reconnects.
+            // on reconnects, it will close and restart the pipeline and thread.
+            rs2::context ctx;
+            ctx.set_devices_changed_callback(
+                [&](rs2::event_information& info) { on_device_reconnect(info, pipe); });
+            cameraThread.detach();
+            return make_tuple(props, disableColor, disableDepth);
+        } catch (const exception& e) {
+            throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
+        }
+    }
+
+    void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline) {
+        if (device_ == nullptr) {
+            throw std::runtime_error("no device info to reconnect to. RealSense device was never initialized.");
+        }
+        if (info.was_added(info.get_new_devices().front())) {
+            std::cout << "Device was reconnected, restarting pipeline" << std::endl;
+            {
+                std::lock_guard<std::mutex> lock(device_->mutex);
+                device_->shouldRun = false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            // Find and start the first available device
+            RealSenseProperties props;
+            try {
+                tie(pipeline, props) = startPipeline(device_->disableDepth, device_->depthWidth, device_->depthHeight, device_->disableColor, device_->colorWidth, device_->colorHeight);
+            } catch (const exception& e) {
+                cout << "caught exception: \"" << e.what() << "\"" << endl;
+                return;
+            }
+            // Start the camera thread
+            promise<void> ready;
+            thread cameraThread(frameLoop, pipeline, ref(ready), device_, props.depthScaleMm);
+            cout << "waiting for camera frame loop thread to be ready..." << flush;
+            ready.get_future().wait();
+            cout << " ready!" << endl;
+            cameraThread.detach();
+        } else {
+            std::cout << "Device disconnected, stopping frame pipeline" << std::endl;
+            {
+                std::lock_guard<std::mutex> lock(device_->mutex);
+                device_->shouldRun = false;
+            }
+        }
+    };
+
 
    public:
     explicit CameraRealSense(vsdk::Dependencies deps, vsdk::ResourceConfig cfg)
         : Camera(cfg.name()) {
         RealSenseProperties props;
         bool disableColor;
-        bool disableDepth; 
+        bool disableDepth;
         tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
@@ -720,7 +749,7 @@ class CameraRealSense : public vsdk::Camera {
     void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
         RealSenseProperties props;
         bool disableColor;
-        bool disableDepth; 
+        bool disableDepth;
         tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
