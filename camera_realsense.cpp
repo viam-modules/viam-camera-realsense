@@ -75,7 +75,9 @@ struct RealSenseProperties {
     CameraProperties color;
     CameraProperties depth;
     float depthScaleMm;
-    string mainSensor;
+    std::string mainSensor;
+    bool littleEndianDepth;
+	bool enablePointClouds;
 };
 
 struct PipelineWithProperties {
@@ -289,7 +291,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
 };
 
 tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, const uint64_t width,
-                                                   const uint64_t height) {
+                                                   const uint64_t height, const bool littleEndian) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = chrono::high_resolution_clock::now();
@@ -310,7 +312,19 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
     offset += depthWidthByteCount;
     std::memcpy(rawBuf + offset, &heightToEncode, depthHeightByteCount);
     offset += depthHeightByteCount;
-    std::memcpy(rawBuf + offset, data, pixelByteCount);
+	if (littleEndian) {
+    	std::memcpy(rawBuf + offset, data, pixelByteCount);
+	} else {
+		int pixelOffset = 0;
+		for (int i = 0; i < width * height; i++) {
+		uint16_t pix;
+		std::memcpy(&pix, data + pixelOffset, 2);
+		uint16_t pixEncode = htons(pix); // make sure the pixel values are big-endian 
+		std::memcpy(rawBuf + offset, &pixEncode, 2); 
+			pixelOffset += 2;
+			offset += 2;
+		}
+	}
 
     if (DEBUG) {
         auto stop = chrono::high_resolution_clock::now();
@@ -323,8 +337,8 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
                                                                   const uint width,
-                                                                  const uint height) {
-    const auto& [encoded, encodedSize, ok] = encodeDepthRAW(data, width, height);
+                                                                  const uint height, const bool littleEndian) {
+    const auto& [encoded, encodedSize, ok] = encodeDepthRAW(data, width, height, littleEndian);
     if (!ok) {
         std::free(encoded);
         throw std::runtime_error("failed to encode depth RAW");
@@ -606,6 +620,24 @@ tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
             DEBUG = debug_bool;
         }
     }
+    bool littleEndianDepth = false;
+    if (attrs->count("little_endian_depth") == 1) {
+        std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian");
+        auto endian_value = endian_proto->proto_value();
+        if (endian_value.has_bool_value()) {
+            bool endian_bool = static_cast<bool>(endian_value.bool_value());
+            littleEndianDepth = endian_bool;
+        }
+    }
+    bool enablePointClouds = false;
+    if (attrs->count("enable_point_clouds") == 1) {
+        std::shared_ptr<ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
+        auto pointclouds_value = pointclouds_proto->proto_value();
+        if (pointclouds_value.has_bool_value()) {
+            bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
+            enablePointClouds = pointclouds_bool;
+        }
+    }
     bool disableDepth = true;
     bool disableColor = true;
     std::vector<std::string> sensors;
@@ -644,6 +676,9 @@ tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
         tie(pipe, props) = startPipeline(ref(deviceProps));
         // First start of camera thread
         props.mainSensor = sensors[0];
+        props.littleEndianDepth = littleEndianDepth;
+        props.enablePointClouds = enablePointClouds;
+        cout << "main sensor will be " << sensors[0] << endl;
         promise<void> ready;
         thread cameraThread(frameLoop, pipe, ref(ready), ref(deviceProps), props.depthScaleMm);
         cout << "waiting for camera frame loop thread to be ready..." << flush;
@@ -727,7 +762,7 @@ class CameraRealSense : public vsdk::Camera {
             if (mime_type.compare("image/vnd.viam.dep") == 0) {
                 response =
                     encodeDepthRAWToResponse((const unsigned char*)latestDepthFrame->data(),
-                                             this->props_.depth.width, this->props_.depth.height);
+                                             this->props_.depth.width, this->props_.depth.height, this->props_.littleEndianDepth);
             } else {
                 response =
                     encodeDepthPNGToResponse((const unsigned char*)latestDepthFrame->data(),

@@ -26,6 +26,7 @@ package:
 	cd etc && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 
+
 # Copies binary and AppImage from container to host.
 bin-module:
 	rm -rf bin | true && \
@@ -35,6 +36,8 @@ bin-module:
 	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
 	docker stop viam-camera-realsense-bin && \
 	docker rm viam-camera-realsense-bin
+
+appimages: build bin-module
 
 # SDK
 .PHONY: build-sdk

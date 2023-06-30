@@ -126,5 +126,8 @@ RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
 ADD ../ ${HOME}/opt/src/viam-camera-realsense
 RUN cd ${HOME}/opt/src && \
     cd viam-camera-realsense  && \
-    make camera-module && \
-    make package
+    make camera-module
+
+# create the appimage
+RUN cd ${HOME}/opt/src/viam-camera-realsense && \
+     make package
