@@ -148,7 +148,6 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
                                                                   const int height) {
     const auto& [encoded, ok] = encodeColorPNG(data, width, height);
     if (!ok) {
-        std::free(encoded);
         throw std::runtime_error("failed to encode color PNG");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
