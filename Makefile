@@ -37,7 +37,7 @@ bin-module:
 	docker stop viam-camera-realsense-bin && \
 	docker rm viam-camera-realsense-bin
 
-appimages: build bin-module
+appimage: build bin-module
 
 # SDK
 .PHONY: build-sdk
