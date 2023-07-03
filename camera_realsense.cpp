@@ -543,7 +543,7 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
                                 .get_stream(RS2_STREAM_DEPTH)
                                 .as<rs2::video_stream_profile>();
         auto intrinsics = stream.get_intrinsics();
-        props.depth = fillProps(intrinsics, "no_distortion");
+        props.depth = fillProps(intrinsics, "");
         if (!disableColor) {
             props.depth.width = props.color.width;
             props.depth.height = props.color.height;
