@@ -506,7 +506,8 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
     }
 
     if (!disableDepth) {
-        cout << "depth width and height from config(" << depthWidth << ", " << depthHeight << ")\n";
+        cout << "depth width and height from config: (" << depthWidth << ", " << depthHeight
+             << ")\n";
         cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight, RS2_FORMAT_Z16);
     }
 
