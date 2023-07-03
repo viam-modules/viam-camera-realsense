@@ -499,11 +499,13 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
     cfg.enable_device(serial);
 
     if (!disableColor) {
+        cout << "color width and height from config: (" << colorWidth << ", " << colorHeight << ")\n";
         cfg.enable_stream(RS2_STREAM_COLOR, colorWidth, colorHeight,
                           RS2_FORMAT_RGB8);
     }
 
     if (!disableDepth) {
+        cout << "depth width and height from config(" << depthWidth << ", " << depthHeight << ")\n";
         cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight,
                           RS2_FORMAT_Z16);
     }
@@ -582,6 +584,7 @@ class CameraRealSense : public vsdk::Camera {
         if (device_ != nullptr) {
             std::lock_guard<std::mutex> lock(device_->mutex);
             device_->shouldRun = false;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
         cout << "initializing the Intel RealSense Camera Module" << endl;
         // set variables from config
