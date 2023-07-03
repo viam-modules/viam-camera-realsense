@@ -117,8 +117,7 @@ const size_t depthHeightByteCount =
 std::vector<unsigned char> convertToVector(const unsigned char* data, size_t size) {
     const unsigned char* begin = data;
     const unsigned char* end = data + size;
-    std::vector<unsigned char> vec(begin, end);
-    return vec;
+    return std::vector<unsigned char>(begin, end);
 };
 
 // COLOR responses
@@ -149,13 +148,13 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
                                                                   const int height) {
     const auto& [encoded, ok] = encodeColorPNG(data, width, height);
     if (!ok) {
+        std::free(encoded);
         throw std::runtime_error("failed to encode color PNG");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/png";
     response->bytes = encoded;
     return response;
-    // response->bytes = std::vector<unsigned char>(encoded.data().begin(), encoded.data().end());
 };
 
 tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
