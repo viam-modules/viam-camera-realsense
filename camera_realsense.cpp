@@ -489,13 +489,13 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
         deviceProps->shouldRun = true;
         deviceProps->isRunning = true;
     }
+    std::cout << "[frameLoop] frame loop is starting" << std::endl;
     while (true) {
         {
             std::lock_guard<std::mutex> lock(deviceProps->mutex);
             if (!deviceProps->shouldRun) {
                 pipeline.stop();
-                cout << "[frameLoop] pipeline stopped exiting thread" << endl;
-                deviceProps->isRunning = false;
+                std::cout << "[frameLoop] pipeline stopped, exiting frame loop" << std::endl;
                 break;
             }
         }
@@ -574,6 +574,10 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
             ready.set_value();
         }
     }
+    {
+        std::lock_guard<std::mutex> lock(deviceProps->mutex);
+        deviceProps->isRunning = false;
+    }
 };
 
 void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline, std::shared_ptr<DeviceProperties> device) {
@@ -601,9 +605,9 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline, s
         // Start the camera thread
         promise<void> ready;
         thread cameraThread(frameLoop, pipeline, ref(ready), device, props.depthScaleMm);
-        cout << "waiting for camera frame loop thread to be ready..." << flush;
+        cout << "waiting for camera frame loop thread to be ready..." << std::endl;
         ready.get_future().wait();
-        cout << " ready!" << endl;
+        cout << "camera frame loop ready!" << endl;
         cameraThread.detach();
     } else {
         std::cout << "Device disconnected, stopping frame pipeline" << std::endl;
@@ -734,9 +738,9 @@ class CameraRealSense : public vsdk::Camera {
             cout << "point clouds enabled: " << pointcloudString << endl;
             promise<void> ready;
             thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
-            cout << "waiting for camera frame loop thread to be ready..." << flush;
+            cout << "waiting for camera frame loop thread to be ready..." << std::endl;
             ready.get_future().wait();
-            cout << " ready!" << endl;
+            cout << "camera frame loop ready!" << endl;
             cameraThread.detach();
             return make_tuple(props, disableColor, disableDepth);
         } catch (const exception& e) {
