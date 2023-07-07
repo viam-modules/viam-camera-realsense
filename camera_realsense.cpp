@@ -475,14 +475,16 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
 };
 
 // function prototype for on_device_reconnect, so that it can be used in frameLoop
-void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline, std::shared_ptr<DeviceProperties> device);
+void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
+                         std::shared_ptr<DeviceProperties> device);
 
 void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
                std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm) {
     // start the callback function that will look for camera disconnects and reconnects.
     // on reconnects, it will close and restart the pipeline and thread.
     rs2::context ctx;
-    ctx.set_devices_changed_callback([&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
+    ctx.set_devices_changed_callback(
+        [&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
     bool readyOnce = false;
     {
         std::lock_guard<std::mutex> lock(deviceProps->mutex);
@@ -580,7 +582,8 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
     }
 };
 
-void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline, std::shared_ptr<DeviceProperties> device) {
+void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
+                         std::shared_ptr<DeviceProperties> device) {
     if (device == nullptr) {
         throw std::runtime_error(
             "no device info to reconnect to. RealSense device was never initialized.");
@@ -617,7 +620,6 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline, s
         }
     }
 };
-
 
 constexpr char service_name[] = "camera_realsense";
 
