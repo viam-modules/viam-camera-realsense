@@ -31,7 +31,7 @@ The attributes for the module are as follows:
 - `sensors` (required): a list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor" and will be the image that gets returned by `get_image` calls and what will appear in the Control tab on app.viam.
 - `width_px`, `height_px`: the width and height of the output images. If the RealSense cannot produce the requested resolution, the component will fail to be built.
 - `little_endian_depth`: a bool that specifices whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order.
-- `enable_point_clouds`: a bool that specifies whether the `get_pointcloud` method of the camera should be enabled. By default it is `false`, as enabling the method consumes large amounts of CPU and slows down the operation of the camera.
+- `enable_point_clouds`: a bool that specifies whether the `get_pointcloud` method of the camera should be enabled. By default it is `false`, as enabling the method consumes large amounts of CPU and slows down the operation of the camera. (Currently, get_pointcloud is unimplemented in this module).
 ```
 {
   "components": [
