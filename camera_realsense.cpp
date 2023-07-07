@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <turbojpeg.h>
 
+#include <condition_variable>
 #include <future>
 #include <iostream>
 #include <librealsense2/rs.hpp>
@@ -46,6 +47,7 @@ struct DeviceProperties {
     const bool disableDepth;
     bool shouldRun;
     bool isRunning;
+    std::condition_variable cv;
     std::mutex mutex;
 
     DeviceProperties(int colorWidth_, int colorHeight_, bool disableColor_, int depthWidth_,
@@ -480,17 +482,17 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
 
 void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
                std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm) {
-    // start the callback function that will look for camera disconnects and reconnects.
-    // on reconnects, it will close and restart the pipeline and thread.
-    rs2::context ctx;
-    ctx.set_devices_changed_callback(
-        [&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
     bool readyOnce = false;
     {
         std::lock_guard<std::mutex> lock(deviceProps->mutex);
         deviceProps->shouldRun = true;
         deviceProps->isRunning = true;
     }
+    // start the callback function that will look for camera disconnects and reconnects.
+    // on reconnects, it will close and restart the pipeline and thread.
+    rs2::context ctx;
+    ctx.set_devices_changed_callback(
+        [&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
     std::cout << "[frameLoop] frame loop is starting" << std::endl;
     while (true) {
         {
@@ -591,10 +593,11 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
     if (info.was_added(info.get_new_devices().front())) {
         std::cout << "Device was reconnected, restarting pipeline" << std::endl;
         {
-            std::lock_guard<std::mutex> lock(device->mutex);
+            std::unique_lock<std::mutex> lock(device->mutex);
             device->shouldRun = false;
+            // wait until frameLoop is stopped
+            device->cv.wait(lock, [device] { return !(device->isRunning); });
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         // Find and start the first available device
         RealSenseProperties props;
         try {
@@ -634,9 +637,10 @@ class CameraRealSense : public vsdk::Camera {
     // initialize will use the ResourceConfigs to begin the realsense pipeline.
     tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
         if (device_ != nullptr) {
-            std::lock_guard<std::mutex> lock(device_->mutex);
+            std::unique_lock<std::mutex> lock(device_->mutex);
             device_->shouldRun = false;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            // wait until frameLoop is stopped
+            device_->cv.wait(lock, [this] { return !(device_->isRunning); });
         }
         cout << "initializing the Intel RealSense Camera Module" << endl;
         // set variables from config
