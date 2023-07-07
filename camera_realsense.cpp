@@ -582,6 +582,7 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
         std::lock_guard<std::mutex> lock(deviceProps->mutex);
         deviceProps->isRunning = false;
     }
+    deviceProps->cv.notify_all();
 };
 
 void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
@@ -593,9 +594,9 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
     if (info.was_added(info.get_new_devices().front())) {
         std::cout << "Device was reconnected, restarting pipeline" << std::endl;
         {
+            // wait until frameLoop is stopped
             std::unique_lock<std::mutex> lock(device->mutex);
             device->shouldRun = false;
-            // wait until frameLoop is stopped
             device->cv.wait(lock, [device] { return !(device->isRunning); });
         }
         // Find and start the first available device
@@ -637,10 +638,13 @@ class CameraRealSense : public vsdk::Camera {
     // initialize will use the ResourceConfigs to begin the realsense pipeline.
     tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
         if (device_ != nullptr) {
-            std::unique_lock<std::mutex> lock(device_->mutex);
-            device_->shouldRun = false;
-            // wait until frameLoop is stopped
-            device_->cv.wait(lock, [this] { return !(device_->isRunning); });
+            std::cout << "reinitializing, restarting pipeline" << std::endl;
+            {
+                // wait until frameLoop is stopped
+                std::unique_lock<std::mutex> lock(device_->mutex);
+                device_->shouldRun = false;
+                device_->cv.wait(lock, [this] { return !(device_->isRunning); });
+            }
         }
         cout << "initializing the Intel RealSense Camera Module" << endl;
         // set variables from config
@@ -764,6 +768,18 @@ class CameraRealSense : public vsdk::Camera {
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
+    }
+
+    ~CameraRealSense() {
+        // stop and wait for the frameLoop thread to exit
+        if (this->device_ != nullptr) {
+            {
+                // wait until frameLoop is stopped
+                std::unique_lock<std::mutex> lock(this->device_->mutex);
+                this->device_->shouldRun = false;
+                this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
+            }
+        }
     }
 
     void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
