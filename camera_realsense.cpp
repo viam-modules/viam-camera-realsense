@@ -34,8 +34,6 @@
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
 
-using namespace std;
-using namespace viam::sdk;
 namespace vsdk = ::viam::sdk;
 
 struct DeviceProperties {
@@ -69,7 +67,7 @@ struct CameraProperties {
     float fy;
     float ppx;
     float ppy;
-    string distortionModel;
+    std::string distortionModel;
     double distortionParameters[5];
 };
 
@@ -90,7 +88,7 @@ struct PipelineWithProperties {
 struct AtomicFrameSet {
     std::mutex mutex;
     rs2::frame colorFrame;
-    shared_ptr<vector<uint16_t>> depthFrame;
+    std::shared_ptr<std::vector<uint16_t>> depthFrame;
 };
 
 // Global AtomicFrameSet
@@ -123,23 +121,23 @@ std::vector<unsigned char> convertToVector(const unsigned char* data, size_t siz
 };
 
 // COLOR responses
-tuple<vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width,
-                                            const int height) {
+std::tuple<std::vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width,
+                                                      const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
-        start = chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
     }
 
-    vector<uint8_t> encoded;
+    std::vector<uint8_t> encoded;
     if (!fpng::fpng_encode_image_to_memory(data, width, height, 3, encoded)) {
-        cerr << "[GetImage]  failed to encode color PNG" << endl;
+        std::cerr << "[GetImage]  failed to encode color PNG" << std::endl;
         return {encoded, false};
     }
 
     if (DEBUG) {
-        auto stop = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-        cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
     }
 
     return {encoded, true};
@@ -158,18 +156,18 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
     return response;
 };
 
-tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
-                                                          const int width, const int height) {
+std::tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
+                                                               const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
-        start = chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
     }
 
     unsigned char* encoded = nullptr;
     long unsigned int encodedSize = 0;
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        cerr << "[GetImage]  failed to init JPEG compressor" << endl;
+        std::cerr << "[GetImage]  failed to init JPEG compressor" << std::endl;
         return {encoded, encodedSize, false};
     }
     tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize, TJSAMP_420, 75,
@@ -177,9 +175,9 @@ tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* d
     tjDestroy(handle);
 
     if (DEBUG) {
-        auto stop = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-        cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
     }
 
     return {encoded, encodedSize, true};
@@ -198,11 +196,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
     return response;
 };
 
-tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, const uint32_t width,
-                                                   const uint32_t height) {
+std::tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data,
+                                                        const uint32_t width,
+                                                        const uint32_t height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
-        start = chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
     }
     // set size of raw file
     size_t pixelByteCount = 4 * width * height;
@@ -228,9 +227,9 @@ tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data, co
         offset += 4;
     }
     if (DEBUG) {
-        auto stop = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-        cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
     }
 
     return {rawBuf, totalByteCount, true};
@@ -251,11 +250,11 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
 };
 
 // DEPTH responses
-tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, const uint width,
-                                                   const uint height) {
+std::tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, const uint width,
+                                                        const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
-        start = chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
     }
 
     unsigned char* encoded = 0;
@@ -276,14 +275,14 @@ tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, co
     unsigned result =
         lodepng_encode_memory(&encoded, &encoded_size, rawBuf, width, height, LCT_GREY, 16);
     if (result != 0) {
-        cerr << "[GetImage]  failed to encode depth PNG" << endl;
+        std::cerr << "[GetImage]  failed to encode depth PNG" << std::endl;
         return {encoded, encoded_size, false};
     }
 
     if (DEBUG) {
-        auto stop = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-        cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
     }
 
     return {encoded, encoded_size, true};
@@ -303,11 +302,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
     return response;
 };
 
-tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, const uint64_t width,
-                                                   const uint64_t height, const bool littleEndian) {
+std::tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data,
+                                                        const uint64_t width, const uint64_t height,
+                                                        const bool littleEndian) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
-        start = chrono::high_resolution_clock::now();
+        start = std::chrono::high_resolution_clock::now();
     }
     // Depth header contains 8 bytes worth of magic number, followed by 8 bytes for width and
     // another 8 bytes for height each pixel has 2 bytes.
@@ -340,9 +340,9 @@ tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data, co
     }
 
     if (DEBUG) {
-        auto stop = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-        cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
     return {rawBuf, totalByteCount, true};
@@ -380,23 +380,25 @@ float getDepthScale(rs2::device dev) {
     throw std::runtime_error("Device does not have a depth sensor");
 }
 
-tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
-                                                        int depthHeight, bool disableColor,
-                                                        int colorWidth, int colorHeight) {
+std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
+                                                             int depthHeight, bool disableColor,
+                                                             int colorWidth, int colorHeight) {
     rs2::context ctx;
     auto devices = ctx.query_devices();
     if (devices.size() == 0) {
-        throw runtime_error("no device connected; please connect an Intel RealSense device");
+        throw std::runtime_error("no device connected; please connect an Intel RealSense device");
     }
     rs2::device selected_device = devices.front();
 
     auto serial = selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-    cout << "found device:\n";
-    cout << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME) << "\n";
-    cout << "serial:    " << serial << "\n";
-    cout << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION) << "\n";
-    cout << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT) << "\n";
-    cout << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR) << "\n";
+    std::cout << "found device:\n";
+    std::cout << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME) << "\n";
+    std::cout << "serial:    " << serial << "\n";
+    std::cout << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION)
+              << "\n";
+    std::cout << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT) << "\n";
+    std::cout << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR)
+              << "\n";
 
     float depthScaleMm = 0.0;
     if (!disableDepth) {
@@ -407,21 +409,21 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
     cfg.enable_device(serial);
 
     if (!disableColor) {
-        cout << "color width and height from config: (" << colorWidth << ", " << colorHeight
-             << ")\n";
+        std::cout << "color width and height from config: (" << colorWidth << ", " << colorHeight
+                  << ")\n";
         cfg.enable_stream(RS2_STREAM_COLOR, colorWidth, colorHeight, RS2_FORMAT_RGB8);
     }
 
     if (!disableDepth) {
-        cout << "depth width and height from config: (" << depthWidth << ", " << depthHeight
-             << ")\n";
+        std::cout << "depth width and height from config: (" << depthWidth << ", " << depthHeight
+                  << ")\n";
         cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight, RS2_FORMAT_Z16);
     }
 
     rs2::pipeline pipeline(ctx);
     pipeline.start(cfg);
 
-    auto fillProps = [](auto intrinsics, string distortionModel) -> CameraProperties {
+    auto fillProps = [](auto intrinsics, std::string distortionModel) -> CameraProperties {
         CameraProperties camProps;
         camProps.width = intrinsics.width;
         camProps.height = intrinsics.height;
@@ -457,30 +459,30 @@ tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int d
         }
     }
 
-    cout << "pipeline started with:\n";
-    cout << "color_enabled:  " << boolalpha << !disableColor << "\n";
+    std::cout << "pipeline started with:\n";
+    std::cout << "color_enabled:  " << std::boolalpha << !disableColor << "\n";
     if (!disableColor) {
-        cout << "color_width:    " << props.color.width << "\n";
-        cout << "color_height:   " << props.color.height << "\n";
+        std::cout << "color_width:    " << props.color.width << "\n";
+        std::cout << "color_height:   " << props.color.height << "\n";
     }
-    cout << "depth_enabled:  " << !disableDepth << endl;
+    std::cout << "depth_enabled:  " << !disableDepth << std::endl;
     if (!disableDepth) {
         auto alignedText = "";
         if (!disableColor) {
             alignedText = " (aligned to color)";
         }
-        cout << "depth_width:    " << props.depth.width << alignedText << "\n";
-        cout << "depth_height:   " << props.depth.height << alignedText << endl;
+        std::cout << "depth_width:    " << props.depth.width << alignedText << "\n";
+        std::cout << "depth_height:   " << props.depth.height << alignedText << std::endl;
     }
 
-    return make_tuple(pipeline, props);
+    return std::make_tuple(pipeline, props);
 };
 
 // function prototype for on_device_reconnect, so that it can be used in frameLoop
 void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
                          std::shared_ptr<DeviceProperties> device);
 
-void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
+void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm) {
     bool readyOnce = false;
     {
@@ -503,9 +505,9 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
                 break;
             }
         }
-        auto failureWait = 5ms;
+        auto failureWait = std::chrono::milliseconds(5);
 
-        auto start = chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
 
         rs2::frameset frames;
         const uint timeoutMillis = 2000;
@@ -515,37 +517,38 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
         bool succ = pipeline.try_wait_for_frames(&frames, timeoutMillis);
         if (!succ) {
             if (DEBUG) {
-                cerr << "[frameLoop] could not get frames from realsense after " << timeoutMillis
-                     << "ms" << endl;
+                std::cerr << "[frameLoop] could not get frames from realsense after "
+                          << timeoutMillis << "ms" << std::endl;
             }
-            this_thread::sleep_for(failureWait);
+            std::this_thread::sleep_for(failureWait);
             continue;
         }
         if (DEBUG) {
-            auto stop = chrono::high_resolution_clock::now();
-            auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-            cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
         }
 
         if (!deviceProps->disableColor && !deviceProps->disableDepth) {
-            auto start = chrono::high_resolution_clock::now();
+            auto start = std::chrono::high_resolution_clock::now();
 
             try {
                 frames = FRAME_ALIGNMENT.process(frames);
-            } catch (const exception& e) {
-                cerr << "[frameLoop] exception while aligning images: " << e.what() << endl;
-                this_thread::sleep_for(failureWait);
+            } catch (const std::exception& e) {
+                std::cerr << "[frameLoop] exception while aligning images: " << e.what()
+                          << std::endl;
+                std::this_thread::sleep_for(failureWait);
                 continue;
             }
 
             if (DEBUG) {
-                auto stop = chrono::high_resolution_clock::now();
-                auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-                cout << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
+                auto stop = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+                std::cout << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
             }
         }
         // scale every pixel value to be depth in units of mm
-        unique_ptr<vector<uint16_t>> depthFrameScaled;
+        std::unique_ptr<std::vector<uint16_t>> depthFrameScaled;
         if (!deviceProps->disableDepth) {
             auto depthFrame = frames.get_depth_frame();
             auto depthWidth = depthFrame.get_width();
@@ -553,7 +556,7 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
             const uint16_t* depthFrameData = (const uint16_t*)depthFrame.get_data();
             // NOTE(erd): this is fast enough in -O3 (1920x1080 -> ~15ms) but could probably be
             // better
-            depthFrameScaled = make_unique<vector<uint16_t>>(depthWidth * depthHeight);
+            depthFrameScaled = std::make_unique<std::vector<uint16_t>>(depthWidth * depthHeight);
             for (int y = 0; y < depthHeight; y++) {
                 for (int x = 0; x < depthWidth; x++) {
                     auto px = (y * depthWidth) + x;
@@ -568,9 +571,9 @@ void frameLoop(rs2::pipeline pipeline, promise<void>& ready,
         GLOBAL_LATEST_FRAMES.mutex.unlock();
 
         if (DEBUG) {
-            auto stop = chrono::high_resolution_clock::now();
-            auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-            cout << "[frameLoop] total:           " << duration.count() << "ms\n";
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "[frameLoop] total:           " << duration.count() << "ms\n";
         }
 
         if (!readyOnce) {
@@ -602,19 +605,19 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         // Find and start the first available device
         RealSenseProperties props;
         try {
-            tie(pipeline, props) =
+            std::tie(pipeline, props) =
                 startPipeline(device->disableDepth, device->depthWidth, device->depthHeight,
                               device->disableColor, device->colorWidth, device->colorHeight);
-        } catch (const exception& e) {
-            cout << "caught exception: \"" << e.what() << "\"" << endl;
+        } catch (const std::exception& e) {
+            std::cout << "caught exception: \"" << e.what() << "\"" << std::endl;
             return;
         }
-        // Start the camera thread
-        promise<void> ready;
-        thread cameraThread(frameLoop, pipeline, ref(ready), device, props.depthScaleMm);
-        cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+        // Start the camera std::thread
+        std::promise<void> ready;
+        std::thread cameraThread(frameLoop, pipeline, ref(ready), device, props.depthScaleMm);
+        std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
         ready.get_future().wait();
-        cout << "camera frame loop ready!" << endl;
+        std::cout << "camera frame loop ready!" << std::endl;
         cameraThread.detach();
     } else {
         std::cout << "Device disconnected, stopping frame pipeline" << std::endl;
@@ -636,7 +639,7 @@ class CameraRealSense : public vsdk::Camera {
     bool disableDepth_;
 
     // initialize will use the ResourceConfigs to begin the realsense pipeline.
-    tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
+    std::tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg) {
         if (device_ != nullptr) {
             std::cout << "reinitializing, restarting pipeline" << std::endl;
             {
@@ -646,13 +649,13 @@ class CameraRealSense : public vsdk::Camera {
                 device_->cv.wait(lock, [this] { return !(device_->isRunning); });
             }
         }
-        cout << "initializing the Intel RealSense Camera Module" << endl;
+        std::cout << "initializing the Intel RealSense Camera Module" << std::endl;
         // set variables from config
         int width = 0;
         int height = 0;
         auto attrs = cfg.attributes();
         if (attrs->count("width_px") == 1) {
-            std::shared_ptr<ProtoType> width_proto = attrs->at("width_px");
+            std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
             auto width_value = width_proto->proto_value();
             if (width_value.has_number_value()) {
                 int width_num = static_cast<int>(width_value.number_value());
@@ -660,7 +663,7 @@ class CameraRealSense : public vsdk::Camera {
             }
         }
         if (attrs->count("height_px") == 1) {
-            std::shared_ptr<ProtoType> height_proto = attrs->at("height_px");
+            std::shared_ptr<vsdk::ProtoType> height_proto = attrs->at("height_px");
             auto height_value = height_proto->proto_value();
             if (height_value.has_number_value()) {
                 int height_num = static_cast<int>(height_value.number_value());
@@ -668,10 +671,10 @@ class CameraRealSense : public vsdk::Camera {
             }
         }
         if (width == 0 || height == 0) {
-            cout << "note: will pick any suitable width and height" << endl;
+            std::cout << "note: will pick any suitable width and height" << std::endl;
         }
         if (attrs->count("debug") == 1) {
-            std::shared_ptr<ProtoType> debug_proto = attrs->at("debug");
+            std::shared_ptr<vsdk::ProtoType> debug_proto = attrs->at("debug");
             auto debug_value = debug_proto->proto_value();
             if (debug_value.has_bool_value()) {
                 bool debug_bool = static_cast<bool>(debug_value.bool_value());
@@ -680,7 +683,7 @@ class CameraRealSense : public vsdk::Camera {
         }
         bool littleEndianDepth = false;
         if (attrs->count("little_endian_depth") == 1) {
-            std::shared_ptr<ProtoType> endian_proto = attrs->at("little_endian_depth");
+            std::shared_ptr<vsdk::ProtoType> endian_proto = attrs->at("little_endian_depth");
             auto endian_value = endian_proto->proto_value();
             if (endian_value.has_bool_value()) {
                 bool endian_bool = static_cast<bool>(endian_value.bool_value());
@@ -689,7 +692,7 @@ class CameraRealSense : public vsdk::Camera {
         }
         bool enablePointClouds = false;
         if (attrs->count("enable_point_clouds") == 1) {
-            std::shared_ptr<ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
+            std::shared_ptr<vsdk::ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
             auto pointclouds_value = pointclouds_proto->proto_value();
             if (pointclouds_value.has_bool_value()) {
                 bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
@@ -700,7 +703,7 @@ class CameraRealSense : public vsdk::Camera {
         bool disableColor = true;
         std::vector<std::string> sensors;
         if (attrs->count("sensors") == 1) {
-            std::shared_ptr<ProtoType> sensor_proto = attrs->at("sensors");
+            std::shared_ptr<vsdk::ProtoType> sensor_proto = attrs->at("sensors");
             auto sensor_value = sensor_proto->proto_value();
             if (sensor_value.has_list_value()) {
                 auto sensor_list = sensor_value.list_value();
@@ -733,27 +736,27 @@ class CameraRealSense : public vsdk::Camera {
             // First start of Pipeline
             rs2::pipeline pipe;
             RealSenseProperties props;
-            tie(pipe, props) =
+            std::tie(pipe, props) =
                 startPipeline(disableDepth, width, height, disableColor, width, height);
             // First start of camera thread
             props.mainSensor = sensors[0];
-            cout << "main sensor will be " << sensors[0] << endl;
+            std::cout << "main sensor will be " << sensors[0] << std::endl;
             props.littleEndianDepth = littleEndianDepth;
             if (props.mainSensor == "depth") {
                 std::string endianString = (littleEndianDepth) ? "true" : "false";
-                cout << "depth little endian encoded: " << endianString << endl;
+                std::cout << "depth little endian encoded: " << endianString << std::endl;
             }
             props.enablePointClouds = enablePointClouds;
             std::string pointcloudString = (enablePointClouds) ? "true" : "false";
-            cout << "point clouds enabled: " << pointcloudString << endl;
-            promise<void> ready;
-            thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
-            cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+            std::cout << "point clouds enabled: " << pointcloudString << std::endl;
+            std::promise<void> ready;
+            std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
+            std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
             ready.get_future().wait();
-            cout << "camera frame loop ready!" << endl;
+            std::cout << "camera frame loop ready!" << std::endl;
             cameraThread.detach();
-            return make_tuple(props, disableColor, disableDepth);
-        } catch (const exception& e) {
+            return std::make_tuple(props, disableColor, disableDepth);
+        } catch (const std::exception& e) {
             throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
         }
     }
@@ -764,7 +767,7 @@ class CameraRealSense : public vsdk::Camera {
         RealSenseProperties props;
         bool disableColor;
         bool disableDepth;
-        tie(props, disableColor, disableDepth) = initialize(cfg);
+        std::tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
@@ -786,14 +789,14 @@ class CameraRealSense : public vsdk::Camera {
         RealSenseProperties props;
         bool disableColor;
         bool disableDepth;
-        tie(props, disableColor, disableDepth) = initialize(cfg);
+        std::tie(props, disableColor, disableDepth) = initialize(cfg);
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
     }
 
     vsdk::Camera::raw_image get_image(std::string mime_type) override {
-        auto start = chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
 
         // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
         // are ahead of the frame loop.
@@ -836,9 +839,9 @@ class CameraRealSense : public vsdk::Camera {
         }
 
         if (DEBUG) {
-            auto stop = chrono::high_resolution_clock::now();
-            auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-            cout << "[get_image]  total:           " << duration.count() << "ms\n";
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "[get_image]  total:           " << duration.count() << "ms\n";
         }
 
         return *response;
