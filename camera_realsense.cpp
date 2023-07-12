@@ -26,6 +26,7 @@
 
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
+#include "third_party/base64.h"
 
 #define RESOURCE_TYPE "CameraRealSense"
 #define API_NAMESPACE "viam"
@@ -89,6 +90,7 @@ struct AtomicFrameSet {
     std::mutex mutex;
     rs2::frame colorFrame;
     std::shared_ptr<std::vector<uint16_t>> depthFrame;
+    double timestamp;
 };
 
 // Global AtomicFrameSet
@@ -121,7 +123,12 @@ std::vector<unsigned char> convertToVector(const unsigned char* data, size_t siz
 };
 
 // COLOR responses
-std::tuple<std::vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const int width,
+struct color_response {
+    std::vector<uint8_t> color_bytes;
+    bool ok;
+};
+
+color_response encodeColorPNG(const uint8_t* data, const int width,
                                                       const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
@@ -146,17 +153,23 @@ std::tuple<std::vector<uint8_t>, bool> encodeColorPNG(const uint8_t* data, const
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t* data,
                                                                   const int width,
                                                                   const int height) {
-    const auto& [encoded, ok] = encodeColorPNG(data, width, height);
-    if (!ok) {
+    color_response encoded = encodeColorPNG(data, width, height);
+    if (!encoded.ok) {
         throw std::runtime_error("failed to encode color PNG");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/png";
-    response->bytes = encoded;
+    response->bytes = encoded.color_bytes;
     return response;
 };
 
-std::tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned char* data,
+struct jpeg_image {
+    unsigned char* bytes;
+    long unsigned int size;
+    bool ok;
+};
+
+jpeg_image encodeJPEG(const unsigned char* data,
                                                                const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
@@ -185,18 +198,24 @@ std::tuple<unsigned char*, long unsigned int, bool> encodeJPEG(const unsigned ch
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
                                                               const int width, const int height) {
-    const auto& [encoded, encodedSize, ok] = encodeJPEG(data, width, height);
-    if (!ok) {
-        tjFree(encoded);
+    jpeg_image encoded = encodeJPEG(data, width, height);
+    if (!encoded.ok) {
+        tjFree(encoded.bytes);
         throw std::runtime_error("failed to encode color JPEG");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/jpeg";
-    response->bytes = convertToVector(encoded, encodedSize);
+    response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
 };
 
-std::tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* data,
+struct raw_camera_image {
+   unsigned char* bytes;
+   size_t size;
+   bool ok; 
+};
+
+raw_camera_image encodeColorRAW(const unsigned char* data,
                                                         const uint32_t width,
                                                         const uint32_t height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
@@ -238,19 +257,19 @@ std::tuple<unsigned char*, size_t, bool> encodeColorRAW(const unsigned char* dat
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
                                                                   const uint width,
                                                                   const uint height) {
-    const auto& [encoded, encodedSize, ok] = encodeColorRAW(data, width, height);
-    if (!ok) {
-        std::free(encoded);
+    raw_camera_image encoded = encodeColorRAW(data, width, height);
+    if (!encoded.ok) {
+        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode color RAW");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/vnd.viam.rgba";
-    response->bytes = convertToVector(encoded, encodedSize);
+    response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
 };
 
 // DEPTH responses
-std::tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* data, const uint width,
+raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width,
                                                         const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
@@ -291,18 +310,18 @@ std::tuple<unsigned char*, size_t, bool> encodeDepthPNG(const unsigned char* dat
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
                                                                   const uint width,
                                                                   const uint height) {
-    const auto& [encoded, encoded_size, ok] = encodeDepthPNG(data, width, height);
-    if (!ok) {
-        std::free(encoded);
+    raw_camera_image encoded = encodeDepthPNG(data, width, height);
+    if (!encoded.ok) {
+        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth PNG");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/png";
-    response->bytes = convertToVector(encoded, encoded_size);
+    response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
 };
 
-std::tuple<unsigned char*, size_t, bool> encodeDepthRAW(const unsigned char* data,
+raw_camera_image encodeDepthRAW(const unsigned char* data,
                                                         const uint64_t width, const uint64_t height,
                                                         const bool littleEndian) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
@@ -352,14 +371,14 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
                                                                   const uint width,
                                                                   const uint height,
                                                                   const bool littleEndian) {
-    const auto& [encoded, encodedSize, ok] = encodeDepthRAW(data, width, height, littleEndian);
-    if (!ok) {
-        std::free(encoded);
+    raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
+    if (!encoded.ok) {
+        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth RAW");
     }
     std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
     response->mime_type = "image/vnd.viam.dep";
-    response->bytes = convertToVector(encoded, encodedSize);
+    response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
 };
 
@@ -565,10 +584,12 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                 }
             }
         }
-        GLOBAL_LATEST_FRAMES.mutex.lock();
-        GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
-        GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
-        GLOBAL_LATEST_FRAMES.mutex.unlock();
+        {
+            std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
+            GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
+            GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
+            GLOBAL_LATEST_FRAMES.timestamp = frames.get_timestamp();
+        }
 
         if (DEBUG) {
             auto stop = std::chrono::high_resolution_clock::now();
@@ -875,9 +896,29 @@ class CameraRealSense : public vsdk::Camera {
     }
 
     vsdk::AttributeMap do_command(vsdk::AttributeMap command) override {
-        std::cerr << "do_command not implemented" << std::endl;
-        return 0;
+        GLOBAL_LATEST_FRAMES.mutex.lock();
+        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
+        double latestTimestamp = GLOBAL_LATEST_FRAMES.timestamp;
+        GLOBAL_LATEST_FRAMES.mutex.unlock();
+        // convert color and depth images to base64-string for easy packaging
+        // depth, RS2_FORMAT_Z16, little-endian
+        const unsigned char* depthData = reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
+        int depthSize = latestDepthFrame->size() * sizeof(uint16_t);
+        auto depthVec = std::vector<unsigned char>(depthData, depthData + depthSize);
+        std::string depthString = vsdk::bytes_to_string(depthVec);
+        // color, RS2_FORMAT_RGB8
+        //const uint8_t* colorData = reinterpret_cast<const uint8_t*>(latestColorFrame.get_data());
+        //int colorSize = latestColorFrame.get_data_size();
+        //std::string base64ColorString = base64_encode(colorData, colorSize);
+        // create an attribute map of the color and depth frames
+        auto response = std::make_shared<std::unordered_map<std::string, std::shared_ptr<vsdk::ProtoType>>>();
+        //response->emplace("color", std::make_shared<vsdk::ProtoType>(base64ColorString));
+        response->emplace("depth", std::make_shared<vsdk::ProtoType>(depthString));
+        response->emplace("timestamp", std::make_shared<vsdk::ProtoType>(latestTimestamp));
+        return response;
     }
+
     vsdk::Camera::point_cloud get_point_cloud(std::string mime_type) override {
         std::cerr << "get_point_cloud not implemented" << std::endl;
         return vsdk::Camera::point_cloud{};
