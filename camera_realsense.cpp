@@ -157,7 +157,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
     if (!encoded.ok) {
         throw std::runtime_error("failed to encode color PNG");
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
+    auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->mime_type = "image/png";
     response->bytes = encoded.color_bytes;
     return response;
@@ -203,7 +203,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
         tjFree(encoded.bytes);
         throw std::runtime_error("failed to encode color JPEG");
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
+    auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->mime_type = "image/jpeg";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -262,7 +262,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
         std::free(encoded.bytes);
         throw std::runtime_error("failed to encode color RAW");
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
+    auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->mime_type = "image/vnd.viam.rgba";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -315,7 +315,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
         std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth PNG");
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
+    auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->mime_type = "image/png";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -376,7 +376,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
         std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth RAW");
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response(new vsdk::Camera::raw_image{});
+    auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->mime_type = "image/vnd.viam.dep";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
