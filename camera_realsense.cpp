@@ -24,9 +24,9 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
+#include "third_party/base64.h"
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
-#include "third_party/base64.h"
 
 #define RESOURCE_TYPE "CameraRealSense"
 #define API_NAMESPACE "viam"
@@ -128,8 +128,7 @@ struct color_response {
     bool ok;
 };
 
-color_response encodeColorPNG(const uint8_t* data, const int width,
-                                                      const int height) {
+color_response encodeColorPNG(const uint8_t* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = std::chrono::high_resolution_clock::now();
@@ -169,8 +168,7 @@ struct jpeg_image {
     bool ok;
 };
 
-jpeg_image encodeJPEG(const unsigned char* data,
-                                                               const int width, const int height) {
+jpeg_image encodeJPEG(const unsigned char* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = std::chrono::high_resolution_clock::now();
@@ -210,14 +208,13 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
 };
 
 struct raw_camera_image {
-   unsigned char* bytes;
-   size_t size;
-   bool ok; 
+    unsigned char* bytes;
+    size_t size;
+    bool ok;
 };
 
-raw_camera_image encodeColorRAW(const unsigned char* data,
-                                                        const uint32_t width,
-                                                        const uint32_t height) {
+raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
+                                const uint32_t height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = std::chrono::high_resolution_clock::now();
@@ -269,8 +266,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
 };
 
 // DEPTH responses
-raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width,
-                                                        const uint height) {
+raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = std::chrono::high_resolution_clock::now();
@@ -321,9 +317,8 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
     return response;
 };
 
-raw_camera_image encodeDepthRAW(const unsigned char* data,
-                                                        const uint64_t width, const uint64_t height,
-                                                        const bool littleEndian) {
+raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
+                                const uint64_t height, const bool littleEndian) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (DEBUG) {
         start = std::chrono::high_resolution_clock::now();
@@ -903,17 +898,19 @@ class CameraRealSense : public vsdk::Camera {
         GLOBAL_LATEST_FRAMES.mutex.unlock();
         // convert color and depth images to base64-string for easy packaging
         // depth, RS2_FORMAT_Z16, little-endian
-        const unsigned char* depthData = reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
+        const unsigned char* depthData =
+            reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
         int depthSize = latestDepthFrame->size() * sizeof(uint16_t);
         auto depthVec = std::vector<unsigned char>(depthData, depthData + depthSize);
         std::string depthString = vsdk::bytes_to_string(depthVec);
         // color, RS2_FORMAT_RGB8
-        //const uint8_t* colorData = reinterpret_cast<const uint8_t*>(latestColorFrame.get_data());
-        //int colorSize = latestColorFrame.get_data_size();
-        //std::string base64ColorString = base64_encode(colorData, colorSize);
+        // const uint8_t* colorData = reinterpret_cast<const uint8_t*>(latestColorFrame.get_data());
+        // int colorSize = latestColorFrame.get_data_size();
+        // std::string base64ColorString = base64_encode(colorData, colorSize);
         // create an attribute map of the color and depth frames
-        auto response = std::make_shared<std::unordered_map<std::string, std::shared_ptr<vsdk::ProtoType>>>();
-        //response->emplace("color", std::make_shared<vsdk::ProtoType>(base64ColorString));
+        auto response =
+            std::make_shared<std::unordered_map<std::string, std::shared_ptr<vsdk::ProtoType>>>();
+        // response->emplace("color", std::make_shared<vsdk::ProtoType>(base64ColorString));
         response->emplace("depth", std::make_shared<vsdk::ProtoType>(depthString));
         response->emplace("timestamp", std::make_shared<vsdk::ProtoType>(latestTimestamp));
         return response;
