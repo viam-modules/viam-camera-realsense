@@ -898,8 +898,7 @@ class CameraRealSense : public vsdk::Camera {
         GLOBAL_LATEST_FRAMES.mutex.unlock();
         // convert color and depth images to base64-string for easy packaging
         // depth, RS2_FORMAT_Z16, little-endian
-        const unsigned char* depthData =
-            reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
+        const unsigned char* depthData = reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
         int depthSize = latestDepthFrame->size() * sizeof(uint16_t);
         auto depthVec = std::vector<unsigned char>(depthData, depthData + depthSize);
         std::string depthString = vsdk::bytes_to_string(depthVec);
