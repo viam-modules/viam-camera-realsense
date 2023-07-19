@@ -237,7 +237,7 @@ static std::string decode(String const& encoded_string, bool remove_linebreaks) 
        pos += 4;
     }
 
-    return ret;
+    return std::move(ret);
 }
 
 std::string base64_decode(std::string const& s, bool remove_linebreaks) {

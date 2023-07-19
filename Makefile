@@ -60,7 +60,7 @@ CPP_COMPILER = g++
 THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp third_party/base64.cpp
 SERVER_TARGETS = $(THIRD_PARTY_SOURCES) camera_realsense.cpp
 
-GCC_FLAGS = -pthread -Wl,-ldl
+GCC_FLAGS = -O4 -pthread -Wl,-ldl
 ifeq ($(shell arch), x86_64)
    GCC_FLAGS += -mpclmul -msse2 -msse4.2
 endif

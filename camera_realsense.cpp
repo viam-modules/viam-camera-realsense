@@ -77,6 +77,7 @@ struct RealSenseProperties {
     CameraProperties depth;
     float depthScaleMm;
     std::string mainSensor;
+    std::vector<std::string> sensors;
     bool littleEndianDepth;
     bool enablePointClouds;
 };
@@ -90,7 +91,7 @@ struct AtomicFrameSet {
     std::mutex mutex;
     rs2::frame colorFrame;
     std::shared_ptr<std::vector<uint16_t>> depthFrame;
-    double timestamp;
+    std::chrono::milliseconds timestamp;
 };
 
 // Global AtomicFrameSet
@@ -157,6 +158,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
         throw std::runtime_error("failed to encode color PNG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
+    response->source_name = "color";
     response->mime_type = "image/png";
     response->bytes = encoded.color_bytes;
     return response;
@@ -202,6 +204,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
         throw std::runtime_error("failed to encode color JPEG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
+    response->source_name = "color";
     response->mime_type = "image/jpeg";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -260,6 +263,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
         throw std::runtime_error("failed to encode color RAW");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
+    response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -312,6 +316,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
         throw std::runtime_error("failed to encode depth PNG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
+    response->source_name = "depth";
     response->mime_type = "image/png";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -372,6 +377,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
         throw std::runtime_error("failed to encode depth RAW");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
+    response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
     response->bytes = convertToVector(encoded.bytes, encoded.size);
     return response;
@@ -583,7 +589,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
             GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
             GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
-            GLOBAL_LATEST_FRAMES.timestamp = frames.get_timestamp();
+            GLOBAL_LATEST_FRAMES.timestamp = std::chrono::milliseconds(frames.get_timestamp());
         }
 
         if (DEBUG) {
@@ -755,6 +761,7 @@ class CameraRealSense : public vsdk::Camera {
             std::tie(pipe, props) =
                 startPipeline(disableDepth, width, height, disableColor, width, height);
             // First start of camera thread
+            props.sensors = sensors;
             props.mainSensor = sensors[0];
             std::cout << "main sensor will be " << sensors[0] << std::endl;
             props.littleEndianDepth = littleEndianDepth;
@@ -863,6 +870,40 @@ class CameraRealSense : public vsdk::Camera {
         return *response;
     }
 
+    vsdk::Camera::image_collection get_images() override {
+        auto start = std::chrono::high_resolution_clock::now();
+        vsdk::Camera::image_collection response;
+
+        GLOBAL_LATEST_FRAMES.mutex.lock();
+        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
+        auto latestTimestamp = GLOBAL_LATEST_FRAMES.timestamp;
+        GLOBAL_LATEST_FRAMES.mutex.unlock();
+
+        for (const auto& sensor : this->props_.sensors) {
+            if (sensor == "color" ) {
+                std::unique_ptr<vsdk::Camera::raw_image> color_response;
+                color_response = encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                         this->props_.color.width, this->props_.color.height);
+                response.images.push_back(*color_response);
+            }
+            else if (sensor == "depth") {
+                std::unique_ptr<vsdk::Camera::raw_image> depth_response;
+                depth_response = encodeDepthRAWToResponse(
+                    (const unsigned char*)latestDepthFrame->data(), this->props_.depth.width,
+                    this->props_.depth.height, this->props_.littleEndianDepth);
+                response.images.push_back(*depth_response);
+            }
+        }
+        response.metadata.captured_at = std::chrono::time_point_cast<std::chrono::nanoseconds>(latestTimestamp);
+        if (DEBUG) {
+            auto stop = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+            std::cout << "[get_images]  total:           " << duration.count() << "ms\n";
+        }
+        return response;
+    }
+
     vsdk::Camera::properties get_properties() override {
         auto fillResp = [](vsdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
             p->supports_pcd = supportsPCD;
@@ -891,27 +932,8 @@ class CameraRealSense : public vsdk::Camera {
     }
 
     vsdk::AttributeMap do_command(vsdk::AttributeMap command) override {
-        GLOBAL_LATEST_FRAMES.mutex.lock();
-        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
-        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
-        double latestTimestamp = GLOBAL_LATEST_FRAMES.timestamp;
-        GLOBAL_LATEST_FRAMES.mutex.unlock();
-        // convert color and depth images to base64-string for easy packaging
-        // depth, RS2_FORMAT_Z16, little-endian
-        const unsigned char* depthData = reinterpret_cast<const unsigned char*>(latestDepthFrame->data());
-        int depthSize = latestDepthFrame->size() * sizeof(uint16_t);
-        auto depthVec = std::vector<unsigned char>(depthData, depthData + depthSize);
-        std::string depthString = vsdk::bytes_to_string(depthVec);
-        // color, RS2_FORMAT_RGB8
-        // const uint8_t* colorData = reinterpret_cast<const uint8_t*>(latestColorFrame.get_data());
-        // int colorSize = latestColorFrame.get_data_size();
-        // std::string base64ColorString = base64_encode(colorData, colorSize);
-        // create an attribute map of the color and depth frames
         auto response =
             std::make_shared<std::unordered_map<std::string, std::shared_ptr<vsdk::ProtoType>>>();
-        // response->emplace("color", std::make_shared<vsdk::ProtoType>(base64ColorString));
-        response->emplace("depth", std::make_shared<vsdk::ProtoType>(depthString));
-        response->emplace("timestamp", std::make_shared<vsdk::ProtoType>(latestTimestamp));
         return response;
     }
 
