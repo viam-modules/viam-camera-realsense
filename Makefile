@@ -57,7 +57,7 @@ run-sdk:
 # compile the binary
 SDK_LOCATION = /usr/local
 CPP_COMPILER = g++
-THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp third_party/base64.cpp
+THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp
 SERVER_TARGETS = $(THIRD_PARTY_SOURCES) camera_realsense.cpp
 
 GCC_FLAGS = -O4 -pthread -Wl,-ldl

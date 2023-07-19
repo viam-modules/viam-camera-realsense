@@ -24,7 +24,6 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
-#include "third_party/base64.h"
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
@@ -165,7 +164,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
 };
 
 struct jpeg_image {
-    unsigned char* bytes;
+    unsigned char* data_ptr;
     long unsigned int size;
     bool ok;
 };
@@ -200,13 +199,13 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
                                                               const int width, const int height) {
     jpeg_image encoded = encodeJPEG(data, width, height);
     if (!encoded.ok) {
-        tjFree(encoded.bytes);
+        tjFree(encoded.data_ptr);
         throw std::runtime_error("failed to encode color JPEG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
-    response->bytes = convertToVector(encoded.bytes, encoded.size);
+    response->bytes = std::move(std::vector<unsigned char>(encoded.data_ptr, encoded.data_ptr + encoded.size));
     return response;
 };
 
