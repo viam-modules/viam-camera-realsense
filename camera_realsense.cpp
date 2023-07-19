@@ -589,7 +589,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
             GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
             GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
-            GLOBAL_LATEST_FRAMES.timestamp = std::chrono::milliseconds(frames.get_timestamp());
+            GLOBAL_LATEST_FRAMES.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double, std::milli>(frames.get_timestamp()));
         }
 
         if (DEBUG) {
@@ -895,7 +895,7 @@ class CameraRealSense : public vsdk::Camera {
                 response.images.push_back(*depth_response);
             }
         }
-        response.metadata.captured_at = std::chrono::time_point_cast<std::chrono::nanoseconds>(latestTimestamp);
+        response.metadata.captured_at = std::chrono::time_point<long long, std::chrono::nanoseconds>(std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
         if (DEBUG) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
