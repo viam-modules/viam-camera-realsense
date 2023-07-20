@@ -99,7 +99,7 @@ struct AtomicFrameSet {
 // Global AtomicFrameSet
 AtomicFrameSet GLOBAL_LATEST_FRAMES;
 
-bool DEBUG = false;
+bool debug_enabled = false;
 const uint32_t rgbaMagicNumber =
     htonl(1380401729);  // the utf-8 binary encoding for "RGBA", big-endian
 const size_t rgbaMagicByteCount =
@@ -126,7 +126,7 @@ struct color_response {
 
 color_response encodeColorPNG(const uint8_t* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (DEBUG) {
+    if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -136,7 +136,7 @@ color_response encodeColorPNG(const uint8_t* data, const int width, const int he
         return {encoded, false};
     }
 
-    if (DEBUG) {
+    if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
@@ -167,7 +167,7 @@ struct jpeg_image {
 
 jpeg_image encodeJPEG(const unsigned char* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (DEBUG) {
+    if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -183,7 +183,7 @@ jpeg_image encodeJPEG(const unsigned char* data, const int width, const int heig
                 TJFLAG_FASTDCT);
     tjDestroy(handle);
 
-    if (DEBUG) {
+    if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
@@ -216,7 +216,7 @@ struct raw_camera_image {
 raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
                                 const uint32_t height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (DEBUG) {
+    if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
     // set size of raw file
@@ -242,7 +242,7 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
         pixelOffset += 3;
         offset += 4;
     }
-    if (DEBUG) {
+    if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
@@ -269,7 +269,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
 // DEPTH responses
 raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (DEBUG) {
+    if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
 
@@ -297,7 +297,7 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         return {std::move(uniqueEncoded), encoded_size, false};
     }
 
-    if (DEBUG) {
+    if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
@@ -324,7 +324,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
 raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
                                 const uint64_t height, const bool littleEndian) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (DEBUG) {
+    if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
     // Depth header contains 8 bytes worth of magic number, followed by 8 bytes for width and
@@ -358,7 +358,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     }
     std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
 
-    if (DEBUG) {
+    if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
@@ -536,14 +536,14 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         */
         bool succ = pipeline.try_wait_for_frames(&frames, timeoutMillis);
         if (!succ) {
-            if (DEBUG) {
+            if (debug_enabled) {
                 std::cerr << "[frameLoop] could not get frames from realsense after "
                           << timeoutMillis << "ms" << std::endl;
             }
             std::this_thread::sleep_for(failureWait);
             continue;
         }
-        if (DEBUG) {
+        if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
@@ -561,7 +561,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                 continue;
             }
 
-            if (DEBUG) {
+            if (debug_enabled) {
                 auto stop = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
                 std::cout << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
@@ -574,8 +574,6 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             auto depthWidth = depthFrame.get_width();
             auto depthHeight = depthFrame.get_height();
             const uint16_t* depthFrameData = (const uint16_t*)depthFrame.get_data();
-            // NOTE(erd): this is fast enough in -O3 (1920x1080 -> ~15ms) but could probably be
-            // better
             depthFrameScaled = std::make_unique<std::vector<uint16_t>>(depthWidth * depthHeight);
             for (int y = 0; y < depthHeight; y++) {
                 for (int x = 0; x < depthWidth; x++) {
@@ -593,7 +591,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                 std::chrono::duration<double, std::milli>(frames.get_timestamp()));
         }
 
-        if (DEBUG) {
+        if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "[frameLoop] total:           " << duration.count() << "ms\n";
@@ -701,7 +699,7 @@ class CameraRealSense : public vsdk::Camera {
             auto debug_value = debug_proto->proto_value();
             if (debug_value.has_bool_value()) {
                 bool debug_bool = static_cast<bool>(debug_value.bool_value());
-                DEBUG = debug_bool;
+                debug_enabled = debug_bool;
             }
         }
         bool littleEndianDepth = false;
@@ -862,7 +860,7 @@ class CameraRealSense : public vsdk::Camera {
             }
         }
 
-        if (DEBUG) {
+        if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "[get_image]  total:           " << duration.count() << "ms\n";
@@ -899,7 +897,7 @@ class CameraRealSense : public vsdk::Camera {
         response.metadata.captured_at =
             std::chrono::time_point<long long, std::chrono::nanoseconds>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
-        if (DEBUG) {
+        if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "[get_images]  total:           " << duration.count() << "ms\n";

@@ -78,7 +78,7 @@ RUN cd ${HOME}/opt/src && \
     cd viam-cpp-sdk && \
     mkdir build && \
     cd build && \
-    cmake  -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON .. -G Ninja  && \
+    cmake  -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
     ninja install -j1
 
 # install librealsense from source
@@ -118,9 +118,6 @@ RUN apt install -y golang-go
 
 # necessary library for jpeg
 RUN apt install -y libturbojpeg-dev vim
-
-# install viam-camera-realsense
-RUN cp -r ${HOME}/opt/src/viam-cpp-sdk/build/install/* /usr/local/
 
 # install dev files
 ADD ../ ${HOME}/opt/src/viam-camera-realsense
