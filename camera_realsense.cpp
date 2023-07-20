@@ -27,12 +27,15 @@
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
-#define RESOURCE_TYPE "CameraRealSense"
-#define API_NAMESPACE "viam"
-#define API_TYPE "camera"
-#define API_SUBTYPE "realsense"
+constexpr char kResourceType[] = "CameraRealSense";
+constexpr char kAPINamespace[] = "viam";
+constexpr char kAPIType[] = "camera";
+constexpr char kAPISubtype[] = "realsense";
+
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
+
+namespace {
 
 namespace vsdk = ::viam::sdk;
 
@@ -114,13 +117,6 @@ const size_t depthWidthByteCount =
     sizeof(uint64_t);  // number of bytes used to represent depth image width
 const size_t depthHeightByteCount =
     sizeof(uint64_t);  // number of bytes used to represent depth image height
-
-// helper function to turn data pointer in a data vector for raw_image
-std::vector<unsigned char> convertToVector(const unsigned char* data, size_t size) {
-    const unsigned char* begin = data;
-    const unsigned char* end = data + size;
-    return std::vector<unsigned char>(begin, end);
-};
 
 // COLOR responses
 struct color_response {
@@ -206,7 +202,8 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
-    response->bytes = std::move(std::vector<unsigned char>(encoded.data_ptr.get(), encoded.data_ptr.get() + encoded.size));
+    response->bytes = std::move(
+        std::vector<unsigned char>(encoded.data_ptr.get(), encoded.data_ptr.get() + encoded.size));
     return response;
 };
 
@@ -264,7 +261,8 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
-    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes = std::move(
+        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
@@ -291,8 +289,8 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         offset += 2;
     }
     std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
-    unsigned result =
-        lodepng_encode_memory(&encoded, &encoded_size, uniqueBuf.get(), width, height, LCT_GREY, 16);
+    unsigned result = lodepng_encode_memory(&encoded, &encoded_size, uniqueBuf.get(), width, height,
+                                            LCT_GREY, 16);
     std::unique_ptr<unsigned char[]> uniqueEncoded(encoded);
     if (result != 0) {
         std::cerr << "[GetImage]  failed to encode depth PNG" << std::endl;
@@ -318,7 +316,8 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
-    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes = std::move(
+        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
@@ -379,7 +378,8 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
-    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes = std::move(
+        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
@@ -589,7 +589,8 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
             GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
             GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
-            GLOBAL_LATEST_FRAMES.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double, std::milli>(frames.get_timestamp()));
+            GLOBAL_LATEST_FRAMES.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration<double, std::milli>(frames.get_timestamp()));
         }
 
         if (DEBUG) {
@@ -881,13 +882,13 @@ class CameraRealSense : public vsdk::Camera {
         GLOBAL_LATEST_FRAMES.mutex.unlock();
 
         for (const auto& sensor : this->props_.sensors) {
-            if (sensor == "color" ) {
+            if (sensor == "color") {
                 std::unique_ptr<vsdk::Camera::raw_image> color_response;
-                color_response = encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
+                color_response =
+                    encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
                                          this->props_.color.width, this->props_.color.height);
                 response.images.push_back(*color_response);
-            }
-            else if (sensor == "depth") {
+            } else if (sensor == "depth") {
                 std::unique_ptr<vsdk::Camera::raw_image> depth_response;
                 depth_response = encodeDepthRAWToResponse(
                     (const unsigned char*)latestDepthFrame->data(), this->props_.depth.width,
@@ -895,7 +896,9 @@ class CameraRealSense : public vsdk::Camera {
                 response.images.push_back(*depth_response);
             }
         }
-        response.metadata.captured_at = std::chrono::time_point<long long, std::chrono::nanoseconds>(std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
+        response.metadata.captured_at =
+            std::chrono::time_point<long long, std::chrono::nanoseconds>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
         if (DEBUG) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -958,8 +961,8 @@ int serve(const std::string& socket_path) {
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
     auto module_registration = std::make_shared<vsdk::ModelRegistration>(
-        vsdk::ResourceType{RESOURCE_TYPE}, vsdk::Camera::static_api(),
-        vsdk::Model{API_NAMESPACE, API_TYPE, API_SUBTYPE},
+        vsdk::ResourceType{kResourceType}, vsdk::Camera::static_api(),
+        vsdk::Model{kAPINamespace, kAPIType, kAPISubtype},
         [](vsdk::Dependencies deps, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
             return std::make_shared<CameraRealSense>(deps, cfg);
         },
@@ -967,7 +970,7 @@ int serve(const std::string& socket_path) {
 
     try {
         vsdk::Registry::register_model(module_registration);
-        std::cout << "registered model " << API_NAMESPACE << ":" << API_TYPE << ":" << API_SUBTYPE
+        std::cout << "registered model " << kAPINamespace << ":" << kAPIType << ":" << kAPISubtype
                   << std::endl;
     } catch (const std::runtime_error& e) {
         std::cerr << "error registering model: " << e.what() << std::endl;
@@ -993,6 +996,8 @@ int serve(const std::string& socket_path) {
 
     return EXIT_SUCCESS;
 }
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";
