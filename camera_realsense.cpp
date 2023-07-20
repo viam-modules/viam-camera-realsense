@@ -164,7 +164,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
 };
 
 struct jpeg_image {
-    unsigned char* data_ptr;
+    std::unique_ptr<unsigned char> data_ptr;
     long unsigned int size;
     bool ok;
 };
@@ -180,7 +180,8 @@ jpeg_image encodeJPEG(const unsigned char* data, const int width, const int heig
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
         std::cerr << "[GetImage]  failed to init JPEG compressor" << std::endl;
-        return {encoded, encodedSize, false};
+        std::unique_ptr<unsigned char> uniqueEncoded(encoded);
+        return {std::move(uniqueEncoded), encodedSize, false};
     }
     tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize, TJSAMP_420, 75,
                 TJFLAG_FASTDCT);
@@ -192,25 +193,25 @@ jpeg_image encodeJPEG(const unsigned char* data, const int width, const int heig
         std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
     }
 
-    return {encoded, encodedSize, true};
+    std::unique_ptr<unsigned char> uniqueEncoded(encoded);
+    return {std::move(uniqueEncoded), encodedSize, true};
 };
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
                                                               const int width, const int height) {
     jpeg_image encoded = encodeJPEG(data, width, height);
     if (!encoded.ok) {
-        tjFree(encoded.data_ptr);
         throw std::runtime_error("failed to encode color JPEG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
-    response->bytes = std::move(std::vector<unsigned char>(encoded.data_ptr, encoded.data_ptr + encoded.size));
+    response->bytes = std::move(std::vector<unsigned char>(encoded.data_ptr.get(), encoded.data_ptr.get() + encoded.size));
     return response;
 };
 
 struct raw_camera_image {
-    unsigned char* bytes;
+    std::unique_ptr<unsigned char[]> bytes;
     size_t size;
     bool ok;
 };
@@ -249,8 +250,8 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
     }
-
-    return {rawBuf, totalByteCount, true};
+    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
+    return {std::move(uniqueBuf), totalByteCount, true};
 };
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
@@ -258,13 +259,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
                                                                   const uint height) {
     raw_camera_image encoded = encodeColorRAW(data, width, height);
     if (!encoded.ok) {
-        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode color RAW");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
-    response->bytes = convertToVector(encoded.bytes, encoded.size);
+    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
@@ -290,11 +290,13 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         pixelOffset += 2;
         offset += 2;
     }
+    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
     unsigned result =
-        lodepng_encode_memory(&encoded, &encoded_size, rawBuf, width, height, LCT_GREY, 16);
+        lodepng_encode_memory(&encoded, &encoded_size, uniqueBuf.get(), width, height, LCT_GREY, 16);
+    std::unique_ptr<unsigned char[]> uniqueEncoded(encoded);
     if (result != 0) {
         std::cerr << "[GetImage]  failed to encode depth PNG" << std::endl;
-        return {encoded, encoded_size, false};
+        return {std::move(uniqueEncoded), encoded_size, false};
     }
 
     if (DEBUG) {
@@ -303,7 +305,7 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {encoded, encoded_size, true};
+    return {std::move(uniqueEncoded), encoded_size, true};
 };
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
@@ -311,13 +313,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
                                                                   const uint height) {
     raw_camera_image encoded = encodeDepthPNG(data, width, height);
     if (!encoded.ok) {
-        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth PNG");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
-    response->bytes = convertToVector(encoded.bytes, encoded.size);
+    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
@@ -356,6 +357,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
             offset += 2;
         }
     }
+    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
 
     if (DEBUG) {
         auto stop = std::chrono::high_resolution_clock::now();
@@ -363,7 +365,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {rawBuf, totalByteCount, true};
+    return {std::move(uniqueBuf), std::move(totalByteCount), true};
 };
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
@@ -372,13 +374,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
                                                                   const bool littleEndian) {
     raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
     if (!encoded.ok) {
-        std::free(encoded.bytes);
         throw std::runtime_error("failed to encode depth RAW");
     }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
-    response->bytes = convertToVector(encoded.bytes, encoded.size);
+    response->bytes = std::move(std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
     return response;
 };
 
