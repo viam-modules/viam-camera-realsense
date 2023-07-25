@@ -560,11 +560,13 @@ class CameraRealSense : public vsdk::Camera {
 
         // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
         // are ahead of the frame loop.
-        GLOBAL_LATEST_FRAMES.mutex.lock();
-        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
-        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
-        GLOBAL_LATEST_FRAMES.mutex.unlock();
-
+        rs2::frame latestColorFrame;
+        std::shared_ptr<std::vector<uint16_t>> latestDepthFrame;
+        {
+            std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
+            latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+            latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
+        }
         std::unique_ptr<vsdk::Camera::raw_image> response;
         if (this->props_.mainSensor.compare("color") == 0) {
             if (this->disableColor_) {
@@ -604,18 +606,22 @@ class CameraRealSense : public vsdk::Camera {
             std::cout << "[get_image]  total:           " << duration.count() << "ms\n";
         }
 
-        return *response;
+        return std::move(*response);
     }
 
     vsdk::Camera::image_collection get_images() override {
         auto start = std::chrono::high_resolution_clock::now();
         vsdk::Camera::image_collection response;
 
-        GLOBAL_LATEST_FRAMES.mutex.lock();
-        auto latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
-        auto latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
-        auto latestTimestamp = GLOBAL_LATEST_FRAMES.timestamp;
-        GLOBAL_LATEST_FRAMES.mutex.unlock();
+        rs2::frame latestColorFrame;
+        std::shared_ptr<std::vector<uint16_t>> latestDepthFrame;
+        std::chrono::milliseconds latestTimestamp;
+        {
+            std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
+            latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+            latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
+            latestTimestamp = GLOBAL_LATEST_FRAMES.timestamp;
+        }
 
         for (const auto& sensor : this->props_.sensors) {
             if (sensor == "color") {
