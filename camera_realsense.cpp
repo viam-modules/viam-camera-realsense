@@ -694,18 +694,6 @@ class CameraRealSense : public vsdk::Camera {
 // align to the color camera's origin when color and depth enabled
 const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 
-// gives the pixel to mm conversion for the depth sensor
-float getDepthScale(rs2::device dev) {
-    // Go over the device's sensors
-    for (rs2::sensor& sensor : dev.query_sensors()) {
-        // Check if the sensor if a depth sensor
-        if (rs2::depth_sensor dpt = sensor.as<rs2::depth_sensor>()) {
-            return dpt.get_depth_scale() * 1000.0;  // rs2 gives pix2meters
-        }
-    }
-    throw std::runtime_error("Device does not have a depth sensor");
-}
-
 void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm) {
     bool readyOnce = false;
@@ -812,6 +800,18 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
     }
     deviceProps->cv.notify_all();
 };
+
+// gives the pixel to mm conversion for the depth sensor
+float getDepthScale(rs2::device dev) {
+    // Go over the device's sensors
+    for (rs2::sensor& sensor : dev.query_sensors()) {
+        // Check if the sensor if a depth sensor
+        if (rs2::depth_sensor dpt = sensor.as<rs2::depth_sensor>()) {
+            return dpt.get_depth_scale() * 1000.0;  // rs2 gives pix2meters
+        }
+    }
+    throw std::runtime_error("Device does not have a depth sensor");
+}
 
 std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
                                                              int depthHeight, bool disableColor,
