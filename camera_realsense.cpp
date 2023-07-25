@@ -558,8 +558,6 @@ class CameraRealSense : public vsdk::Camera {
     vsdk::Camera::raw_image get_image(std::string mime_type) override {
         auto start = std::chrono::high_resolution_clock::now();
 
-        // FUTURE(erd): we could track the last frame encode so as to not duplicate work if we
-        // are ahead of the frame loop.
         rs2::frame latestColorFrame;
         std::shared_ptr<std::vector<uint16_t>> latestDepthFrame;
         {
