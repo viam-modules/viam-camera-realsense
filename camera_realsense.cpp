@@ -607,6 +607,34 @@ class CameraRealSense : public vsdk::Camera {
         return std::move(*response);
     }
 
+    vsdk::Camera::properties get_properties() override {
+        auto fillResp = [](vsdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
+            p->supports_pcd = supportsPCD;
+            p->intrinsic_parameters.width_px = props.width;
+            p->intrinsic_parameters.height_px = props.height;
+            p->intrinsic_parameters.focal_x_px = props.fx;
+            p->intrinsic_parameters.focal_y_px = props.fy;
+            p->intrinsic_parameters.center_x_px = props.ppx;
+            p->intrinsic_parameters.center_y_px = props.ppy;
+            p->distortion_parameters.model = props.distortionModel;
+            for (int i = 0; i < 5; i++) {
+                p->distortion_parameters.parameters.push_back(props.distortionParameters[i]);
+            }
+        };
+
+        vsdk::Camera::properties response{};
+        // pcd enabling will be a config parameter, for now, just put false
+        bool pcdEnabled = false;
+        if (this->props_.mainSensor.compare("color") == 0) {
+            fillResp(&response, this->props_.color, pcdEnabled);
+        } else if (props_.mainSensor.compare("depth") == 0) {
+            fillResp(&response, this->props_.depth, pcdEnabled);
+        }
+
+        return response;
+    }
+
+
     vsdk::Camera::image_collection get_images() override {
         auto start = std::chrono::high_resolution_clock::now();
         vsdk::Camera::image_collection response;
@@ -644,33 +672,6 @@ class CameraRealSense : public vsdk::Camera {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
             std::cout << "[get_images]  total:           " << duration.count() << "ms\n";
         }
-        return response;
-    }
-
-    vsdk::Camera::properties get_properties() override {
-        auto fillResp = [](vsdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
-            p->supports_pcd = supportsPCD;
-            p->intrinsic_parameters.width_px = props.width;
-            p->intrinsic_parameters.height_px = props.height;
-            p->intrinsic_parameters.focal_x_px = props.fx;
-            p->intrinsic_parameters.focal_y_px = props.fy;
-            p->intrinsic_parameters.center_x_px = props.ppx;
-            p->intrinsic_parameters.center_y_px = props.ppy;
-            p->distortion_parameters.model = props.distortionModel;
-            for (int i = 0; i < 5; i++) {
-                p->distortion_parameters.parameters.push_back(props.distortionParameters[i]);
-            }
-        };
-
-        vsdk::Camera::properties response{};
-        // pcd enabling will be a config parameter, for now, just put false
-        bool pcdEnabled = false;
-        if (this->props_.mainSensor.compare("color") == 0) {
-            fillResp(&response, this->props_.color, pcdEnabled);
-        } else if (props_.mainSensor.compare("depth") == 0) {
-            fillResp(&response, this->props_.depth, pcdEnabled);
-        }
-
         return response;
     }
 
