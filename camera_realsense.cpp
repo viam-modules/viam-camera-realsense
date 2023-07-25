@@ -13,8 +13,8 @@
 #include <iostream>
 #include <librealsense2/rs.hpp>
 #include <mutex>
-#include <stdexcept>
 #include <optional>
+#include <stdexcept>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -124,7 +124,8 @@ struct color_response {
     std::vector<uint8_t> color_bytes;
 };
 
-std::optional<color_response> encodeColorPNG(const uint8_t* data, const int width, const int height) {
+std::optional<color_response> encodeColorPNG(const uint8_t* data, const int width,
+                                             const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -141,7 +142,7 @@ std::optional<color_response> encodeColorPNG(const uint8_t* data, const int widt
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
     }
-    color_response output{encoded};
+    color_response output{std::move(encoded)};
     return output;
 }
 
@@ -160,8 +161,11 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t*
 }
 
 struct jpeg_image {
-    std::unique_ptr<unsigned char> data_ptr;
+    std::unique_ptr<unsigned char, decltype(&tjFree)> data;
     long unsigned int size;
+    // constructor
+    jpeg_image(unsigned char* imageData, long unsigned int imageSize)
+        : data(imageData, &tjFree), size(imageSize) {}
 };
 
 std::optional<jpeg_image> encodeJPEG(const unsigned char* data, const int width, const int height) {
@@ -177,18 +181,20 @@ std::optional<jpeg_image> encodeJPEG(const unsigned char* data, const int width,
         std::cerr << "[GetImage]  failed to init JPEG compressor" << std::endl;
         return std::nullopt;
     }
-    tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize, TJSAMP_420, 75,
-                TJFLAG_FASTDCT);
+    int success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
+                              TJSAMP_420, 75, TJFLAG_FASTDCT);
     tjDestroy(handle);
-
+    if (success != 0) {
+        std::cerr << "[GetImage]  JPEG compressor failed to compress image" << std::endl;
+        return std::nullopt;
+    }
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
     }
 
-    std::unique_ptr<unsigned char> uniqueEncoded(encoded);
-    jpeg_image output{std::move(uniqueEncoded), encodedSize};
+    jpeg_image output(encoded, encodedSize);
     return output;
 }
 
@@ -201,8 +207,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
-    response->bytes = std::move(
-        std::vector<unsigned char>(encoded->data_ptr.get(), encoded->data_ptr.get() + encoded->size));
+    response->bytes.assign(encoded->data.get(), encoded->data.get() + encoded->size);
     return response;
 }
 
@@ -225,19 +230,19 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     size_t totalByteCount =
         rgbaMagicByteCount + rgbaWidthByteCount + rgbaHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    unsigned char* rawBuf = new unsigned char[totalByteCount];
+    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[totalByteCount]);
     int offset = 0;
-    std::memcpy(rawBuf + offset, &rgbaMagicNumber, rgbaMagicByteCount);
+    std::memcpy(rawBuf.get() + offset, &rgbaMagicNumber, rgbaMagicByteCount);
     offset += rgbaMagicByteCount;
-    std::memcpy(rawBuf + offset, &widthToEncode, rgbaWidthByteCount);
+    std::memcpy(rawBuf.get() + offset, &widthToEncode, rgbaWidthByteCount);
     offset += rgbaWidthByteCount;
-    std::memcpy(rawBuf + offset, &heightToEncode, rgbaHeightByteCount);
+    std::memcpy(rawBuf.get() + offset, &heightToEncode, rgbaHeightByteCount);
     offset += rgbaHeightByteCount;
     int pixelOffset = 0;
     uint8_t alphaValue = 255;  // alpha  channel is always 255 for color images
     for (int i = 0; i < width * height; i++) {
-        std::memcpy(rawBuf + offset, data + pixelOffset, 3);  // 3 bytes for RGB
-        std::memcpy(rawBuf + offset + 3, &alphaValue, 1);     // 1 byte for A
+        std::memcpy(rawBuf.get() + offset, data + pixelOffset, 3);  // 3 bytes for RGB
+        std::memcpy(rawBuf.get() + offset + 3, &alphaValue, 1);     // 1 byte for A
         pixelOffset += 3;
         offset += 4;
     }
@@ -246,8 +251,7 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
     }
-    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
-    return {std::move(uniqueBuf), totalByteCount, true};
+    return {std::move(rawBuf), totalByteCount, true};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
@@ -260,8 +264,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
-    response->bytes = std::move(
-        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
     return response;
 }
 
@@ -276,20 +279,19 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
     size_t encoded_size = 0;
     // convert data to guarantee big-endian
     size_t pixelByteCount = 2 * width * height;
-    unsigned char* rawBuf = new unsigned char[pixelByteCount];
+    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[pixelByteCount]);
     int offset = 0;
     int pixelOffset = 0;
     for (int i = 0; i < width * height; i++) {
         uint16_t pix;
         std::memcpy(&pix, data + pixelOffset, 2);
         uint16_t pixEncode = htons(pix);  // PNG expects pixel values to be big-endian
-        std::memcpy(rawBuf + offset, &pixEncode, 2);
+        std::memcpy(rawBuf.get() + offset, &pixEncode, 2);
         pixelOffset += 2;
         offset += 2;
     }
-    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
-    unsigned result = lodepng_encode_memory(&encoded, &encoded_size, uniqueBuf.get(), width, height,
-                                            LCT_GREY, 16);
+    unsigned result =
+        lodepng_encode_memory(&encoded, &encoded_size, rawBuf.get(), width, height, LCT_GREY, 16);
     std::unique_ptr<unsigned char[]> uniqueEncoded(encoded);
     if (result != 0) {
         std::cerr << "[GetImage]  failed to encode depth PNG" << std::endl;
@@ -315,8 +317,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
-    response->bytes = std::move(
-        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
     return response;
 }
 
@@ -334,28 +335,27 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     size_t totalByteCount =
         depthMagicByteCount + depthWidthByteCount + depthHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    unsigned char* rawBuf = new unsigned char[totalByteCount];
+    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[totalByteCount]);
     int offset = 0;
-    std::memcpy(rawBuf + offset, &depthMagicNumber, depthMagicByteCount);
+    std::memcpy(rawBuf.get() + offset, &depthMagicNumber, depthMagicByteCount);
     offset += depthMagicByteCount;
-    std::memcpy(rawBuf + offset, &widthToEncode, depthWidthByteCount);
+    std::memcpy(rawBuf.get() + offset, &widthToEncode, depthWidthByteCount);
     offset += depthWidthByteCount;
-    std::memcpy(rawBuf + offset, &heightToEncode, depthHeightByteCount);
+    std::memcpy(rawBuf.get() + offset, &heightToEncode, depthHeightByteCount);
     offset += depthHeightByteCount;
     if (littleEndian) {
-        std::memcpy(rawBuf + offset, data, pixelByteCount);
+        std::memcpy(rawBuf.get() + offset, data, pixelByteCount);
     } else {
         int pixelOffset = 0;
         for (int i = 0; i < width * height; i++) {
             uint16_t pix;
             std::memcpy(&pix, data + pixelOffset, 2);
             uint16_t pixEncode = htons(pix);  // make sure the pixel values are big-endian
-            std::memcpy(rawBuf + offset, &pixEncode, 2);
+            std::memcpy(rawBuf.get() + offset, &pixEncode, 2);
             pixelOffset += 2;
             offset += 2;
         }
     }
-    std::unique_ptr<unsigned char[]> uniqueBuf(rawBuf);
 
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
@@ -363,7 +363,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {std::move(uniqueBuf), std::move(totalByteCount), true};
+    return {std::move(rawBuf), std::move(totalByteCount), true};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
@@ -377,8 +377,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
-    response->bytes = std::move(
-        std::vector<unsigned char>(encoded.bytes.get(), encoded.bytes.get() + encoded.size));
+    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
     return response;
 }
 
@@ -539,14 +538,11 @@ class CameraRealSense : public vsdk::Camera {
 
     ~CameraRealSense() {
         // stop and wait for the frameLoop thread to exit
-        if (this->device_ != nullptr) {
-            {
-                // wait until frameLoop is stopped
-                std::unique_lock<std::mutex> lock(this->device_->mutex);
-                this->device_->shouldRun = false;
-                this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
-            }
-        }
+        if (!this->device_) return;
+        // wait until frameLoop is stopped
+        std::unique_lock<std::mutex> lock(this->device_->mutex);
+        this->device_->shouldRun = false;
+        this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
     }
 
     void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override {
@@ -627,13 +623,13 @@ class CameraRealSense : public vsdk::Camera {
                 color_response =
                     encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
                                          this->props_.color.width, this->props_.color.height);
-                response.images.push_back(*color_response);
+                response.images.emplace_back(std::move(*color_response));
             } else if (sensor == "depth") {
                 std::unique_ptr<vsdk::Camera::raw_image> depth_response;
                 depth_response = encodeDepthRAWToResponse(
                     (const unsigned char*)latestDepthFrame->data(), this->props_.depth.width,
                     this->props_.depth.height, this->props_.littleEndianDepth);
-                response.images.push_back(*depth_response);
+                response.images.emplace_back(std::move(*depth_response));
             }
         }
         response.metadata.captured_at =
@@ -864,7 +860,7 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
         camProps.fy = intrinsics.fy;
         camProps.ppx = intrinsics.ppx;
         camProps.ppy = intrinsics.ppy;
-        camProps.distortionModel = distortionModel;
+        camProps.distortionModel = std::move(distortionModel);
         for (int i = 0; i < 5; i++) {
             camProps.distortionParameters[i] = double(intrinsics.coeffs[i]);
         }
@@ -950,8 +946,6 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         }
     }
 };
-
-
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
 std::vector<std::string> validate(vsdk::ResourceConfig cfg) { return {}; }
