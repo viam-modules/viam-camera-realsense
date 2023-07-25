@@ -23,7 +23,7 @@ run-docker:
 		-it --name camera-realsense viam-camera-realsense:$(TAG_VERSION)
 
 package:
-	cd etc && \
+	cd packaging/appimages && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 
 
@@ -33,11 +33,20 @@ bin-module:
 	mkdir -p bin && \
 	docker rm viam-camera-realsense-bin | true && \
 	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
-	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
+	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
 	docker stop viam-camera-realsense-bin && \
 	docker rm viam-camera-realsense-bin
 
 appimage: build bin-module
+
+appimage-build:
+	cd packaging/appimages && appimage-builder --recipe viam-camera-realsense-`uname -m`.yml
+	mkdir -p packaging/appimages/deploy/
+	mv packaging/appimages/*.AppImage* packaging/appimages/deploy/
+	chmod 755 packaging/appimages/deploy/*.AppImage
+
+appimage-deploy:
+	gsutil -m -h "Cache-Control: no-cache" cp packaging/appimages/deploy/* gs://packages.viam.com/apps/camera-servers/
 
 # SDK
 .PHONY: build-sdk

@@ -1,0 +1,4 @@
+appimages/AppDir/
+appimages/appimage-build/
+appimages/deploy/
+.DS_Store
