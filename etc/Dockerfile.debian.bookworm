@@ -116,6 +116,3 @@ RUN cd ${HOME}/opt/src && \
     cd viam-camera-realsense  && \
     make camera-module
 
-# create the appimage
-RUN cd ${HOME}/opt/src/viam-camera-realsense && \
-     make package

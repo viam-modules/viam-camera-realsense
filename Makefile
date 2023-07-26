@@ -1,59 +1,3 @@
-CWD := .
-BUILD_DIR := $(cwd)/build
-INSTALL_DIR := $(BUILD_DIR)/AppDir
-
-# Docker
-TAG_VERSION := latest
-
-# Module
-# Creates appimage cmake build.
-# Builds docker image with viam-cpp-sdk and camera-realsense installed.
-.PHONY: build
-build:
-	docker build -t viam-camera-realsense:$(TAG_VERSION) \
-		--memory=16g \
-		--build-arg TAG=$(TAG_VERSION) \
-		-f ./etc/Dockerfile.debian.bookworm ./
-
-# Runs docker image with shell.
-run-docker: build
-	docker run \
-		--device /dev/fuse \
-		--cap-add SYS_ADMIN \
-		-it --name camera-realsense viam-camera-realsense:$(TAG_VERSION)
-
-package:
-	cd etc && \
-	appimage-builder --recipe viam-camera-realsense-aarch64.yml
-
-
-# Copies binary and AppImage from container to host.
-bin-module:
-	rm -rf bin | true && \
-	mkdir -p bin && \
-	docker rm viam-camera-realsense-bin | true && \
-	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
-	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
-	docker stop viam-camera-realsense-bin && \
-	docker rm viam-camera-realsense-bin
-
-appimage: build bin-module
-
-# SDK
-.PHONY: build-sdk
-build-sdk:
-	cd viam-cpp-sdk && \
-	mkdir -p build && \
-	cd build && \
-	cmake -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON .. -G Ninja && \
-	ninja -j $(shell nproc) && \
-	sudo ninja install -j $(shell nproc))
-
-run-sdk:
-	docker build -t viam-cpp-sdk -f ./viam-cpp-sdk/etc/docker/Dockerfile.debian.bookworm ./ && \
-	docker run -it viam-cpp-sdk /bin/bash
-
-
 # compile the binary
 SDK_LOCATION = /usr/local
 CPP_COMPILER = g++
@@ -73,15 +17,6 @@ LIB_FLAGS = $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags grpc+
 camera-module: $(SERVER_TARGETS)
 	$(CPP_COMPILER) -std=c++17 -o viam-camera-realsense camera_realsense.cpp $(THIRD_PARTY_SOURCES) $(SDK_INCLUDE) $(LIB_FLAGS) $(SDK_FLAGS) $(GCC_FLAGS)
 
-BIN_OUTPUT_PATH = bin/$(shell uname -s)-$(shell uname -m)
-
-TOOL_BIN = bin/tools/$(shell uname -s)-$(shell uname -m)
-
-PATH_WITH_TOOLS="`pwd`/$(TOOL_BIN):${PATH}"
-
-UNAME := $(shell uname)
-
-
 default: camera-module
 
 format: *.cpp
@@ -94,4 +29,42 @@ clean:
 
 clean-all: clean
 	git clean -fxd
+
+# Docker
+TAG_VERSION := latest
+
+# Module
+# Creates appimage cmake build.
+# Builds docker image with viam-cpp-sdk and camera-realsense installed.
+.PHONY: build
+build:
+	docker build -t viam-camera-realsense:$(TAG_VERSION) \
+		--memory=16g \
+		--build-arg TAG=$(TAG_VERSION) \
+		-f ./etc/Dockerfile.debian.bookworm ./
+
+# Runs docker image with shell.
+run-docker: build
+	docker run \
+		--device /dev/fuse \
+		--cap-add SYS_ADMIN \
+		-it viam-camera-realsense:$(TAG_VERSION)
+
+package:
+	cd etc && \
+	appimage-builder --recipe viam-camera-realsense-aarch64.yml
+
+
+# Copies binary and AppImage from container to host.
+copy-bin:
+	rm -rf bin | true && \
+	mkdir -p bin && \
+	docker rm viam-camera-realsense-bin | true && \
+	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
+	docker exec --workdir /root/opt/src/viam-camera-realsense viam-camera-realsense-bin make package
+	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
+	docker stop viam-camera-realsense-bin && \
+	docker rm viam-camera-realsense-bin
+
+appimage: build copy-bin
 
