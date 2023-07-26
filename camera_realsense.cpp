@@ -172,13 +172,18 @@ jpeg_image encodeJPEG(const unsigned char* data, const int width, const int heig
     long unsigned int encodedSize = 0;
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        throw std::runtime_error("failed to init JPEG compressor");
+        throw std::runtime_error("[GetImage] failed to init JPEG compressor");
     }
-    int success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
+    int success;
+    try {
+        success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
                               TJSAMP_420, 75, TJFLAG_FASTDCT);
-    tjDestroy(handle);
+    } catch (const std::exception& e) {
+        tjDestroy(handle);
+        throw std::runtime_error("[GetImage] JPEG compressor failed to compress: " + std::string(e.what()));
+    }
     if (success != 0) {
-        throw std::runtime_error("[GetImage]  JPEG compressor failed to compress image");
+        throw std::runtime_error("[GetImage] JPEG compressor failed to compress image");
     }
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
