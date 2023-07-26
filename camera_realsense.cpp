@@ -41,11 +41,11 @@ namespace {
 namespace vsdk = ::viam::sdk;
 
 struct DeviceProperties {
-    const int colorWidth;
-    const int colorHeight;
+    const uint colorWidth;
+    const uint colorHeight;
     const bool disableColor;
-    const int depthWidth;
-    const int depthHeight;
+    const uint depthWidth;
+    const uint depthHeight;
     const bool disableDepth;
     bool shouldRun;
     bool isRunning;
@@ -65,8 +65,8 @@ struct DeviceProperties {
 };
 
 struct CameraProperties {
-    int width;
-    int height;
+    uint width;
+    uint height;
     float fx;
     float fy;
     float ppx;
@@ -124,7 +124,7 @@ struct color_response {
     std::vector<uint8_t> color_bytes;
 };
 
-color_response encodeColorPNG(const uint8_t* data, const int width, const int height) {
+color_response encodeColorPNG(const uint8_t* data, const uint width, const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -144,8 +144,8 @@ color_response encodeColorPNG(const uint8_t* data, const int width, const int he
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t* data,
-                                                                  const int width,
-                                                                  const int height) {
+                                                                  const uint width,
+                                                                  const uint height) {
     color_response encoded = encodeColorPNG(data, width, height);
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
@@ -162,7 +162,7 @@ struct jpeg_image {
         : data(imageData, &tjFree), size(imageSize) {}
 };
 
-jpeg_image encodeJPEG(const unsigned char* data, const int width, const int height) {
+jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -196,7 +196,7 @@ jpeg_image encodeJPEG(const unsigned char* data, const int width, const int heig
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
-                                                              const int width, const int height) {
+                                                              const uint width, const uint height) {
     jpeg_image encoded = encodeJPEG(data, width, height);
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
@@ -394,14 +394,14 @@ class CameraRealSense : public vsdk::Camera {
         }
         std::cout << "initializing the Intel RealSense Camera Module" << std::endl;
         // set variables from config
-        int width = 0;
-        int height = 0;
+        uint width = 0;
+        uint height = 0;
         auto attrs = cfg.attributes();
         if (attrs->count("width_px") == 1) {
             std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
             auto width_value = width_proto->proto_value();
             if (width_value.has_number_value()) {
-                int width_num = static_cast<int>(width_value.number_value());
+                uint width_num = static_cast<uint>(width_value.number_value());
                 width = width_num;
             }
         }
@@ -409,7 +409,7 @@ class CameraRealSense : public vsdk::Camera {
             std::shared_ptr<vsdk::ProtoType> height_proto = attrs->at("height_px");
             auto height_value = height_proto->proto_value();
             if (height_value.has_number_value()) {
-                int height_num = static_cast<int>(height_value.number_value());
+                uint height_num = static_cast<uint>(height_value.number_value());
                 height = height_num;
             }
         }
@@ -945,7 +945,30 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
-std::vector<std::string> validate(vsdk::ResourceConfig cfg) { return {}; }
+std::vector<std::string> validate(vsdk::ResourceConfig cfg) { 
+    auto attrs = cfg.attributes();
+    if (attrs->count("width_px") == 1) {
+        std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
+        auto width_value = width_proto->proto_value();
+        if (width_value.has_number_value()) {
+            int width_num = static_cast<int>(width_value.number_value());
+            if (width_num < 0) {
+                throw std::invalid_argument("width_px cannot be negative");
+            }
+        }
+    }
+    if (attrs->count("height_px") == 1) {
+        std::shared_ptr<vsdk::ProtoType> height_proto = attrs->at("height_px");
+        auto height_value = height_proto->proto_value();
+        if (height_value.has_number_value()) {
+            int height_num = static_cast<int>(height_value.number_value());
+            if (height_num < 0) {
+                throw std::invalid_argument("height_px cannot be negative");
+            }
+        }
+    }
+    return {};
+}
 
 int serve(const std::string& socket_path) {
     sigset_t sigset;
