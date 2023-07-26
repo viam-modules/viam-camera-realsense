@@ -21,9 +21,11 @@ make run-docker
 # within Docker
 cd ~/opt/src/viam-camera-realsense
 make camera-module
+# if you want to make the AppImage, then also do
+make package
 ```
 
-If you would like to try to gather all of the dependencies yourself, you will need:
+If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
 
 - [librealsense](https://github.com/IntelRealSense/librealsense)
   - `git checkout` and install from source. 
@@ -33,7 +35,7 @@ If you would like to try to gather all of the dependencies yourself, you will ne
 - [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
   - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
 
-then do `make camera-module` to compile the binary.
+then do `make camera-module` to compile the binary, and `make package` to create the AppImage.
 
 ## Attributes and Sample Config
 
