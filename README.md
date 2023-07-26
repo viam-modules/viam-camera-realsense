@@ -13,7 +13,7 @@ will build a Docker image and compile a binary for the `aarch64` architecture, w
 
 ## Building From Source
 
-It's first best to try to build the source within Docker. Try to do the following commands:
+It's first best to try to build from source within Docker. Try to do the following commands:
 
 ```
 make build
