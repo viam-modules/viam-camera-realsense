@@ -16,7 +16,7 @@ build:
 		-f ./etc/Dockerfile.debian.bookworm ./
 
 # Runs docker image with shell.
-run-docker:
+run-docker: build
 	docker run \
 		--device /dev/fuse \
 		--cap-add SYS_ADMIN \

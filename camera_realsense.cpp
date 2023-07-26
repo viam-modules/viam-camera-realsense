@@ -124,8 +124,7 @@ struct color_response {
     std::vector<uint8_t> color_bytes;
 };
 
-std::optional<color_response> encodeColorPNG(const uint8_t* data, const int width,
-                                             const int height) {
+color_response encodeColorPNG(const uint8_t* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -133,8 +132,7 @@ std::optional<color_response> encodeColorPNG(const uint8_t* data, const int widt
 
     std::vector<uint8_t> encoded;
     if (!fpng::fpng_encode_image_to_memory(data, width, height, 3, encoded)) {
-        std::cerr << "[GetImage]  failed to encode color PNG" << std::endl;
-        return std::nullopt;
+        throw std::runtime_error("failed to encode color PNG");
     }
 
     if (debug_enabled) {
@@ -142,21 +140,17 @@ std::optional<color_response> encodeColorPNG(const uint8_t* data, const int widt
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
     }
-    color_response output{std::move(encoded)};
-    return output;
+    return {std::move(encoded)};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t* data,
                                                                   const int width,
                                                                   const int height) {
-    std::optional<color_response> encoded = encodeColorPNG(data, width, height);
-    if (!encoded.has_value()) {
-        throw std::runtime_error("failed to encode color PNG");
-    }
+    color_response encoded = encodeColorPNG(data, width, height);
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/png";
-    response->bytes = std::move(encoded->color_bytes);
+    response->bytes = std::move(encoded.color_bytes);
     return response;
 }
 
@@ -168,7 +162,7 @@ struct jpeg_image {
         : data(imageData, &tjFree), size(imageSize) {}
 };
 
-std::optional<jpeg_image> encodeJPEG(const unsigned char* data, const int width, const int height) {
+jpeg_image encodeJPEG(const unsigned char* data, const int width, const int height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -178,15 +172,13 @@ std::optional<jpeg_image> encodeJPEG(const unsigned char* data, const int width,
     long unsigned int encodedSize = 0;
     tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
-        std::cerr << "[GetImage]  failed to init JPEG compressor" << std::endl;
-        return std::nullopt;
+        throw std::runtime_error("failed to init JPEG compressor");
     }
     int success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
                               TJSAMP_420, 75, TJFLAG_FASTDCT);
     tjDestroy(handle);
     if (success != 0) {
-        std::cerr << "[GetImage]  JPEG compressor failed to compress image" << std::endl;
-        return std::nullopt;
+        throw std::runtime_error("[GetImage]  JPEG compressor failed to compress image");
     }
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
@@ -200,21 +192,17 @@ std::optional<jpeg_image> encodeJPEG(const unsigned char* data, const int width,
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
                                                               const int width, const int height) {
-    std::optional<jpeg_image> encoded = encodeJPEG(data, width, height);
-    if (!encoded.has_value()) {
-        throw std::runtime_error("failed to encode color JPEG");
-    }
+    jpeg_image encoded = encodeJPEG(data, width, height);
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
-    response->bytes.assign(encoded->data.get(), encoded->data.get() + encoded->size);
+    response->bytes.assign(encoded.data.get(), encoded.data.get() + encoded.size);
     return response;
 }
 
 struct raw_camera_image {
     std::unique_ptr<unsigned char[]> bytes;
     size_t size;
-    bool ok;
 };
 
 raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
@@ -251,16 +239,13 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
     }
-    return {std::move(rawBuf), totalByteCount, true};
+    return {std::move(rawBuf), totalByteCount};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
                                                                   const uint width,
                                                                   const uint height) {
     raw_camera_image encoded = encodeColorRAW(data, width, height);
-    if (!encoded.ok) {
-        throw std::runtime_error("failed to encode color RAW");
-    }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
@@ -294,8 +279,7 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         lodepng_encode_memory(&encoded, &encoded_size, rawBuf.get(), width, height, LCT_GREY, 16);
     std::unique_ptr<unsigned char[]> uniqueEncoded(encoded);
     if (result != 0) {
-        std::cerr << "[GetImage]  failed to encode depth PNG" << std::endl;
-        return {std::move(uniqueEncoded), encoded_size, false};
+        throw std::runtime_error("[GetImage]  failed to encode depth PNG");
     }
 
     if (debug_enabled) {
@@ -304,16 +288,13 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {std::move(uniqueEncoded), encoded_size, true};
+    return {std::move(uniqueEncoded), encoded_size};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
                                                                   const uint width,
                                                                   const uint height) {
     raw_camera_image encoded = encodeDepthPNG(data, width, height);
-    if (!encoded.ok) {
-        throw std::runtime_error("failed to encode depth PNG");
-    }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
@@ -363,7 +344,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {std::move(rawBuf), std::move(totalByteCount), true};
+    return {std::move(rawBuf), std::move(totalByteCount)};
 }
 
 std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
@@ -371,17 +352,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
                                                                   const uint height,
                                                                   const bool littleEndian) {
     raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
-    if (!encoded.ok) {
-        throw std::runtime_error("failed to encode depth RAW");
-    }
     auto response = std::make_unique<vsdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
     return response;
 }
-
-constexpr char service_name[] = "camera_realsense";
 
 // prototype functions for the initialization
 void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
@@ -556,7 +532,10 @@ class CameraRealSense : public vsdk::Camera {
     }
 
     vsdk::Camera::raw_image get_image(std::string mime_type) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        std::chrono::time_point<std::chrono::high_resolution_clock> start;
+        if (debug_enabled) {
+            start = std::chrono::high_resolution_clock::now();
+        }
 
         rs2::frame latestColorFrame;
         std::shared_ptr<std::vector<uint16_t>> latestDepthFrame;
@@ -634,9 +613,11 @@ class CameraRealSense : public vsdk::Camera {
         return response;
     }
 
-
     vsdk::Camera::image_collection get_images() override {
-        auto start = std::chrono::high_resolution_clock::now();
+        std::chrono::time_point<std::chrono::high_resolution_clock> start;
+        if (debug_enabled) {
+            start = std::chrono::high_resolution_clock::now();
+        }
         vsdk::Camera::image_collection response;
 
         rs2::frame latestColorFrame;
@@ -720,7 +701,10 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         }
         auto failureWait = std::chrono::milliseconds(5);
 
-        auto start = std::chrono::high_resolution_clock::now();
+        std::chrono::time_point<std::chrono::high_resolution_clock> start;
+        if (debug_enabled) {
+            start = std::chrono::high_resolution_clock::now();
+        }
 
         rs2::frameset frames;
         const uint timeoutMillis = 2000;
@@ -743,7 +727,10 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         }
 
         if (!deviceProps->disableColor && !deviceProps->disableDepth) {
-            auto start = std::chrono::high_resolution_clock::now();
+            std::chrono::time_point<std::chrono::high_resolution_clock> start;
+            if (debug_enabled) {
+                start = std::chrono::high_resolution_clock::now();
+            }
 
             try {
                 frames = FRAME_ALIGNMENT.process(frames);
@@ -1009,7 +996,7 @@ int main(int argc, char* argv[]) {
         std::cout << usage << "\n";
         return EXIT_FAILURE;
     }
-    std::cout << "About to servce on socket " << argv[1] << std::endl;
+    std::cout << "About to serve on socket " << argv[1] << std::endl;
 
     return serve(argv[1]);
 }
