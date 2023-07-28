@@ -1,0 +1,24 @@
+name: Build and Publish Latest
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+    paths-ignore:
+      - 'README.md'
+
+# To test workflow updates you need to work in a branch directly on viamrobotics/viam-camera-realsense
+# and tag your working branch instead of @main in any viamrobotics/viam-camera-realsense "uses" below.
+# Don't forget to tag back to @main before merge.
+
+jobs:
+  appimage:
+    uses: viamrobotics/viam-camera-realsense/.github/workflows/appimage.yml@main
+    with:
+      release_type: 'latest'
+    secrets:
+      GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+
