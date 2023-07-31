@@ -206,7 +206,18 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
 }
 
 struct raw_camera_image {
-    std::unique_ptr<unsigned char[]> bytes;
+    using deleter_type = void(*)(unsigned char*);
+    using uniq = std::unique_ptr<unsigned char[], deleter_type>;
+
+    static constexpr deleter_type free_deleter = [](unsigned char* ptr) {
+        free(ptr);
+    };
+
+    static constexpr deleter_type array_delete_deleter = [](unsigned char* ptr) {
+        delete[] ptr;
+    };
+
+    uniq bytes;
     size_t size;
 };
 
@@ -223,7 +234,7 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     size_t totalByteCount =
         rgbaMagicByteCount + rgbaWidthByteCount + rgbaHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[totalByteCount]);
+    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount], raw_camera_image::array_delete_deleter);
     int offset = 0;
     std::memcpy(rawBuf.get() + offset, &rgbaMagicNumber, rgbaMagicByteCount);
     offset += rgbaMagicByteCount;
@@ -265,8 +276,6 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         start = std::chrono::high_resolution_clock::now();
     }
 
-    unsigned char* encoded = 0;
-    size_t encoded_size = 0;
     // convert data to guarantee big-endian
     size_t pixelByteCount = 2 * width * height;
     std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[pixelByteCount]);
@@ -280,9 +289,11 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
         pixelOffset += 2;
         offset += 2;
     }
+    unsigned char* encoded = 0;
+    size_t encoded_size = 0;
     unsigned result =
         lodepng_encode_memory(&encoded, &encoded_size, rawBuf.get(), width, height, LCT_GREY, 16);
-    std::unique_ptr<unsigned char[]> uniqueEncoded(encoded);
+	raw_camera_image::uniq uniqueEncoded(encoded, raw_camera_image::free_deleter);
     if (result != 0) {
         throw std::runtime_error("[GetImage]  failed to encode depth PNG");
     }
@@ -321,7 +332,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     size_t totalByteCount =
         depthMagicByteCount + depthWidthByteCount + depthHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[totalByteCount]);
+    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount], raw_camera_image::array_delete_deleter);
     int offset = 0;
     std::memcpy(rawBuf.get() + offset, &depthMagicNumber, depthMagicByteCount);
     offset += depthMagicByteCount;
