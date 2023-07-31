@@ -51,7 +51,7 @@ run-docker: build
 		-it viam-camera-realsense:$(TAG_VERSION)
 
 package:
-	cd etc && \
+	cd packaging/appimages && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 
 # Copies binary and AppImage from container to host.
@@ -61,7 +61,7 @@ copy-bin:
 	docker rm viam-camera-realsense-bin | true && \
 	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
 	docker exec --workdir /root/opt/src/viam-camera-realsense viam-camera-realsense-bin make package
-	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
+	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
 	docker stop viam-camera-realsense-bin && \
 	docker rm viam-camera-realsense-bin
 
