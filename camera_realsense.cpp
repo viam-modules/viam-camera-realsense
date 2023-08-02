@@ -1,22 +1,24 @@
+#include <arpa/inet.h>
 #include <grpc/grpc.h>
 #include <grpcpp/security/server_credentials.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
+#include <pthread.h>
+#include <signal.h>
+#include <turbojpeg.h>
 
+#include <algorithm>
 #include <condition_variable>
 #include <future>
 #include <iostream>
+#include <librealsense2/rs.hpp>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <thread>
 #include <tuple>
 #include <vector>
-#include <algorithm>
-#include <pthread.h>
-#include <signal.h>
-
 #include <viam/sdk/components/camera/camera.hpp>
 #include <viam/sdk/components/camera/server.hpp>
 #include <viam/sdk/components/component.hpp>
@@ -24,9 +26,6 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
-#include <arpa/inet.h>
-#include <librealsense2/rs.hpp>
-#include <turbojpeg.h>
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
@@ -182,7 +181,8 @@ jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint he
                               TJSAMP_420, 75, TJFLAG_FASTDCT);
     } catch (const std::exception& e) {
         tjDestroy(handle);
-        throw std::runtime_error("[GetImage] JPEG compressor failed to compress: " + std::string(e.what()));
+        throw std::runtime_error("[GetImage] JPEG compressor failed to compress: " +
+                                 std::string(e.what()));
     }
     if (success != 0) {
         throw std::runtime_error("[GetImage] JPEG compressor failed to compress image");
@@ -208,16 +208,12 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned cha
 }
 
 struct raw_camera_image {
-    using deleter_type = void(*)(unsigned char*);
+    using deleter_type = void (*)(unsigned char*);
     using uniq = std::unique_ptr<unsigned char[], deleter_type>;
 
-    static constexpr deleter_type free_deleter = [](unsigned char* ptr) {
-        free(ptr);
-    };
+    static constexpr deleter_type free_deleter = [](unsigned char* ptr) { free(ptr); };
 
-    static constexpr deleter_type array_delete_deleter = [](unsigned char* ptr) {
-        delete[] ptr;
-    };
+    static constexpr deleter_type array_delete_deleter = [](unsigned char* ptr) { delete[] ptr; };
 
     uniq bytes;
     size_t size;
@@ -236,7 +232,8 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     size_t totalByteCount =
         rgbaMagicByteCount + rgbaWidthByteCount + rgbaHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount], raw_camera_image::array_delete_deleter);
+    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount],
+                                  raw_camera_image::array_delete_deleter);
     int offset = 0;
     std::memcpy(rawBuf.get() + offset, &rgbaMagicNumber, rgbaMagicByteCount);
     offset += rgbaMagicByteCount;
@@ -295,7 +292,7 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
     size_t encoded_size = 0;
     unsigned result =
         lodepng_encode_memory(&encoded, &encoded_size, rawBuf.get(), width, height, LCT_GREY, 16);
-	raw_camera_image::uniq uniqueEncoded(encoded, raw_camera_image::free_deleter);
+    raw_camera_image::uniq uniqueEncoded(encoded, raw_camera_image::free_deleter);
     if (result != 0) {
         throw std::runtime_error("[GetImage]  failed to encode depth PNG");
     }
@@ -334,7 +331,8 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     size_t totalByteCount =
         depthMagicByteCount + depthWidthByteCount + depthHeightByteCount + pixelByteCount;
     // memcpy data into buffer
-    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount], raw_camera_image::array_delete_deleter);
+    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount],
+                                  raw_camera_image::array_delete_deleter);
     int offset = 0;
     std::memcpy(rawBuf.get() + offset, &depthMagicNumber, depthMagicByteCount);
     offset += depthMagicByteCount;
@@ -499,7 +497,8 @@ class CameraRealSense : public vsdk::Camera {
         std::cout << "main sensor will be " << sensors[0] << std::endl;
         props.littleEndianDepth = littleEndianDepth;
         if (props.mainSensor == "depth") {
-            std::cout << std::boolalpha  << "depth little endian encoded: " << littleEndianDepth << std::endl;
+            std::cout << std::boolalpha << "depth little endian encoded: " << littleEndianDepth
+                      << std::endl;
         }
         props.enablePointClouds = enablePointClouds;
         std::string pointcloudString = (enablePointClouds) ? "true" : "false";
@@ -872,10 +871,12 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
         camProps.fy = intrinsics.fy;
         camProps.ppx = intrinsics.ppx;
         camProps.ppy = intrinsics.ppy;
-        camProps.distortionModel = std::move(distortionModel);
-        int distortionSize = std::min((int)std::size(intrinsics.coeffs), 5);
-        for (int i = 0; i < distortionSize; i++) {
-            camProps.distortionParameters[i] = double(intrinsics.coeffs[i]);
+        if (distortionModel != "") {
+            camProps.distortionModel = std::move(distortionModel);
+            int distortionSize = std::min((int)std::size(intrinsics.coeffs), 5);
+            for (int i = 0; i < distortionSize; i++) {
+                camProps.distortionParameters[i] = double(intrinsics.coeffs[i]);
+            }
         }
         return camProps;
     };
@@ -961,7 +962,7 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
-std::vector<std::string> validate(vsdk::ResourceConfig cfg) { 
+std::vector<std::string> validate(vsdk::ResourceConfig cfg) {
     auto attrs = cfg.attributes();
     if (attrs->count("width_px") == 1) {
         std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
