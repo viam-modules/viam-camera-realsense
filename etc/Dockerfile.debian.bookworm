@@ -1,0 +1,118 @@
+FROM debian:bookworm
+
+ENV HOME /root
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update
+
+RUN apt-get -y dist-upgrade
+
+RUN apt-get -y --no-install-recommends install \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    doxygen \
+    g++ \
+    gdb \
+    git \
+    gnupg \
+    gpg \
+    less \
+    libabsl-dev \
+    libboost-all-dev \
+    libgrpc++-dev \
+    libprotobuf-dev \
+    libssl-dev \
+    libxtensor-dev \
+    ninja-build \
+    pkg-config \
+    protobuf-compiler-grpc \
+    software-properties-common \
+    sudo \
+    wget
+
+RUN apt-get update
+
+RUN apt-get -y install cmake \
+    libssl-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    libgtk-3-dev 
+
+RUN mkdir -p ${HOME}/opt/src
+
+# install grpc from source
+RUN cd ${HOME}/opt/src && \
+    git clone --recurse-submodules -b v1.52.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
+    cd grpc && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. -G Ninja \
+        -DgRPC_ZLIB_PROVIDER=package \
+        -DgRPC_CARES_PROVIDER=package \
+        -DgRPC_RE2_PROVIDER=package \
+        -DgRPC_SSL_PROVIDER=package \
+        -DgRPC_INSTALL=ON \
+        -DgRPC_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DCMAKE_INSTALL_RPATH=/usr/local/lib && \
+    ninja install && \
+    cd .. && \
+    rm -rf build
+
+# install viam c++ SDK from source
+RUN cd ${HOME}/opt/src && \
+    git clone https://github.com/viamrobotics/viam-cpp-sdk && \
+    cd viam-cpp-sdk && \
+    mkdir build && \
+    cd build && \
+    cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
+    ninja install -j1
+
+# install librealsense from source
+RUN cd ${HOME}/opt/src && \
+    git clone https://github.com/IntelRealSense/librealsense.git && \
+    cd librealsense && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release  && \
+    make -j 4 && \
+    make install
+
+# install appimage-builder
+RUN apt install -y \
+    binutils \
+    coreutils \
+    desktop-file-utils \
+    fakeroot \
+    fuse \
+    libgdk-pixbuf2.0-dev \
+    patchelf \
+    python3-pip python3-setuptools \
+    squashfs-tools \
+    strace \
+    util-linux zsync
+
+RUN pip3 install -U pip setuptools urllib3==1.26.12 requests==2.26.0 --break-system-packages
+
+# install appimage-builder
+RUN cd ${HOME}/opt/src && \
+    git clone https://github.com/AppImageCrafters/appimage-builder.git && \
+    cd appimage-builder && \
+    pip3 install ./ --break-system-packages
+
+# install Go
+RUN apt install -y golang-go 
+
+# necessary library for jpeg
+RUN apt install -y libturbojpeg-dev vim
+
+# install dev files
+ADD ../ ${HOME}/opt/src/viam-camera-realsense
+RUN cd ${HOME}/opt/src && \
+    cd viam-camera-realsense  && \
+    make camera-module
+
