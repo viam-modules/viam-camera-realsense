@@ -1,23 +1,22 @@
-#include <arpa/inet.h>
 #include <grpc/grpc.h>
 #include <grpcpp/security/server_credentials.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
-#include <pthread.h>
-#include <signal.h>
-#include <turbojpeg.h>
 
 #include <condition_variable>
 #include <future>
 #include <iostream>
-#include <librealsense2/rs.hpp>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <thread>
 #include <tuple>
 #include <vector>
+#include <algorithm>
+#include <pthread.h>
+#include <signal.h>
+
 #include <viam/sdk/components/camera/camera.hpp>
 #include <viam/sdk/components/camera/server.hpp>
 #include <viam/sdk/components/component.hpp>
@@ -25,6 +24,9 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
+#include <arpa/inet.h>
+#include <librealsense2/rs.hpp>
+#include <turbojpeg.h>
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
@@ -124,7 +126,7 @@ struct color_response {
     std::vector<uint8_t> color_bytes;
 };
 
-color_response encodeColorPNG(const uint8_t* data, const uint width, const uint height) {
+color_response encodeColorPNG(const void* data, const uint width, const uint height) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -143,7 +145,7 @@ color_response encodeColorPNG(const uint8_t* data, const uint width, const uint 
     return {std::move(encoded)};
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const uint8_t* data,
+std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const void* data,
                                                                   const uint width,
                                                                   const uint height) {
     color_response encoded = encodeColorPNG(data, width, height);
@@ -480,40 +482,35 @@ class CameraRealSense : public vsdk::Camera {
             throw std::runtime_error("cannot disable both color and depth");
         }
 
-        try {
-            // DeviceProperties context also holds a bool that can stop the thread if device gets
-            // disconnected
-            std::shared_ptr<DeviceProperties> newDevice = std::make_shared<DeviceProperties>(
-                width, height, disableColor, width, height, disableDepth);
-            device_ = std::move(newDevice);
+        // DeviceProperties context also holds a bool that can stop the thread if device gets
+        // disconnected
+        std::shared_ptr<DeviceProperties> newDevice = std::make_shared<DeviceProperties>(
+            width, height, disableColor, width, height, disableDepth);
+        device_ = std::move(newDevice);
 
-            // First start of Pipeline
-            rs2::pipeline pipe;
-            RealSenseProperties props;
-            std::tie(pipe, props) =
-                startPipeline(disableDepth, width, height, disableColor, width, height);
-            // First start of camera thread
-            props.sensors = sensors;
-            props.mainSensor = sensors[0];
-            std::cout << "main sensor will be " << sensors[0] << std::endl;
-            props.littleEndianDepth = littleEndianDepth;
-            if (props.mainSensor == "depth") {
-                std::string endianString = (littleEndianDepth) ? "true" : "false";
-                std::cout << "depth little endian encoded: " << endianString << std::endl;
-            }
-            props.enablePointClouds = enablePointClouds;
-            std::string pointcloudString = (enablePointClouds) ? "true" : "false";
-            std::cout << "point clouds enabled: " << pointcloudString << std::endl;
-            std::promise<void> ready;
-            std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
-            std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
-            ready.get_future().wait();
-            std::cout << "camera frame loop ready!" << std::endl;
-            cameraThread.detach();
-            return std::make_tuple(props, disableColor, disableDepth);
-        } catch (const std::exception& e) {
-            throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
+        // First start of Pipeline
+        rs2::pipeline pipe;
+        RealSenseProperties props;
+        std::tie(pipe, props) =
+            startPipeline(disableDepth, width, height, disableColor, width, height);
+        // First start of camera thread
+        props.sensors = sensors;
+        props.mainSensor = sensors[0];
+        std::cout << "main sensor will be " << sensors[0] << std::endl;
+        props.littleEndianDepth = littleEndianDepth;
+        if (props.mainSensor == "depth") {
+            std::cout << std::boolalpha  << "depth little endian encoded: " << littleEndianDepth << std::endl;
         }
+        props.enablePointClouds = enablePointClouds;
+        std::string pointcloudString = (enablePointClouds) ? "true" : "false";
+        std::cout << "point clouds enabled: " << pointcloudString << std::endl;
+        std::promise<void> ready;
+        std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
+        std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+        ready.get_future().wait();
+        std::cout << "camera frame loop ready!" << std::endl;
+        cameraThread.detach();
+        return std::make_tuple(props, disableColor, disableDepth);
     }
 
    public:
@@ -522,7 +519,11 @@ class CameraRealSense : public vsdk::Camera {
         RealSenseProperties props;
         bool disableColor;
         bool disableDepth;
-        std::tie(props, disableColor, disableDepth) = initialize(cfg);
+        try {
+            std::tie(props, disableColor, disableDepth) = initialize(cfg);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
+        }
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
@@ -541,7 +542,11 @@ class CameraRealSense : public vsdk::Camera {
         RealSenseProperties props;
         bool disableColor;
         bool disableDepth;
-        std::tie(props, disableColor, disableDepth) = initialize(cfg);
+        try {
+            std::tie(props, disableColor, disableDepth) = initialize(cfg);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("failed to reconfigure realsense: " + std::string(e.what()));
+        }
         this->props_ = props;
         this->disableColor_ = disableColor;
         this->disableDepth_ = disableDepth;
@@ -567,7 +572,7 @@ class CameraRealSense : public vsdk::Camera {
             }
             if (mime_type.compare("image/png") == 0 || mime_type.compare("image/png+lazy") == 0) {
                 response =
-                    encodeColorPNGToResponse((const uint8_t*)latestColorFrame.get_data(),
+                    encodeColorPNGToResponse((const void*)latestColorFrame.get_data(),
                                              this->props_.color.width, this->props_.color.height);
             } else if (mime_type.compare("image/vnd.viam.rgba") == 0) {
                 response =
@@ -612,7 +617,7 @@ class CameraRealSense : public vsdk::Camera {
             p->intrinsic_parameters.center_x_px = props.ppx;
             p->intrinsic_parameters.center_y_px = props.ppy;
             p->distortion_parameters.model = props.distortionModel;
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < std::size(props.distortionParameters); i++) {
                 p->distortion_parameters.parameters.push_back(props.distortionParameters[i]);
             }
         };
@@ -673,9 +678,8 @@ class CameraRealSense : public vsdk::Camera {
     }
 
     vsdk::AttributeMap do_command(vsdk::AttributeMap command) override {
-        auto response =
-            std::make_shared<std::unordered_map<std::string, std::shared_ptr<vsdk::ProtoType>>>();
-        return response;
+        std::cerr << "do_command not implemented" << std::endl;
+        return vsdk::AttributeMap{};
     }
 
     vsdk::Camera::point_cloud get_point_cloud(std::string mime_type) override {
@@ -869,7 +873,8 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
         camProps.ppx = intrinsics.ppx;
         camProps.ppy = intrinsics.ppy;
         camProps.distortionModel = std::move(distortionModel);
-        for (int i = 0; i < 5; i++) {
+        int distortionSize = std::min((int)std::size(intrinsics.coeffs), 5);
+        for (int i = 0; i < distortionSize; i++) {
             camProps.distortionParameters[i] = double(intrinsics.coeffs[i]);
         }
         return camProps;
