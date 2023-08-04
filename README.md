@@ -1,7 +1,14 @@
 # Intel RealSense Modular Component
 
 ## Getting Started
-For Linux Distros, the simplest way of getting the camera server is by using Docker. The command
+For Linux Distros, the simplest way of getting the camera server is by downloading the app image from
+
+```
+sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
+sudo chmod a+rx /usr/local/bin/viam-camera-realsense
+```
+
+You can also build it yourself  using Docker. The command
 
 ```
 git clone https://github.com/viamrobotics/viam-camera-realsense/

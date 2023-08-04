@@ -81,7 +81,7 @@ package:
 	rm -rf deploy | true && \
 	mkdir -p deploy && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
-	cp ./viam-camera-realsense-latest-aarch64.AppImage  ./deploy/
+	cp ./packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage  ./packaging/appimages/deploy/
 
 # Copies binary and AppImage from container to host.
 copy-bin:
