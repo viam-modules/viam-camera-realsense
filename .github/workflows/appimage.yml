@@ -21,11 +21,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - arch: [x64, qemu-host]
-            image: ghcr.io/viamrobotics/canon:amd64-cache
-            platform: linux/amd64
           - arch: [arm64, qemu-host]
-            image: ghcr.io/viamrobotics/canon:arm64-cache
+            image: ghcr.io/viamrobotics/viam-camera-realsense:arm64-cache
             platform: linux/arm64
     runs-on: ${{ matrix.arch }}
     container:
@@ -51,15 +48,6 @@ jobs:
       run: |
         sudo apt update
 
-    - name: Clean and Fix Permissions
-      run: |
-        chown -R testbot:testbot .
-        sudo -u testbot bash -lc 'make clean'
-        
-    - name: make build
-      run: |
-        sudo -u testbot bash -lc 'make build'
-
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1
       with:
@@ -68,13 +56,12 @@ jobs:
     - name: Build and Package (PR)
       if: inputs.release_type == 'pr'
       run: |
-        sudo -u testbot bash -lc 'make appimage'
+        make package
 
     - name: Build and Package (Latest)
       if: inputs.release_type == 'latest'
       run: |
-        apt-get -y install swig 
-        sudo -Hu testbot bash -lc 'make appimage'
+        make package
 
     - name: Deploy Files
       uses: google-github-actions/upload-cloud-storage@v0.10.4
