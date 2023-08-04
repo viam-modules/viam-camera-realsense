@@ -33,7 +33,7 @@ clean-all: clean
 # Docker
 TAG_VERSION := latest
 
-# Docker targets that pre-cache the C++ SDK (intended to be rebuilt weekly/nightly)
+# Docker targets that pre-cache the C++ SDK
 BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)-cache' .
 BUILD_PUSH = --load
 BUILD_FILE = ./etc/Dockerfile.debian.bookworm
