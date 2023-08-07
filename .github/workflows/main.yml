@@ -15,13 +15,6 @@ on:
 # Don't forget to tag back to @main before merge.
 
 jobs:
-  docker:
-    uses: viamrobotics/viam-camera-realsense/.github/workflows/docker.yml@main
-    with:
-      release_type: 'latest'
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   appimage:
     uses: viamrobotics/viam-camera-realsense/.github/workflows/appimage.yml@main
     with:
