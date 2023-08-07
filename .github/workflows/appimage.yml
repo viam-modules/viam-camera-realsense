@@ -10,21 +10,6 @@ on:
     paths-ignore:
       - 'README.md'
 
-on:
-  workflow_dispatch:
-    inputs:
-      release_type:
-        required: true
-        type: string
-  workflow_call:
-    inputs:
-      release_type:
-        required: true
-        type: string
-    secrets:
-      GCP_CREDENTIALS:
-        required: true
-
 jobs:
   appimage:
     name: AppImage Build Intel RealSense
