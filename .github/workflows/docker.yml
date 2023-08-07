@@ -23,7 +23,7 @@ jobs:
           - arch: [buildjet-2vcpu-ubuntu-2204-arm]
             image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
             platform: linux/arm64
-            make_target: 'docker-cache-arm64-ci'
+            make_target: 'docker-arm64-ci'
     runs-on: ${{ matrix.arch }}
     container:
       image: ${{ matrix.image }}

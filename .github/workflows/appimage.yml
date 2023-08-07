@@ -21,8 +21,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - arch: [arm64, qemu-host]
-            image: ghcr.io/viamrobotics/viam-camera-realsense:arm64-cache
+          - arch: [buildjet-2vcpu-ubuntu-2204-arm]
+            image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
             platform: linux/arm64
     runs-on: ${{ matrix.arch }}
     container:
