@@ -23,8 +23,9 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Check out code
       uses: actions/checkout@v3
+
     - name: Build and Push
-      run: |
-        make docker-arm64-ci
+      run: make docker-arm64-ci
