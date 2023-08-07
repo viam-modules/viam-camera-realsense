@@ -1,5 +1,15 @@
 name: Build AppImage Intel RealSense
 
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+    paths-ignore:
+      - 'README.md'
+
 on:
   workflow_dispatch:
     inputs:
