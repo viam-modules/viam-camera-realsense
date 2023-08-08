@@ -1,38 +1,15 @@
 # Intel RealSense Modular Component
 
+This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras.
+
 ## Getting Started
+
 For Linux Distros, the simplest way of getting the camera server is by downloading the AppImage from
 
 ```
 sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
-
-You can also build it yourself using Docker and [Viam canon](https://github.com/viamrobotics/canon). 
-Use the commands
-
-```
-docker pull ghcr.io/viamrobotics/viam-camera-realsense:arm64
-git clone https://github.com/viamrobotics/viam-camera-realsense/
-cd viam-camera-realsense/
-canon -arch arm64 make appimage
-```
-
-This will use the Docker container to compile a binary for the `aarch64` architecture. The AppImage will be put in the `packaging/appimages/deploy` directory.
-
-## Building From Source
-
-If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
-
-- [librealsense](https://github.com/IntelRealSense/librealsense)
-  - `git checkout` and install from source. 
-  - be sure to use cmake flags `cmake .. -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release`
-- [libjpegturbo](https://github.com/libjpeg-turbo/libjpeg-turbo)
-- [libprotobuf](https://github.com/protocolbuffers/protobuf)
-- [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
-  - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
-
-then do `make camera-module` to compile the binary, and `make appimage` to create the AppImage.
 
 ## Attributes and Sample Config
 
@@ -64,3 +41,32 @@ The attributes for the module are as follows:
   ],
 }
 ```
+
+## Building The Module
+
+You can also build it yourself using Docker and [Viam canon](https://github.com/viamrobotics/canon). 
+Use the commands
+
+```
+docker pull ghcr.io/viamrobotics/viam-camera-realsense:arm64
+git clone https://github.com/viamrobotics/viam-camera-realsense/
+cd viam-camera-realsense/
+canon -arch arm64 make appimage
+```
+
+This will use the Docker container to compile a binary for the `aarch64` architecture. The AppImage will be put in the `packaging/appimages/deploy` directory.
+
+### Building From Source
+
+If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
+
+- [librealsense](https://github.com/IntelRealSense/librealsense)
+  - `git checkout` and install from source. 
+  - be sure to use cmake flags `cmake .. -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release`
+- [libjpegturbo](https://github.com/libjpeg-turbo/libjpeg-turbo)
+- [libprotobuf](https://github.com/protocolbuffers/protobuf)
+- [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
+  - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
+
+then do `make camera-module` to compile the binary, and `make appimage` to create the AppImage.
+
