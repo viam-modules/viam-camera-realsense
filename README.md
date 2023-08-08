@@ -56,8 +56,6 @@ canon -arch arm64 make appimage
 
 This will use the Docker container to compile a binary for the `aarch64` architecture. The AppImage will be put in the `packaging/appimages/deploy` directory.
 
-### Building From Source
-
 If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
 
 - [librealsense](https://github.com/IntelRealSense/librealsense)
