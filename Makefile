@@ -33,38 +33,35 @@ clean-all: clean
 # Docker
 TAG_VERSION := latest
 
-# Module
-# Creates appimage cmake build.
-# Builds docker image with viam-cpp-sdk and camera-realsense installed.
-.PHONY: build
-build:
-	docker build -t viam-camera-realsense:$(TAG_VERSION) \
-		--memory=16g \
-		--build-arg TAG=$(TAG_VERSION) \
-		-f ./etc/Dockerfile.debian.bookworm ./
+BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)' .
+BUILD_PUSH = --load
+BUILD_FILE = ./etc/Dockerfile.debian.bookworm
 
-# Runs docker image with shell.
-run-docker: build
-	docker run \
-		--device /dev/fuse \
-		--cap-add SYS_ADMIN \
-		-it viam-camera-realsense:$(TAG_VERSION)
+docker: docker-build docker-upload
 
-package:
-	cd etc && \
+docker-build: docker-arm64
+
+docker-arm64: MAIN_TAG = ghcr.io/viamrobotics/viam-camera-realsense
+docker-arm64: BUILD_TAG = arm64
+docker-arm64:
+	$(BUILD_CMD)
+
+docker-upload:
+	docker push 'ghcr.io/viamrobotics/viam-camera-realsense:arm64'
+
+# CI targets that automatically push, avoid for local test-first-then-push workflows
+docker-arm64-ci: MAIN_TAG = ghcr.io/viamrobotics/viam-camera-realsense
+docker-arm64-ci: BUILD_TAG = arm64
+docker-arm64-ci: BUILD_PUSH = --push
+docker-arm64-ci:
+	$(BUILD_CMD)
+
+# build the AppImage 
+appimage: camera-module
+	cd packaging/appimages && \
+	rm -rf deploy && \
+	mkdir -p deploy && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
+	cp ./packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage  ./packaging/appimages/deploy/
 
-
-# Copies binary and AppImage from container to host.
-copy-bin:
-	rm -rf bin | true && \
-	mkdir -p bin && \
-	docker rm viam-camera-realsense-bin | true && \
-	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
-	docker exec --workdir /root/opt/src/viam-camera-realsense viam-camera-realsense-bin make package
-	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/etc/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
-	docker stop viam-camera-realsense-bin && \
-	docker rm viam-camera-realsense-bin
-
-appimage: build copy-bin
 

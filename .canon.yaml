@@ -1,0 +1,4 @@
+viam-camera-realsense:
+  arch: arm64
+  image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+  persistent: true

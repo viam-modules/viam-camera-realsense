@@ -3,7 +3,7 @@ version: 1
 script:
  - rm -rf AppDir | true
  - mkdir -p $TARGET_APPDIR/usr/bin
- - cp ../viam-camera-realsense $TARGET_APPDIR/usr/bin/
+ - cp ../../viam-camera-realsense $TARGET_APPDIR/usr/bin/
  - mkdir -p $TARGET_APPDIR/usr/share/icons/viam/256x256/apps/
  - cp ./viam-server.png $TARGET_APPDIR/usr/share/icons/viam/256x256/apps/viam-server.png
  - go install github.com/Otterverse/aix@latest

@@ -1,6 +1,5 @@
 FROM debian:bookworm
 
-ENV HOME /root
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update
@@ -25,6 +24,9 @@ RUN apt-get -y --no-install-recommends install \
     libprotobuf-dev \
     libssl-dev \
     libxtensor-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    libgtk-3-dev \ 
     ninja-build \
     pkg-config \
     protobuf-compiler-grpc \
@@ -32,18 +34,10 @@ RUN apt-get -y --no-install-recommends install \
     sudo \
     wget
 
-RUN apt-get update
-
-RUN apt-get -y install cmake \
-    libssl-dev \
-    libusb-1.0-0-dev \
-    libudev-dev \
-    libgtk-3-dev 
-
-RUN mkdir -p ${HOME}/opt/src
+RUN mkdir -p /root/opt/src
 
 # install grpc from source
-RUN cd ${HOME}/opt/src && \
+RUN cd /root/opt/src && \
     git clone --recurse-submodules -b v1.52.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
     cd grpc && \
     mkdir -p build && \
@@ -64,23 +58,26 @@ RUN cd ${HOME}/opt/src && \
     rm -rf build
 
 # install viam c++ SDK from source
-RUN cd ${HOME}/opt/src && \
+RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
     cd viam-cpp-sdk && \
+    git reset --hard e8bddd0dba37c13bfd355b44852a6a5cdbf7baa0 && \
     mkdir build && \
     cd build && \
     cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
-    ninja install -j1
+    ninja install -j1 && \
+    rm -rf /root/opt/src/viam-cpp-sdk
 
 # install librealsense from source
-RUN cd ${HOME}/opt/src && \
-    git clone https://github.com/IntelRealSense/librealsense.git && \
+RUN cd /root/opt/src && \
+    git clone -b v2.54.1 https://github.com/IntelRealSense/librealsense.git && \
     cd librealsense && \
     mkdir build && \
     cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release  && \
     make -j 4 && \
-    make install
+    make install && \
+    rm -rf /root/opt/src/librealsense
 
 # install appimage-builder
 RUN apt install -y \
@@ -99,20 +96,11 @@ RUN apt install -y \
 RUN pip3 install -U pip setuptools urllib3==1.26.12 requests==2.26.0 --break-system-packages
 
 # install appimage-builder
-RUN cd ${HOME}/opt/src && \
-    git clone https://github.com/AppImageCrafters/appimage-builder.git && \
-    cd appimage-builder && \
-    pip3 install ./ --break-system-packages
+RUN pip3 install appimage-builder==1.1.0 --break-system-packages
 
 # install Go
 RUN apt install -y golang-go 
 
 # necessary library for jpeg
 RUN apt install -y libturbojpeg-dev vim
-
-# install dev files
-ADD ../ ${HOME}/opt/src/viam-camera-realsense
-RUN cd ${HOME}/opt/src && \
-    cd viam-camera-realsense  && \
-    make camera-module
 
