@@ -8,29 +8,19 @@ sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
-You can also build it yourself  using Docker. The command
+You can also build it yourself using Docker and [Viam canon](https://github.com/viamrobotics/canon). 
+Use the commands
 
 ```
+docker pull ghcr.io/viamrobotics/viam-camera-realsense:arm64
 git clone https://github.com/viamrobotics/viam-camera-realsense/
 cd viam-camera-realsense/
-make appimage
+canon -arch arm64 make appimage
 ```
 
-will build a Docker image and compile a binary for the `aarch64` architecture, which will be placed in the `bin/` directory.
+This will use the Docker container to compile a binary for the `aarch64` architecture. The AppImage will be put in the `packaging/appimages/deploy` directory.
 
 ## Building From Source
-
-It's first best to try to build from source within Docker. Try to do the following commands:
-
-```
-make build
-make run-docker
-# within Docker
-cd ~/opt/src/viam-camera-realsense
-make camera-module
-# if you want to make the AppImage, then also do
-make package
-```
 
 If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
 
@@ -42,7 +32,7 @@ If you would like to try to gather all of the dependencies yourself and not use 
 - [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
   - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
 
-then do `make camera-module` to compile the binary, and `make package` to create the AppImage.
+then do `make camera-module` to compile the binary, and `make appimage` to create the AppImage.
 
 ## Attributes and Sample Config
 

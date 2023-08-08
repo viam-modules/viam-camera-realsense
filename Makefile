@@ -56,34 +56,12 @@ docker-arm64-ci: BUILD_PUSH = --push
 docker-arm64-ci:
 	$(BUILD_CMD)
 
-.PHONY: build
-build:
-	docker build -t viam-camera-realsense:$(TAG_VERSION) \
-		--memory=16g \
-	    --build-arg TAG=$(TAG_VERSION) \
-		-f ./etc/Dockerfile.debian.bookworm ./
-
-# Module
-# Creates appimage cmake build.
-# Builds docker image with viam-cpp-sdk and camera-realsense installed.
-package:
+# build the AppImage 
+appimage: camera-module
 	cd packaging/appimages && \
 	rm -rf deploy && \
 	mkdir -p deploy && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 	cp ./packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage  ./packaging/appimages/deploy/
-
-# Copies binary and AppImage from container to host.
-copy-bin:
-	rm -rf bin && \
-	mkdir -p bin && \
-	docker rm viam-camera-realsense-bin || true && \
-	docker run -d -it --name viam-camera-realsense-bin viam-camera-realsense:$(TAG_VERSION) && \
-	docker exec --workdir /root/opt/src/viam-camera-realsense viam-camera-realsense-bin make package
-	docker cp viam-camera-realsense-bin:/root/opt/src/viam-camera-realsense/packaging/appimages/deploy/viam-camera-realsense-latest-aarch64.AppImage ./bin && \
-	docker stop viam-camera-realsense-bin && \
-	docker rm viam-camera-realsense-bin
-
-appimage: build copy-bin
 
 

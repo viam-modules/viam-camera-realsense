@@ -1,6 +1,5 @@
 FROM debian:bookworm
 
-ENV HOME /root
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update
@@ -35,10 +34,10 @@ RUN apt-get -y --no-install-recommends install \
     sudo \
     wget
 
-RUN mkdir -p ${HOME}/opt/src
+RUN mkdir -p /root/opt/src
 
 # install grpc from source
-RUN cd ${HOME}/opt/src && \
+RUN cd /root/opt/src && \
     git clone --recurse-submodules -b v1.52.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
     cd grpc && \
     mkdir -p build && \
@@ -59,7 +58,7 @@ RUN cd ${HOME}/opt/src && \
     rm -rf build
 
 # install viam c++ SDK from source
-RUN cd ${HOME}/opt/src && \
+RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
     cd viam-cpp-sdk && \
     git reset --hard e8bddd0dba37c13bfd355b44852a6a5cdbf7baa0 && \
@@ -69,7 +68,7 @@ RUN cd ${HOME}/opt/src && \
     ninja install -j1
 
 # install librealsense from source
-RUN cd ${HOME}/opt/src && \
+RUN cd /root/opt/src && \
     git clone -b v2.54.1 https://github.com/IntelRealSense/librealsense.git && \
     cd librealsense && \
     mkdir build && \
@@ -102,10 +101,4 @@ RUN apt install -y golang-go
 
 # necessary library for jpeg
 RUN apt install -y libturbojpeg-dev vim
-
-# install dev files
-ADD ../ ${HOME}/opt/src/viam-camera-realsense
-RUN cd ${HOME}/opt/src && \
-    cd viam-camera-realsense  && \
-    make camera-module
 
