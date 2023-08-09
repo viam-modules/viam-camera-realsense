@@ -16,7 +16,7 @@ AppDir:
     id: com.viam.camerarealsense
     name: viam-camera-realsense
     icon: viam-server
-    version: latest
+    version: ${TAG_NAME}
     exec: usr/bin/aix
     exec_args: $@
   apt:
@@ -44,4 +44,4 @@ AppDir:
         AIX_TARGET: usr/bin/viam-camera-realsense
 AppImage:
   arch: aarch64
-  update-information: zsync|http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage.zsync
+  update-information: zsync|http://packages.viam.com/apps/camera-servers/viam-camera-realsense-${TAG_NAME}-aarch64.AppImage.zsync

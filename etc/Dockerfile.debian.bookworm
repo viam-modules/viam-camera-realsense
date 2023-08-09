@@ -42,7 +42,7 @@ RUN cd /root/opt/src && \
     cd grpc && \
     mkdir -p build && \
     cd build && \
-    cmake .. -G Ninja -j 8 \
+    cmake .. -G Ninja \
         -DgRPC_ZLIB_PROVIDER=package \
         -DgRPC_CARES_PROVIDER=package \
         -DgRPC_RE2_PROVIDER=package \
@@ -64,7 +64,7 @@ RUN cd /root/opt/src && \
     git reset --hard e8bddd0dba37c13bfd355b44852a6a5cdbf7baa0 && \
     mkdir build && \
     cd build && \
-    cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja -j 8  && \
+    cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
     ninja install -j 8 && \
     rm -rf /root/opt/src/viam-cpp-sdk
 
@@ -74,9 +74,9 @@ RUN cd /root/opt/src && \
     cd librealsense && \
     mkdir build && \
     cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release -j 8  && \
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DCMAKE_BUILD_TYPE=Release && \
     make -j 8 && \
-    make install && \
+    make install -j 8 && \
     rm -rf /root/opt/src/librealsense
 
 # install appimage-builder

@@ -31,7 +31,6 @@ clean-all: clean
 	git clean -fxd
 
 # Docker
-TAG_VERSION := latest
 
 BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)' .
 BUILD_PUSH = --load
@@ -56,12 +55,14 @@ docker-arm64-ci: BUILD_PUSH = --push
 docker-arm64-ci:
 	$(BUILD_CMD)
 
+TAG_VERSION?=latest
 # build the AppImage 
+appimage: export TAG_NAME = ${TAG_VERSION}
 appimage: camera-module
 	cd packaging/appimages && \
 	rm -rf deploy && \
 	mkdir -p deploy && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
-	cp ./packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage  ./packaging/appimages/deploy/
+	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
 
