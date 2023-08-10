@@ -14,10 +14,10 @@ SDK_FLAGS = -lviamsdk -lviam_rust_utils -lviamapi
 
 LIB_FLAGS = $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags grpc++ realsense2 --libs protobuf grpc++ libturbojpeg realsense2)
 
-camera-module: $(SERVER_TARGETS)
+viam-camera-realsense: $(SERVER_TARGETS)
 	$(CPP_COMPILER) -std=c++17 -o viam-camera-realsense camera_realsense.cpp $(THIRD_PARTY_SOURCES) $(SDK_INCLUDE) $(LIB_FLAGS) $(SDK_FLAGS) $(GCC_FLAGS)
 
-default: camera-module
+default: viam-camera-realsense
 
 format: *.cpp
 	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" *.cpp
@@ -31,7 +31,6 @@ clean-all: clean
 	git clean -fxd
 
 # Docker
-TAG_VERSION := latest
 
 BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)' .
 BUILD_PUSH = --load
@@ -56,12 +55,14 @@ docker-arm64-ci: BUILD_PUSH = --push
 docker-arm64-ci:
 	$(BUILD_CMD)
 
+TAG_VERSION?=latest
 # build the AppImage 
-appimage: camera-module
+appimage: export TAG_NAME = ${TAG_VERSION}
+appimage: viam-camera-realsense
 	cd packaging/appimages && \
 	rm -rf deploy && \
 	mkdir -p deploy && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
-	cp ./packaging/appimages/viam-camera-realsense-latest-aarch64.AppImage  ./packaging/appimages/deploy/
+	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
 

@@ -66,5 +66,5 @@ If you would like to try to gather all of the dependencies yourself and not use 
 - [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
   - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
 
-then do `make camera-module` to compile the binary, and `make appimage` to create the AppImage.
+then do `make viam-camera-realsense` to compile the binary, and `make appimage` to create the AppImage.
 
