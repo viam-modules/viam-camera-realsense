@@ -1,0 +1,13 @@
+{
+  "name": "viam:realsense",
+  "visibility": "private",
+  "url": "https://github.com/viamrobotics/viam-camera-realsense",
+  "description": "C++ camera module for the RealSense",
+  "models": [
+    {
+      "api": "rdk:component:camera",
+      "model": "viam:camera:realsense"
+    }
+  ],
+  "entrypoint": "./viam-camera-realsense-aarch64.AppImage"
+}

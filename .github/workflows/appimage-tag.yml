@@ -26,6 +26,18 @@ jobs:
     - name: Build
       run: make appimage TAG_VERSION="$GITHUB_REF_NAME"
 
+    - name: bundle module
+      run: |
+        cp packaging/appimages/deploy/viam-camera-realsense-*-aarch64.AppImage viam-camera-realsense-aarch64.AppImage
+        tar cf module.tar.gz viam-camera-realsense-aarch64.AppImage
+
+    - uses: viamrobotics/upload-module@main
+      with:
+        namespace: viam
+        platform: linux/arm64
+        version: ${{ github.ref_name }}
+        cli-config-secret: ${{ secrets.cli_config }}
+
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1
       with:
