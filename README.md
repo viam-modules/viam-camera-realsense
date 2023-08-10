@@ -11,6 +11,8 @@ sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
+If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.1`.
+
 ## Attributes and Sample Config
 
 The attributes for the module are as follows:
