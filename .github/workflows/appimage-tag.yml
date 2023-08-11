@@ -6,8 +6,8 @@ concurrency:
 on:
   workflow_dispatch:
   push:
-    tags:
-      - '*'
+    # tags: # DONOTMERGE
+    #   - '*'
 
 
 jobs:
@@ -35,20 +35,21 @@ jobs:
       with:
         namespace: viam
         platform: linux/arm64
-        version: ${{ github.ref_name }}
+        version: 0.0.0-${{ github.ref_name }}-${{ github.run_number }} # todo: just ref_name in tag release
         cli-config-secret: ${{ secrets.cli_config }}
 
-    - name: Authorize GCP Upload
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+    # DONOTMERGE
+    # - name: Authorize GCP Upload
+    #   uses: google-github-actions/auth@v1
+    #   with:
+    #     credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
-    - name: Upload Files
-      uses: google-github-actions/upload-cloud-storage@v0.10.4
-      with:
-        headers: "cache-control: no-cache"
-        path: 'packaging/appimages/deploy/'
-        destination: 'packages.viam.com/apps/camera-servers/'
-        glob: '*'
-        parent: false
-        gzip: false
+    # - name: Upload Files
+    #   uses: google-github-actions/upload-cloud-storage@v0.10.4
+    #   with:
+    #     headers: "cache-control: no-cache"
+    #     path: 'packaging/appimages/deploy/'
+    #     destination: 'packages.viam.com/apps/camera-servers/'
+    #     glob: '*'
+    #     parent: false
+    #     gzip: false
