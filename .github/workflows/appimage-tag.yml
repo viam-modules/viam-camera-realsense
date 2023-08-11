@@ -28,7 +28,7 @@ jobs:
 
     - name: bundle module
       run: |
-        cp packaging/appimages/deploy/viam-camera-realsense-*-aarch64.AppImage viam-camera-realsense-aarch64.AppImage
+        cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-aarch64.AppImage viam-camera-realsense-aarch64.AppImage
         tar cf module.tar.gz viam-camera-realsense-aarch64.AppImage
 
     - uses: viamrobotics/upload-module@main
