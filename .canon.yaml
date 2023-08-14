@@ -1,4 +1,5 @@
 viam-camera-realsense:
   arch: arm64
   image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+  minimum_date: 2023-04-14T00:00:00.0Z
   persistent: true
