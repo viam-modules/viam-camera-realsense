@@ -3,7 +3,7 @@ name: Publish Docker
 on:
   workflow_dispatch:
   push:
-    branches: [ 'main' ]
+    # branches: [ 'main' ] # DONOTMERGE
     paths: ['etc/Dockerfile*']
 
 jobs:
