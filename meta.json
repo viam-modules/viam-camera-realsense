@@ -9,5 +9,5 @@
       "model": "viam:camera:realsense"
     }
   ],
-  "entrypoint": "./viam-camera-realsense-aarch64.AppImage"
+  "entrypoint": "viam-camera-realsense-aarch64.AppImage"
 }
