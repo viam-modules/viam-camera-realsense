@@ -35,7 +35,7 @@ jobs:
       with:
         namespace: viam
         platform: linux/arm64
-        version: ${{ github.ref_name }}
+        version: ${{ github.event_name == 'release' && github.ref_name || format('0.0.0-{0}.{1}', github.ref_name, github.run_number) }}
         cli-config-secret: ${{ secrets.cli_config }}
 
     - name: Authorize GCP Upload
