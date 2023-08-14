@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     # branches: [ 'main' ] # DONOTMERGE
-    paths: ['etc/Dockerfile*']
+    # paths: ['etc/Dockerfile*'] # DONOTMERGE
 
 jobs:
   docker:
