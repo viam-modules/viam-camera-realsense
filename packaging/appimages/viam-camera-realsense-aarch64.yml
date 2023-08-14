@@ -28,6 +28,7 @@ AppDir:
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main
     include:
+    - bash
     - libprotobuf32:arm64
     - libturbojpeg0:arm64
   files:
