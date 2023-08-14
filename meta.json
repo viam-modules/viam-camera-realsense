@@ -1,6 +1,6 @@
 {
   "name": "viam:realsense",
-  "visibility": "private",
+  "visibility": "public",
   "url": "https://github.com/viamrobotics/viam-camera-realsense",
   "description": "C++ camera module for the RealSense",
   "models": [
