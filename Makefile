@@ -59,6 +59,9 @@ TAG_VERSION?=latest
 # build the AppImage 
 appimage: export TAG_NAME = ${TAG_VERSION}
 appimage: viam-camera-realsense
+	echo $$GOPATH
+	ls $$GOPATH/bin
+	which aix
 	cd packaging/appimages && \
 	rm -rf deploy && \
 	mkdir -p deploy && \
