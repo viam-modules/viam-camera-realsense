@@ -9,7 +9,9 @@ on:
 jobs:
   docker:
     name: Build Docker Image
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    permissions:
+      packages: write
+    runs-on: [buildjet-16vcpu-ubuntu-2204-arm]
     timeout-minutes: 45
 
     steps:
