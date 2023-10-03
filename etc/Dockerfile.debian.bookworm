@@ -61,7 +61,6 @@ RUN cd /root/opt/src && \
 RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
     cd viam-cpp-sdk && \
-    git reset --hard e8bddd0dba37c13bfd355b44852a6a5cdbf7baa0 && \
     mkdir build && \
     cd build && \
     cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
