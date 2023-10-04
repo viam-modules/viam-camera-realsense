@@ -551,7 +551,7 @@ class CameraRealSense : public vsdk::Camera {
         this->disableDepth_ = disableDepth;
     }
 
-    vsdk::Camera::raw_image get_image(std::string mime_type) override {
+    vsdk::Camera::raw_image get_image(std::string mime_type, const vsdk::AttributeMap& extra) override {
         std::chrono::time_point<std::chrono::high_resolution_clock> start;
         if (debug_enabled) {
             start = std::chrono::high_resolution_clock::now();
@@ -681,11 +681,11 @@ class CameraRealSense : public vsdk::Camera {
         return vsdk::AttributeMap{};
     }
 
-    vsdk::Camera::point_cloud get_point_cloud(std::string mime_type) override {
+    vsdk::Camera::point_cloud get_point_cloud(std::string mime_type, const vsdk::AttributeMap& extra) override {
         std::cerr << "get_point_cloud not implemented" << std::endl;
         return vsdk::Camera::point_cloud{};
     }
-    std::vector<vsdk::GeometryConfig> get_geometries() override {
+    std::vector<vsdk::GeometryConfig> get_geometries(const vsdk::AttributeMap& extra) override {
         std::cerr << "get_geometries not implemented" << std::endl;
         return std::vector<vsdk::GeometryConfig>{};
     }
