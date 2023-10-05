@@ -12,7 +12,16 @@ set(CMAKE_CXX_STANDARD 17)
 # The image encoders
 set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp)
 
-# The viam C++ SDK
+# construct the executable
+add_executable(viam-camera-realsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES})
+
+target_link_libraries(viam-camera-realsense PRIVATE
+    grpc++
+    protobuf
+    turbojpeg
+)
+
+# The viam C++ SDK - build from source
 FetchContent_Declare(
   viam-cpp-sdk
   GIT_REPOSITORY https://github.com/viamrobotics/viam-cpp-sdk.git
@@ -23,31 +32,40 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(viam-cpp-sdk)
 find_package(viam-cpp-sdk CONFIG REQUIRED COMPONENTS Lib)
+target_link_libraries(viam-camera-realsense PRIVATE
+    viam-cpp-sdk::viamsdk
+)
 
-# The realsense library 
+# The realsense library - build from source
 set(RS_LOCATION ${CMAKE_BINARY_DIR}/realsense_source)
 if (NOT EXISTS ${RS_LOCATION})
     file(MAKE_DIRECTORY ${RS_LOCATION})
 endif()
-set(RS_CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${RS_LOCATION} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false")
+set(RS_CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${RS_LOCATION} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false)
 ExternalProject_Add(
     librealsense
     GIT_REPOSITORY https://github.com/IntelRealSense/librealsense.git
     GIT_TAG v2.54.2 
     CMAKE_ARGS ${RS_CMAKE_ARGS}
 )
-include_directories(${RS_LOCATION}/include)
-link_directories(${RS_LOCATION}/lib)
-
-add_executable(viam-camera-realsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES})
-add_dependencies(viam-camera-realsense librealsense)
-target_compile_features(viam-camera-realsense PRIVATE cxx_std_17)
-target_compile_options(viam-camera-realsense PRIVATE -O4 -pthread -Wredundant-move -Wpessimizing-move -Wl,-ldl)
-
+add_dependencies(viam-camera-realsense 
+    librealsense
+)
+target_include_directories(viam-camera-realsense PRIVATE 
+    ${RS_LOCATION}/include
+)
 target_link_libraries(viam-camera-realsense PRIVATE
-    librealsense2.so # from linking RS_LOCATION/lib
-    viam-cpp-sdk::viamsdk
-    grpc++
-    protobuf
-    turbojpeg
+    ${RS_LOCATION}/lib/librealsense2.so
+)
+
+# Add all the flags
+target_compile_features(viam-camera-realsense PRIVATE 
+    cxx_std_17
+)
+target_compile_options(viam-camera-realsense PRIVATE 
+    -O4 
+    -pthread 
+    -Wredundant-move 
+    -Wpessimizing-move 
+    -Wl,-ldl
 )
