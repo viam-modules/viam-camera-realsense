@@ -9,14 +9,19 @@ on:
     tags:
       - '*'
 
-
 jobs:
   appimage:
     name: AppImage Build Intel RealSense
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
-    container:
-      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-      options: --platform linux/arm64
+    strategy:
+      matrix:
+        include:
+        - runs-on: buildjet-16vcpu-ubuntu-2204-arm
+          arch: arm64
+        - runs-on: buildjet-8vcpu-ubuntu-2204
+          arch: amd64
+    runs-on: ${{ matrix.runs-on }}
+    # note: this implicitly depends on docker.yml -- make explicit
+    container: ghcr.io/viamrobotics/viam-camera-realsense:${{ matrix.arch }}
     timeout-minutes: 30
 
     steps:
@@ -34,7 +39,7 @@ jobs:
     - uses: viamrobotics/upload-module@main
       with:
         namespace: viam
-        platform: linux/arm64
+        platform: linux/${{ matrix.arch }}
         version: ${{ github.ref_name }}
         key-id: ${{ secrets.viam_key_id }}
         key-value: ${{ secrets.viam_key_value }}

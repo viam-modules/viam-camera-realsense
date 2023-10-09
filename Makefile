@@ -55,6 +55,12 @@ docker-arm64-ci: BUILD_PUSH = --push
 docker-arm64-ci:
 	$(BUILD_CMD)
 
+docker-amd64-ci: MAIN_TAG = ghcr.io/viamrobotics/viam-camera-realsense
+docker-amd64-ci: BUILD_TAG = amd64
+docker-amd64-ci: BUILD_PUSH ?= --push
+docker-amd64-ci:
+	$(BUILD_CMD)
+
 TAG_VERSION?=latest
 # build the AppImage 
 appimage: export TAG_NAME = ${TAG_VERSION}
