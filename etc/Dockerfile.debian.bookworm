@@ -34,28 +34,38 @@ RUN apt-get -y --no-install-recommends install \
     sudo \
     wget
 
-RUN mkdir -p /root/opt/src
 
-# install grpc from source
+RUN bash -c 'wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add -'
+RUN apt-add-repository -y 'deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-15 main'
+RUN apt-add-repository -y 'deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-15 main'
+RUN apt-get update
+
+RUN apt-get -y --no-install-recommends install -t llvm-toolchain-bookworm-15 \
+    clang-15 \
+    clang-tidy-15
+
+RUN mkdir -p /root/opt/src
+# install viam c++ SDK from source
 RUN cd /root/opt/src && \
-    git clone --recurse-submodules -b v1.52.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
-    cd grpc && \
-    mkdir -p build && \
+    git clone https://github.com/viamrobotics/viam-cpp-sdk && \
+    cd viam-cpp-sdk && \
+    mkdir build && \
     cd build && \
-    cmake .. -G Ninja \
-        -DgRPC_ZLIB_PROVIDER=package \
-        -DgRPC_CARES_PROVIDER=package \
-        -DgRPC_RE2_PROVIDER=package \
-        -DgRPC_SSL_PROVIDER=package \
-        -DgRPC_INSTALL=ON \
-        -DgRPC_BUILD_TESTS=OFF \
-        -DBUILD_SHARED_LIBS=ON \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DCMAKE_INSTALL_RPATH=/usr/local/lib && \
-    ninja install -j 8 && \
-    cd .. && \
-    rm -rf build
+    cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
+    ninja all -j 4 && \
+	ninja install -j 4 && \
+    rm -rf /root/opt/src/viam-cpp-sdk
+
+# install librealsense from source
+RUN cd /root/opt/src && \
+    git clone https://github.com/IntelRealSense/librealsense.git && \
+    cd librealsense && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
+    make -j 4 && \
+    make install -j 4 && \
+    rm -rf /root/opt/src/librealsense
 
 # install appimage-builder
 RUN apt install -y \

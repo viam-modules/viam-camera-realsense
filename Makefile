@@ -1,8 +1,8 @@
 # compile the binary
 SDK_LOCATION = /usr/local
 CPP_COMPILER = g++
-THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp
-SERVER_TARGETS = $(THIRD_PARTY_SOURCES) camera_realsense.cpp
+THIRD_PARTY_SOURCES = src/third_party/fpng.cpp src/third_party/lodepng.cpp
+SERVER_TARGETS = $(THIRD_PARTY_SOURCES) src/camera_realsense.cpp
 
 GCC_FLAGS = -O4 -pthread -Wredundant-move -Wpessimizing-move -Wl,-ldl
 ifeq ($(shell arch), x86_64)

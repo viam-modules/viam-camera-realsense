@@ -21,43 +21,17 @@ target_link_libraries(viam-camera-realsense PRIVATE
     turbojpeg
 )
 
-# The viam C++ SDK - build from source
-FetchContent_Declare(
-  viam-cpp-sdk
-  GIT_REPOSITORY https://github.com/viamrobotics/viam-cpp-sdk.git
-  GIT_TAG main
-  #SOURCE_DIR ${CMAKE_SOURCE_DIR}/../viam-cpp-sdk
-  CMAKE_ARGS -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON
-  FIND_PACKAGE_ARGS
-)
-FetchContent_MakeAvailable(viam-cpp-sdk)
-find_package(viam-cpp-sdk CONFIG REQUIRED COMPONENTS Lib)
+# The viam C++ SDK  - point to where the library files are located
+find_package(viam-cpp-sdk REQUIRED)
 target_link_libraries(viam-camera-realsense PRIVATE
     viam-cpp-sdk::viamsdk
 )
 
-# The realsense library - build from source
-set(RS_LOCATION ${CMAKE_BINARY_DIR}/realsense_source)
-if (NOT EXISTS ${RS_LOCATION})
-    file(MAKE_DIRECTORY ${RS_LOCATION})
-endif()
-set(RS_CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${RS_LOCATION} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false)
-ExternalProject_Add(
-    librealsense
-    GIT_REPOSITORY https://github.com/IntelRealSense/librealsense.git
-    GIT_TAG v2.54.2 
-    CMAKE_ARGS ${RS_CMAKE_ARGS}
-)
-add_dependencies(viam-camera-realsense 
-    librealsense
-)
-target_include_directories(viam-camera-realsense PRIVATE 
-    ${RS_LOCATION}/include
-)
+# The realsense library 
+find_package(realsense2 REQUIRED)
 target_link_libraries(viam-camera-realsense PRIVATE
-    ${RS_LOCATION}/lib/librealsense2.so
+    realsense2::realsense2
 )
-
 # Add all the flags
 target_compile_features(viam-camera-realsense PRIVATE 
     cxx_std_17
@@ -69,3 +43,4 @@ target_compile_options(viam-camera-realsense PRIVATE
     -Wpessimizing-move 
     -Wl,-ldl
 )
+
