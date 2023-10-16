@@ -1,0 +1,146 @@
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update
+
+RUN apt-get -y dist-upgrade
+
+RUN apt-get -y --no-install-recommends install \
+    build-essential \
+    ca-certificates \
+    curl \
+    doxygen \
+    g++ \
+    gdb \
+    git \
+    gnupg \
+    gpg \
+    less \
+    libabsl-dev \
+	libusb-1.0-0-dev \
+    libboost-all-dev \
+    libssl-dev \
+    ninja-build \
+    pkg-config \
+    software-properties-common \
+    sudo \
+    wget
+
+# Add the public key for the llvm repository to get the correct clang version
+RUN bash -c 'wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add -'
+RUN apt-add-repository -y 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main'
+
+# Add public key and repository to get cmake 3.25+
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - > /usr/share/keyrings/kitware-archive-keyring.gpg
+RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' > /etc/apt/sources.list.d/kitware.list
+RUN apt-get update
+
+RUN apt-get -y --no-install-recommends install -t llvm-toolchain-jammy-15 \
+    clang-15 \
+    clang-tidy-15
+
+RUN apt-get -y install cmake
+
+RUN mkdir -p /root/opt/src
+## use an updated grpc version, and build all of its dependencies
+RUN cd /root/opt/src && \
+    git clone -b v1.54.3 https://github.com/grpc/grpc.git && \
+	cd grpc && \
+	git submodule update --init
+
+RUN apt remove -y libabsl-dev
+RUN cd /root/opt/src && \
+    cd grpc/third_party/abseil-cpp && \
+	mkdir build && \
+	cd build && \
+	cmake -DMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON .. && \
+    make -j4 install && \
+	cd ../../ && \
+	rm -rf abseil-cpp # wipe out to prevent influcing grpc build
+
+RUN cd /root/opt/src && \
+    cd grpc/third_party/cares/cares && \
+	mkdir build && \
+	cd build && \
+	cmake -DMAKE_BUILD_TYPE=Release -Dcares_BUILD_SHARED_LIBS=ON .. && \
+    make -j4 install && \
+	cd ../../../ && \
+	rm -rf cares/cares # wipe out to prevent influcing grpc build
+
+RUN cd /root/opt/src && \
+    cd grpc/third_party/zlib && \
+	mkdir build && \
+	cd build && \
+	cmake -DMAKE_BUILD_TYPE=Release -Dzlib_BUILD_SHARED_LIBS=ON .. && \
+    make -j4 install && \
+	cd ../.. && \
+	rm -rf zlib # wipe out to prevent influcing grpc build
+
+RUN cd /root/opt/src && \
+    cd grpc/third_party/protobuf && \
+	mkdir build && \
+	cd build && \
+	cmake -DMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_BUILD_SHARED_LIBS=ON .. && \
+    make -j4 install && \
+	cd ../.. && \
+	rm -rf protobuf # wipe out to prevent influcing grpc build
+
+RUN cd /root/opt/src && \
+    cd grpc && \
+	mkdir build && \
+	cd build && \
+	cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_PROTOBUF_PROVIDER=package -DgRPC_ZLIB_PROVIDER=package -DgRPC_CARES_PROVIDER=package -DgRPC_SSL_PROVIDER=package -DgRPC_ABSL_PROVIDER=package -DgRPC_BUILD_SHARED_LIBS=ON .. && \
+	make && \
+	make install
+	#cp /usr/bin/grpc_cpp_plugin /usr/local/bin/grpc_cpp_plugin
+
+#RUN rm -rf /root/opt/src/grpc
+# install librealsense from source
+RUN cd /root/opt/src && \
+    git clone https://github.com/IntelRealSense/librealsense.git && \
+    cd librealsense && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_WITH_CUDA=true -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
+    make -j 4 && \
+    make install -j 4 && \
+    rm -rf /root/opt/src/librealsense
+
+RUN cd /root/opt/src && \
+    git clone https://github.com/viamrobotics/viam-cpp-sdk && \
+    cd viam-cpp-sdk && \
+    sed -i 's/CMAKE_CXX_STANDARD 14/CMAKE_CXX_STANDARD 17/g' CMakeLists.txt && \
+    mkdir build && \
+    cd build && \
+    cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_STANDARD=17 -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
+    ninja all -j 4 && \
+	ninja install -j 4 && \
+    rm -rf /root/opt/src/viam-cpp-sdk
+
+# install appimage-builder
+RUN apt install -y \
+    binutils \
+    coreutils \
+    desktop-file-utils \
+    fakeroot \
+    libfuse2 \
+    libgdk-pixbuf2.0-dev \
+    patchelf \
+    python3-pip python3-setuptools \
+	gtk-update-icon-cache \
+    squashfs-tools \
+    strace \
+    util-linux zsync
+
+RUN pip3 install -U pip setuptools urllib3==1.26.12 requests==2.26.0 
+
+# install appimage-builder
+RUN pip3 install git+https://github.com/AppImageCrafters/appimage-builder.git@f38699ef3644fa5409a5a262b7b6d99d6fb85db9
+
+# install Go
+RUN apt install -y golang-go 
+
+# necessary library for jpeg
+RUN apt install -y libturbojpeg-dev
+
