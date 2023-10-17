@@ -93,3 +93,5 @@ RUN apt install -y golang-go
 # necessary library for jpeg
 RUN apt install -y libturbojpeg-dev
 
+# install GTest
+RUN apt install -y libgtest-dev

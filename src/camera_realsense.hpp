@@ -10,9 +10,13 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+
 #include <viam/sdk/components/camera/camera.hpp>
 #include <viam/sdk/components/camera/server.hpp>
 #include <viam/sdk/components/component.hpp>
+#include <viam/sdk/module/service.hpp>
+#include <viam/sdk/registry/registry.hpp>
+#include <viam/sdk/rpc/server.hpp>
 
 constexpr char kResourceType[] = "CameraRealSense";
 constexpr char kAPINamespace[] = "viam";
