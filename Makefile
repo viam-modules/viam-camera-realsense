@@ -1,6 +1,6 @@
 # compile the binary
-format: *.cpp
-	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" *.cpp
+format: src/*.cpp
+	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.cpp
 
 viam-camera-realsense: 
 	rm -rf build/ && \
@@ -13,6 +13,13 @@ viam-camera-realsense:
 default: viam-camera-realsense
 
 all: default
+
+tests:
+	rm -rf build/ && \
+	mkdir build && \
+	cd build && \
+	cmake .. && \
+	make 
 
 clean:
 	rm -rf viam-camera-realsense

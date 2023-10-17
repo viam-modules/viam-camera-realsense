@@ -44,6 +44,11 @@ RUN apt-get -y --no-install-recommends install -t llvm-toolchain-bookworm-15 \
     clang-15 \
     clang-tidy-15
 
+# Add repo to get cuda binaries
+RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/g' /etc/apt/sources.list.d/debian.sources && \
+    apt update && \
+    apt -y install nvidia-cuda-dev nvidia-cuda-toolkit
+    
 RUN mkdir -p /root/opt/src
 # install viam c++ SDK from source
 RUN cd /root/opt/src && \
@@ -62,7 +67,7 @@ RUN cd /root/opt/src && \
     cd librealsense && \
     mkdir build && \
     cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
+    cmake .. -DBUILD_WITH_CUDA=true -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
     make -j 4 && \
     make install -j 4 && \
     rm -rf /root/opt/src/librealsense
