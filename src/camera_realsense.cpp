@@ -1,3 +1,5 @@
+#include "camera_realsense.hpp"
+
 #include <arpa/inet.h>
 #include <grpc/grpc.h>
 #include <grpcpp/security/server_credentials.h>
@@ -23,7 +25,6 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
-#include "camera_realsense.hpp"
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
@@ -410,8 +411,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     // First start of Pipeline
     rs2::pipeline pipe;
     RealSenseProperties props;
-    std::tie(pipe, props) =
-        startPipeline(disableDepth, width, height, disableColor, width, height);
+    std::tie(pipe, props) = startPipeline(disableDepth, width, height, disableColor, width, height);
     // First start of camera thread
     props.sensors = sensors;
     props.mainSensor = sensors[0];
@@ -471,7 +471,8 @@ void CameraRealSense::reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig 
     this->disableDepth_ = disableDepth;
 }
 
-vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type, const vsdk::AttributeMap& extra) {
+vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
+                                                   const vsdk::AttributeMap& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -498,18 +499,17 @@ vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type, const 
                 encodeColorRAWToResponse((const unsigned char*)latestColorFrame.get_data(),
                                          this->props_.color.width, this->props_.color.height);
         } else {
-            response =
-                encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
-                                     this->props_.color.width, this->props_.color.height);
+            response = encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
+                                            this->props_.color.width, this->props_.color.height);
         }
     } else if (this->props_.mainSensor.compare("depth") == 0) {
         if (this->disableDepth_) {
             throw std::invalid_argument("depth disabled");
         }
         if (mime_type.compare("image/vnd.viam.dep") == 0) {
-            response = encodeDepthRAWToResponse(
-                (const unsigned char*)latestDepthFrame->data(), this->props_.depth.width,
-                this->props_.depth.height, this->props_.littleEndianDepth);
+            response = encodeDepthRAWToResponse((const unsigned char*)latestDepthFrame->data(),
+                                                this->props_.depth.width, this->props_.depth.height,
+                                                this->props_.littleEndianDepth);
         } else {
             response =
                 encodeDepthPNGToResponse((const unsigned char*)latestDepthFrame->data(),
@@ -585,9 +585,8 @@ vsdk::Camera::image_collection CameraRealSense::get_images() {
             response.images.emplace_back(std::move(*depth_response));
         }
     }
-    response.metadata.captured_at =
-        std::chrono::time_point<long long, std::chrono::nanoseconds>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
+    response.metadata.captured_at = std::chrono::time_point<long long, std::chrono::nanoseconds>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -601,7 +600,8 @@ vsdk::AttributeMap CameraRealSense::do_command(vsdk::AttributeMap command) {
     return vsdk::AttributeMap{};
 }
 
-vsdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type, const vsdk::AttributeMap& extra) {
+vsdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
+                                                           const vsdk::AttributeMap& extra) {
     std::cerr << "get_point_cloud not implemented" << std::endl;
     return vsdk::Camera::point_cloud{};
 }
@@ -609,7 +609,6 @@ std::vector<vsdk::GeometryConfig> CameraRealSense::get_geometries(const vsdk::At
     std::cerr << "get_geometries not implemented" << std::endl;
     return std::vector<vsdk::GeometryConfig>{};
 }
-
 
 // Loop functions
 // align to the color camera's origin when color and depth enabled
@@ -951,7 +950,7 @@ int serve(const std::string& socket_path) {
     return EXIT_SUCCESS;
 }
 
-}  // namespace
+}  // namespace realsense
 
 int main(int argc, char* argv[]) {
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";

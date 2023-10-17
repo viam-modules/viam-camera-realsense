@@ -1,6 +1,7 @@
 # compile the binary
-format: src/*.cpp
-	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.cpp
+format: src/*.cpp src/*.hpp
+	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.cpp && \
+	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.hpp
 
 viam-camera-realsense: 
 	rm -rf build/ && \
