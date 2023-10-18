@@ -1,4 +1,4 @@
-name: Test Intel RealSense
+name: Test 
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
