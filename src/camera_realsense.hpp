@@ -10,7 +10,6 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-
 #include <viam/sdk/components/camera/camera.hpp>
 #include <viam/sdk/components/camera/server.hpp>
 #include <viam/sdk/components/component.hpp>
