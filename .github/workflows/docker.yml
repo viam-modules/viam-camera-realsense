@@ -1,6 +1,10 @@
 name: Publish Docker
 
-on: pull_request
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+    paths: ['etc/Dockerfile.debian.bookworm']
 
 jobs:
   docker:

@@ -8,7 +8,7 @@ on: pull_request
 jobs:
   run-tests:
     name: Run Tests arm64
-    runs-on: [buildjet-4vcpu-ubuntu-2204-arm]
+    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
     container:
       image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
       options: --platform linux/arm64
