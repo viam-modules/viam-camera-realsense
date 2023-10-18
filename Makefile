@@ -15,13 +15,6 @@ default: viam-camera-realsense
 
 all: default
 
-tests:
-	rm -rf build/ && \
-	mkdir build && \
-	cd build && \
-	cmake .. && \
-	make 
-
 clean:
 	rm -rf viam-camera-realsense
 
