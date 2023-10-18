@@ -1,32 +1,34 @@
 # Intel RealSense Modular Component
 
-This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras.
+This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras. Registered at https://app.viam.com/module/viam/realsense.
 
 ## Getting Started
 
-For Linux Distros, the simplest way of getting the camera server is by downloading the AppImage from
+You can download the module most easily through the viam registry, by going to your robot's page on app.viam.com, and clicking on the *Create Component* button, and searching for the *realsense* module. This will automatically install the module to your robot.
+
+
+### Locally installing the module
+
+If you do not want to use the viam registry, for Linux distros, download the module AppImage from our servers to your robot.
 
 ```
 sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
-If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.1`.
+If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.X`.
 
-### Troubleshooting
-
-If you get an error like "failed to set power state", or "Permission denied", you may need to install the udev rules for when the USB plugs in. 
+Then modify your robot's JSON file as follows
 
 ```
-wget https://raw.githubusercontent.com/IntelRealSense/librealsense/7a7c2bcfbc03d45154ad63fa76b221b2bb9d228f/config/99-realsense-libusb.rules
-sudo cp 99-realsense-libusb.rules /etc/udev/rules.d/ 
-sudo udevadm control --reload-rules 
-sudo udevadm trigger
+  "modules": [
+    {
+      "type": "local",
+      "name": "intel",
+      "executable_path": "/usr/local/bin/viam-camera-realsense"
+    }
+  ],
 ```
-
-You can also look at the official RealSense troubleshooting guide [here](https://github.com/IntelRealSense/librealsense/wiki/Troubleshooting-Q%26A#q-i-ran-the-udev-rules-script-but-linux-still-get-permission-denied).
-
-The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on the Raspberry Pi for faster streaming and access to more resolution options.
 
 ## Attributes and Sample Config
 
@@ -49,15 +51,23 @@ The attributes for the module are as follows:
       "type": "camera",
       "model": "viam:camera:realsense"
     }
-  ],
-  "modules": [
-    {
-      "executable_path": "/home/user/viam-camera-realsense",
-      "name": "intel"
-    }
-  ],
+  ]
 }
 ```
+### Troubleshooting
+
+If you get an error like "failed to set power state", or "Permission denied", you may need to install the udev rules for when the USB plugs in. 
+
+```
+wget https://raw.githubusercontent.com/IntelRealSense/librealsense/7a7c2bcfbc03d45154ad63fa76b221b2bb9d228f/config/99-realsense-libusb.rules
+sudo cp 99-realsense-libusb.rules /etc/udev/rules.d/ 
+sudo udevadm control --reload-rules 
+sudo udevadm trigger
+```
+
+You can also look at the official RealSense troubleshooting guide [here](https://github.com/IntelRealSense/librealsense/wiki/Troubleshooting-Q%26A#q-i-ran-the-udev-rules-script-but-linux-still-get-permission-denied).
+
+The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on the Raspberry Pi for faster streaming and access to more resolution options.
 
 ## Building The Module
 
