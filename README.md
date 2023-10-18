@@ -4,7 +4,15 @@ This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for
 
 ## Getting Started
 
-You can download the module most easily through the viam registry, by going to your robot's page on app.viam.com, and clicking on the *Create Component* button, and searching for the *realsense* module. This will automatically install the module to your robot.
+### Using the Registry
+
+The recommended way to install the module is through the viam registry.
+
+- Go to your robot's page on app.viam.com.
+- Click on the *Create Component* button in the Components section.
+- Search for the *realsense* module and select it. 
+
+This will automatically install the module to your robot.
 
 
 ### Locally installing the module

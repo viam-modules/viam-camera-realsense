@@ -22,7 +22,7 @@ target_link_libraries(viam-camera-realsense PRIVATE
     turbojpeg
 )
 
-# The viam C++ SDK  - point to where the library files are located
+# The viam C++ SDK 
 find_package(viam-cpp-sdk REQUIRED)
 target_link_libraries(viam-camera-realsense PRIVATE
     viam-cpp-sdk::viamsdk
