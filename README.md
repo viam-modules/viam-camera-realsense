@@ -62,7 +62,7 @@ The attributes for the module are as follows:
   ]
 }
 ```
-### Troubleshooting
+## Troubleshooting
 
 If you get an error like "failed to set power state", or "Permission denied", you may need to install the udev rules for when the USB plugs in. 
 
