@@ -1,0 +1,33 @@
+name: Test arm64 Intel RealSense
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on: pull_request
+
+jobs:
+  run-tests:
+    name: Run Tests arm64
+    runs-on: [buildjet-4vcpu-ubuntu-2204-arm]
+    container:
+      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+      options: --platform linux/arm64
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        working-directory: build
+        run: cmake ..
+
+      - name: Build the binary
+        working-directory: build
+        run: make
+
+      - name: Run the tests
+        working-directory: build
+        run: ctest

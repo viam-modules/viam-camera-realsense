@@ -1,7 +1,5 @@
 # CMakeLists.txt for tests
 
-enable_testing()
-
 find_package(GTest REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 
