@@ -2,13 +2,18 @@
 format: src/*.cpp src/*.hpp
 	ls src/*.cpp src/*.hpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
-viam-camera-realsense: 
+viam-camera-realsense: src/*
 	rm -rf build/ && \
 	mkdir build && \
 	cd build && \
 	cmake -G Ninja .. && \
 	ninja all -j 4 && \
 	cp viam-camera-realsense ../
+
+realsense-integration-tests: integration/tests/*
+	cd integration && \
+	go test -c -o realsense-integration-tests ./tests/ && \
+	cp realsense-integration-tests ../
 
 default: viam-camera-realsense
 
@@ -45,13 +50,21 @@ docker-arm64-ci:
 	$(BUILD_CMD)
 
 TAG_VERSION?=latest
-# build the AppImage 
+# build the AppImages
 appimage: export TAG_NAME = ${TAG_VERSION}
 appimage: viam-camera-realsense
 	cd packaging/appimages && \
-	rm -rf deploy && \
 	mkdir -p deploy && \
+	rm -f deploy/viam-camera-realsense* && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
+
+integration-appimage: export TAG_NAME = ${TAG_VERSION}
+integration-appimage: realsense-integration-tests
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/realsense-integration-tests* && \
+	appimage-builder --recipe realsense-integration-tests-aarch64.yml
+	cp ./packaging/appimages/realsense-integration-tests-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
 
