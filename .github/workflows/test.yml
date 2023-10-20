@@ -1,0 +1,34 @@
+name: Test 
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on: pull_request
+
+jobs:
+  run-tests:
+    name: Run Tests arm64
+    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    container:
+      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+      options: --platform linux/arm64
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        working-directory: build
+        run: cmake -G Ninja ..
+
+      - name: Build the binary
+        working-directory: build
+        run: ninja all -j 4
+
+      - name: Run the tests
+        working-directory: build
+        run: ctest

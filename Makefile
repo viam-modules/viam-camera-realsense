@@ -1,26 +1,16 @@
-# compile the binary
-SDK_LOCATION = /usr/local
-CPP_COMPILER = g++
-THIRD_PARTY_SOURCES = third_party/fpng.cpp third_party/lodepng.cpp
-SERVER_TARGETS = $(THIRD_PARTY_SOURCES) camera_realsense.cpp
+# format the source code
+format: src/*.cpp src/*.hpp
+	ls src/*.cpp src/*.hpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
-GCC_FLAGS = -O4 -pthread -Wredundant-move -Wpessimizing-move -Wl,-ldl
-ifeq ($(shell arch), x86_64)
-   GCC_FLAGS += -mpclmul -msse2 -msse4.2
-endif
-
-SDK_INCLUDE = -I$(SDK_LOCATION)/include -I$(SDK_LOCATION)/include/viam/api -L$(SDK_LOCATION)/lib
-SDK_FLAGS = -lviamsdk -lviam_rust_utils -lviamapi 
-
-LIB_FLAGS = $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags grpc++ realsense2 --libs protobuf grpc++ libturbojpeg realsense2)
-
-viam-camera-realsense: $(SERVER_TARGETS)
-	$(CPP_COMPILER) -std=c++17 -o viam-camera-realsense camera_realsense.cpp $(THIRD_PARTY_SOURCES) $(SDK_INCLUDE) $(LIB_FLAGS) $(SDK_FLAGS) $(GCC_FLAGS)
+viam-camera-realsense: 
+	rm -rf build/ && \
+	mkdir build && \
+	cd build && \
+	cmake -G Ninja .. && \
+	ninja all -j 4 && \
+	cp viam-camera-realsense ../
 
 default: viam-camera-realsense
-
-format: *.cpp
-	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" *.cpp
 
 all: default
 
@@ -31,7 +21,6 @@ clean-all: clean
 	git clean -fxd
 
 # Docker
-
 BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)' .
 BUILD_PUSH = --load
 BUILD_FILE = ./etc/Dockerfile.debian.bookworm
