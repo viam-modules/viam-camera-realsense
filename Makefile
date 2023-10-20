@@ -1,14 +1,13 @@
-# compile the binary
+# format the source code
 format: src/*.cpp src/*.hpp
-	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.cpp && \
-	clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}" src/*.hpp
+	ls src/*.cpp src/*.hpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
 viam-camera-realsense: 
 	rm -rf build/ && \
 	mkdir build && \
 	cd build && \
-	cmake .. && \
-	make && \
+	cmake -G Ninja .. && \
+	ninja all -j 4 && \
 	cp viam-camera-realsense ../
 
 default: viam-camera-realsense

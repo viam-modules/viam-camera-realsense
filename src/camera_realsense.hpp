@@ -17,14 +17,13 @@
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
+namespace viam {
+namespace realsense {
+
 constexpr char kResourceType[] = "CameraRealSense";
 constexpr char kAPINamespace[] = "viam";
 constexpr char kAPIType[] = "camera";
 constexpr char kAPISubtype[] = "realsense";
-
-namespace realsense {
-
-namespace vsdk = ::viam::sdk;
 
 struct DeviceProperties {
     const uint colorWidth;
@@ -94,30 +93,31 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
                                                              int colorWidth, int colorHeight);
 
 // Module functions
-std::vector<std::string> validate(vsdk::ResourceConfig cfg);
+std::vector<std::string> validate(sdk::ResourceConfig cfg);
 int serve(const std::string& socket_path);
 
 // The camera module class and its methods
-class CameraRealSense : public vsdk::Camera {
+class CameraRealSense : public sdk::Camera {
    private:
     std::shared_ptr<DeviceProperties> device_;
     RealSenseProperties props_;
     bool disableColor_;
     bool disableDepth_;
-    std::tuple<RealSenseProperties, bool, bool> initialize(vsdk::ResourceConfig cfg);
+    std::tuple<RealSenseProperties, bool, bool> initialize(sdk::ResourceConfig cfg);
 
    public:
-    explicit CameraRealSense(vsdk::Dependencies deps, vsdk::ResourceConfig cfg);
+    explicit CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg);
     ~CameraRealSense();
-    void reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) override;
-    vsdk::Camera::raw_image get_image(std::string mime_type,
-                                      const vsdk::AttributeMap& extra) override;
-    vsdk::Camera::properties get_properties() override;
-    vsdk::Camera::image_collection get_images() override;
-    vsdk::AttributeMap do_command(vsdk::AttributeMap command) override;
-    vsdk::Camera::point_cloud get_point_cloud(std::string mime_type,
-                                              const vsdk::AttributeMap& extra) override;
-    std::vector<vsdk::GeometryConfig> get_geometries(const vsdk::AttributeMap& extra) override;
+    void reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) override;
+    sdk::Camera::raw_image get_image(std::string mime_type,
+                                     const sdk::AttributeMap& extra) override;
+    sdk::Camera::properties get_properties() override;
+    sdk::Camera::image_collection get_images() override;
+    sdk::AttributeMap do_command(sdk::AttributeMap command) override;
+    sdk::Camera::point_cloud get_point_cloud(std::string mime_type,
+                                             const sdk::AttributeMap& extra) override;
+    std::vector<sdk::GeometryConfig> get_geometries(const sdk::AttributeMap& extra) override;
 };
 
 }  // namespace realsense
+}  // namespace viam

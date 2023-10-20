@@ -7,6 +7,11 @@ project(viam-camera-realsense
 )
 set(CMAKE_CXX_STANDARD 17)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+find_package(realsense2 REQUIRED)
+find_package(viam-cpp-sdk REQUIRED)
+
 # The image encoders
 set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp)
 
@@ -17,31 +22,19 @@ enable_testing()
 add_subdirectory(tests)
 
 target_link_libraries(viam-camera-realsense PRIVATE
-    grpc++
-    protobuf
-    turbojpeg
-)
-
-# The viam C++ SDK 
-find_package(viam-cpp-sdk REQUIRED)
-target_link_libraries(viam-camera-realsense PRIVATE
     viam-cpp-sdk::viamsdk
+    realsense2::realsense2
+    turbojpeg
+    ${CMAKE_DL_LIBS}
 )
 
-# The realsense library 
-find_package(realsense2 REQUIRED)
-target_link_libraries(viam-camera-realsense PRIVATE
-    realsense2::realsense2
-)
 # Add all the flags
 target_compile_features(viam-camera-realsense PRIVATE 
     cxx_std_17
 )
 target_compile_options(viam-camera-realsense PRIVATE 
-    -O4 
-    -pthread 
+    -O2 
     -Wredundant-move 
     -Wpessimizing-move 
-    -Wl,-ldl
 )
 

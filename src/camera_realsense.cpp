@@ -31,9 +31,8 @@
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
 
+namespace viam {
 namespace realsense {
-
-namespace vsdk = ::viam::sdk;
 
 // Global AtomicFrameSet
 AtomicFrameSet GLOBAL_LATEST_FRAMES;
@@ -81,11 +80,10 @@ color_response encodeColorPNG(const void* data, const uint width, const uint hei
     return {std::move(encoded)};
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeColorPNGToResponse(const void* data,
-                                                                  const uint width,
-                                                                  const uint height) {
+std::unique_ptr<sdk::Camera::raw_image> encodeColorPNGToResponse(const void* data, const uint width,
+                                                                 const uint height) {
     color_response encoded = encodeColorPNG(data, width, height);
-    auto response = std::make_unique<vsdk::Camera::raw_image>();
+    auto response = std::make_unique<sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/png";
     response->bytes = std::move(encoded.color_bytes);
@@ -134,10 +132,10 @@ jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint he
     return output;
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
-                                                              const uint width, const uint height) {
+std::unique_ptr<sdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
+                                                             const uint width, const uint height) {
     jpeg_image encoded = encodeJPEG(data, width, height);
-    auto response = std::make_unique<vsdk::Camera::raw_image>();
+    auto response = std::make_unique<sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
     response->bytes.assign(encoded.data.get(), encoded.data.get() + encoded.size);
@@ -194,11 +192,11 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     return {std::move(rawBuf), totalByteCount};
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
-                                                                  const uint width,
-                                                                  const uint height) {
+std::unique_ptr<sdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
+                                                                 const uint width,
+                                                                 const uint height) {
     raw_camera_image encoded = encodeColorRAW(data, width, height);
-    auto response = std::make_unique<vsdk::Camera::raw_image>();
+    auto response = std::make_unique<sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
@@ -243,11 +241,11 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
     return {std::move(uniqueEncoded), encoded_size};
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
-                                                                  const uint width,
-                                                                  const uint height) {
+std::unique_ptr<sdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
+                                                                 const uint width,
+                                                                 const uint height) {
     raw_camera_image encoded = encodeDepthPNG(data, width, height);
-    auto response = std::make_unique<vsdk::Camera::raw_image>();
+    auto response = std::make_unique<sdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
@@ -300,12 +298,12 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     return {std::move(rawBuf), std::move(totalByteCount)};
 }
 
-std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
-                                                                  const uint width,
-                                                                  const uint height,
-                                                                  const bool littleEndian) {
+std::unique_ptr<sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
+                                                                 const uint width,
+                                                                 const uint height,
+                                                                 const bool littleEndian) {
     raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
-    auto response = std::make_unique<vsdk::Camera::raw_image>();
+    auto response = std::make_unique<sdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
@@ -315,7 +313,7 @@ std::unique_ptr<vsdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned
 // CAMERA module methods
 
 // initialize will use the ResourceConfigs to begin the realsense pipeline.
-std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::ResourceConfig cfg) {
+std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::ResourceConfig cfg) {
     if (device_ != nullptr) {
         std::cout << "reinitializing, restarting pipeline" << std::endl;
         {
@@ -331,7 +329,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     uint height = 0;
     auto attrs = cfg.attributes();
     if (attrs->count("width_px") == 1) {
-        std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
+        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
         auto width_value = width_proto->proto_value();
         if (width_value.has_number_value()) {
             uint width_num = static_cast<uint>(width_value.number_value());
@@ -339,7 +337,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
         }
     }
     if (attrs->count("height_px") == 1) {
-        std::shared_ptr<vsdk::ProtoType> height_proto = attrs->at("height_px");
+        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
         auto height_value = height_proto->proto_value();
         if (height_value.has_number_value()) {
             uint height_num = static_cast<uint>(height_value.number_value());
@@ -350,7 +348,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
         std::cout << "note: will pick any suitable width and height" << std::endl;
     }
     if (attrs->count("debug") == 1) {
-        std::shared_ptr<vsdk::ProtoType> debug_proto = attrs->at("debug");
+        std::shared_ptr<sdk::ProtoType> debug_proto = attrs->at("debug");
         auto debug_value = debug_proto->proto_value();
         if (debug_value.has_bool_value()) {
             bool debug_bool = static_cast<bool>(debug_value.bool_value());
@@ -359,7 +357,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     }
     bool littleEndianDepth = false;
     if (attrs->count("little_endian_depth") == 1) {
-        std::shared_ptr<vsdk::ProtoType> endian_proto = attrs->at("little_endian_depth");
+        std::shared_ptr<sdk::ProtoType> endian_proto = attrs->at("little_endian_depth");
         auto endian_value = endian_proto->proto_value();
         if (endian_value.has_bool_value()) {
             bool endian_bool = static_cast<bool>(endian_value.bool_value());
@@ -368,7 +366,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     }
     bool enablePointClouds = false;
     if (attrs->count("enable_point_clouds") == 1) {
-        std::shared_ptr<vsdk::ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
+        std::shared_ptr<sdk::ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
         auto pointclouds_value = pointclouds_proto->proto_value();
         if (pointclouds_value.has_bool_value()) {
             bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
@@ -379,7 +377,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     bool disableColor = true;
     std::vector<std::string> sensors;
     if (attrs->count("sensors") == 1) {
-        std::shared_ptr<vsdk::ProtoType> sensor_proto = attrs->at("sensors");
+        std::shared_ptr<sdk::ProtoType> sensor_proto = attrs->at("sensors");
         auto sensor_value = sensor_proto->proto_value();
         if (sensor_value.has_list_value()) {
             auto sensor_list = sensor_value.list_value();
@@ -433,7 +431,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(vsdk::Re
     return std::make_tuple(props, disableColor, disableDepth);
 }
 
-CameraRealSense::CameraRealSense(vsdk::Dependencies deps, vsdk::ResourceConfig cfg)
+CameraRealSense::CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg)
     : Camera(cfg.name()) {
     RealSenseProperties props;
     bool disableColor;
@@ -457,7 +455,7 @@ CameraRealSense::~CameraRealSense() {
     this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
 }
 
-void CameraRealSense::reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig cfg) {
+void CameraRealSense::reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) {
     RealSenseProperties props;
     bool disableColor;
     bool disableDepth;
@@ -471,8 +469,8 @@ void CameraRealSense::reconfigure(vsdk::Dependencies deps, vsdk::ResourceConfig 
     this->disableDepth_ = disableDepth;
 }
 
-vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
-                                                   const vsdk::AttributeMap& extra) {
+sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
+                                                  const sdk::AttributeMap& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -485,7 +483,7 @@ vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
         latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
         latestDepthFrame = GLOBAL_LATEST_FRAMES.depthFrame;
     }
-    std::unique_ptr<vsdk::Camera::raw_image> response;
+    std::unique_ptr<sdk::Camera::raw_image> response;
     if (this->props_.mainSensor.compare("color") == 0) {
         if (this->disableColor_) {
             throw std::invalid_argument("color disabled");
@@ -526,8 +524,8 @@ vsdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
     return std::move(*response);
 }
 
-vsdk::Camera::properties CameraRealSense::get_properties() {
-    auto fillResp = [](vsdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
+sdk::Camera::properties CameraRealSense::get_properties() {
+    auto fillResp = [](sdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
         p->supports_pcd = supportsPCD;
         p->intrinsic_parameters.width_px = props.width;
         p->intrinsic_parameters.height_px = props.height;
@@ -541,7 +539,7 @@ vsdk::Camera::properties CameraRealSense::get_properties() {
         }
     };
 
-    vsdk::Camera::properties response{};
+    sdk::Camera::properties response{};
     // pcd enabling will be a config parameter, for now, just put false
     bool pcdEnabled = false;
     if (this->props_.mainSensor.compare("color") == 0) {
@@ -553,12 +551,12 @@ vsdk::Camera::properties CameraRealSense::get_properties() {
     return response;
 }
 
-vsdk::Camera::image_collection CameraRealSense::get_images() {
+sdk::Camera::image_collection CameraRealSense::get_images() {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
-    vsdk::Camera::image_collection response;
+    sdk::Camera::image_collection response;
 
     rs2::frame latestColorFrame;
     std::shared_ptr<std::vector<uint16_t>> latestDepthFrame;
@@ -572,13 +570,13 @@ vsdk::Camera::image_collection CameraRealSense::get_images() {
 
     for (const auto& sensor : this->props_.sensors) {
         if (sensor == "color") {
-            std::unique_ptr<vsdk::Camera::raw_image> color_response;
+            std::unique_ptr<sdk::Camera::raw_image> color_response;
             color_response =
                 encodeJPEGToResponse((const unsigned char*)latestColorFrame.get_data(),
                                      this->props_.color.width, this->props_.color.height);
             response.images.emplace_back(std::move(*color_response));
         } else if (sensor == "depth") {
-            std::unique_ptr<vsdk::Camera::raw_image> depth_response;
+            std::unique_ptr<sdk::Camera::raw_image> depth_response;
             depth_response = encodeDepthRAWToResponse(
                 (const unsigned char*)latestDepthFrame->data(), this->props_.depth.width,
                 this->props_.depth.height, this->props_.littleEndianDepth);
@@ -595,19 +593,19 @@ vsdk::Camera::image_collection CameraRealSense::get_images() {
     return response;
 }
 
-vsdk::AttributeMap CameraRealSense::do_command(vsdk::AttributeMap command) {
+sdk::AttributeMap CameraRealSense::do_command(sdk::AttributeMap command) {
     std::cerr << "do_command not implemented" << std::endl;
-    return vsdk::AttributeMap{};
+    return sdk::AttributeMap{};
 }
 
-vsdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
-                                                           const vsdk::AttributeMap& extra) {
+sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
+                                                          const sdk::AttributeMap& extra) {
     std::cerr << "get_point_cloud not implemented" << std::endl;
-    return vsdk::Camera::point_cloud{};
+    return sdk::Camera::point_cloud{};
 }
-std::vector<vsdk::GeometryConfig> CameraRealSense::get_geometries(const vsdk::AttributeMap& extra) {
+std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::AttributeMap& extra) {
     std::cerr << "get_geometries not implemented" << std::endl;
-    return std::vector<vsdk::GeometryConfig>{};
+    return std::vector<sdk::GeometryConfig>{};
 }
 
 // Loop functions
@@ -881,10 +879,10 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
-std::vector<std::string> validate(vsdk::ResourceConfig cfg) {
+std::vector<std::string> validate(sdk::ResourceConfig cfg) {
     auto attrs = cfg.attributes();
     if (attrs->count("width_px") == 1) {
-        std::shared_ptr<vsdk::ProtoType> width_proto = attrs->at("width_px");
+        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
         auto width_value = width_proto->proto_value();
         if (width_value.has_number_value()) {
             int width_num = static_cast<int>(width_value.number_value());
@@ -894,7 +892,7 @@ std::vector<std::string> validate(vsdk::ResourceConfig cfg) {
         }
     }
     if (attrs->count("height_px") == 1) {
-        std::shared_ptr<vsdk::ProtoType> height_proto = attrs->at("height_px");
+        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
         auto height_value = height_proto->proto_value();
         if (height_value.has_number_value()) {
             int height_num = static_cast<int>(height_value.number_value());
@@ -913,25 +911,25 @@ int serve(const std::string& socket_path) {
     sigaddset(&sigset, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
 
-    auto module_registration = std::make_shared<vsdk::ModelRegistration>(
-        vsdk::ResourceType{kResourceType}, vsdk::Camera::static_api(),
-        vsdk::Model{kAPINamespace, kAPIType, kAPISubtype},
-        [](vsdk::Dependencies deps, vsdk::ResourceConfig cfg) -> std::shared_ptr<vsdk::Resource> {
+    auto module_registration = std::make_shared<sdk::ModelRegistration>(
+        sdk::ResourceType{kResourceType}, sdk::Camera::static_api(),
+        sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
+        [](sdk::Dependencies deps, sdk::ResourceConfig cfg) -> std::shared_ptr<sdk::Resource> {
             return std::make_shared<CameraRealSense>(deps, cfg);
         },
-        [](vsdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
+        [](sdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
 
     try {
-        vsdk::Registry::register_model(module_registration);
+        sdk::Registry::register_model(module_registration);
         std::cout << "registered model " << kAPINamespace << ":" << kAPIType << ":" << kAPISubtype
                   << std::endl;
     } catch (const std::runtime_error& e) {
         std::cerr << "error registering model: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-    auto module_service = std::make_shared<vsdk::ModuleService_>(socket_path);
+    auto module_service = std::make_shared<sdk::ModuleService_>(socket_path);
 
-    auto server = std::make_shared<vsdk::Server>();
+    auto server = std::make_shared<sdk::Server>();
     module_service->add_model_from_registry(server, module_registration->api(),
                                             module_registration->model());
 
@@ -951,6 +949,7 @@ int serve(const std::string& socket_path) {
 }
 
 }  // namespace realsense
+}  // namespace viam
 
 int main(int argc, char* argv[]) {
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";
@@ -962,5 +961,5 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "About to serve on socket " << argv[1] << std::endl;
 
-    return realsense::serve(argv[1]);
+    return viam::realsense::serve(argv[1]);
 }

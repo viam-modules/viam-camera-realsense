@@ -23,11 +23,11 @@ jobs:
 
       - name: Configure CMake
         working-directory: build
-        run: cmake ..
+        run: cmake -G Ninja ..
 
       - name: Build the binary
         working-directory: build
-        run: make
+        run: ninja all -j 4
 
       - name: Run the tests
         working-directory: build

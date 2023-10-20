@@ -1,7 +1,6 @@
 # CMakeLists.txt for tests
 
 find_package(GTest REQUIRED)
-find_package(viam-cpp-sdk REQUIRED)
 
 add_executable(realsense_tests camera_realsense_test.cpp)
 
