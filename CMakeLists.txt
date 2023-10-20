@@ -19,7 +19,7 @@ set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp)
 add_executable(viam-camera-realsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES})
 
 enable_testing()
-add_subdirectory(tests)
+add_subdirectory(test)
 
 target_link_libraries(viam-camera-realsense PRIVATE
     viam-cpp-sdk::viamsdk
