@@ -1,6 +1,6 @@
 # format the source code
-format: src/*.cpp src/*.hpp
-	ls src/*.cpp src/*.hpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
+format: src/*.cpp src/*.hpp test/*.cpp
+	ls src/*.cpp src/*.hpp test/*.cpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
 viam-camera-realsense: src/*
 	rm -rf build/ && \
