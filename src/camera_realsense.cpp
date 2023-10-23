@@ -439,7 +439,6 @@ CameraRealSense::CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg
     try {
         std::tie(props, disableColor, disableDepth) = initialize(cfg);
     } catch (const std::exception& e) {
-        std::cout << "failed to initialize realsense: " + std::string(e.what()) << std::endl;
         throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
     }
     this->props_ = props;
