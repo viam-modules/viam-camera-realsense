@@ -11,6 +11,9 @@ TEST(ResourceTest, Type) {
     EXPECT_EQ(testConf.type(), "camera");
 }
 
+TEST(ResourceTest, ValidateConfig) {
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

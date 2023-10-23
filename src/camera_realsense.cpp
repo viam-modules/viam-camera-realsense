@@ -439,6 +439,7 @@ CameraRealSense::CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg
     try {
         std::tie(props, disableColor, disableDepth) = initialize(cfg);
     } catch (const std::exception& e) {
+        std::cout << "failed to initialize realsense: " + std::string(e.what()) << std::endl;
         throw std::runtime_error("failed to initialize realsense: " + std::string(e.what()));
     }
     this->props_ = props;
@@ -901,6 +902,19 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
             }
         }
     }
+    if (attrs->count("sensors") >= 1) {
+        std::shared_ptr<sdk::ProtoType> sensors_proto = attrs->at("sensors");
+        auto sensors_value = sensors_proto->proto_value();
+        if (sensors_value.has_list_value()) {
+            auto sensors_list = sensors_value.list_value();
+            if (sensors_list.values().size() == 0) {
+                throw std::invalid_argument(
+                    "sensors field cannot be empty, must list color and/or depth sensor");
+            }
+        }
+    } else {
+        throw std::invalid_argument("could not find required 'sensors' attribute in the config");
+    }
     return {};
 }
 
@@ -950,16 +964,3 @@ int serve(const std::string& socket_path) {
 
 }  // namespace realsense
 }  // namespace viam
-
-int main(int argc, char* argv[]) {
-    const std::string usage = "usage: camera_realsense /path/to/unix/socket";
-
-    if (argc < 2) {
-        std::cout << "ERROR: insufficient arguments\n";
-        std::cout << usage << "\n";
-        return EXIT_FAILURE;
-    }
-    std::cout << "About to serve on socket " << argv[1] << std::endl;
-
-    return viam::realsense::serve(argv[1]);
-}
