@@ -888,6 +888,7 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
         if (width_value.has_number_value()) {
             int width_num = static_cast<int>(width_value.number_value());
             if (width_num < 0) {
+                std::cout << "width_px cannot be negative" << std::endl;
                 throw std::invalid_argument("width_px cannot be negative");
             }
         }
@@ -898,6 +899,7 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
         if (height_value.has_number_value()) {
             int height_num = static_cast<int>(height_value.number_value());
             if (height_num < 0) {
+                std::cout << "height_px cannot be negative" << std::endl;
                 throw std::invalid_argument("height_px cannot be negative");
             }
         }
@@ -908,11 +910,14 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
         if (sensors_value.has_list_value()) {
             auto sensors_list = sensors_value.list_value();
             if (sensors_list.values().size() == 0) {
+                std::cout << "sensors field cannot be empty, must list color and/or depth sensor"
+                          << std::endl;
                 throw std::invalid_argument(
                     "sensors field cannot be empty, must list color and/or depth sensor");
             }
         }
     } else {
+        std::cout << "could not find required 'sensors' attribute in the config" << std::endl;
         throw std::invalid_argument("could not find required 'sensors' attribute in the config");
     }
     return {};
