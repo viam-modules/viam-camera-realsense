@@ -31,12 +31,7 @@
 #define htonll(x) \
     ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
 
-namespace viam {
-namespace realsense {
-
-// Global AtomicFrameSet
-AtomicFrameSet GLOBAL_LATEST_FRAMES;
-
+namespace {
 bool debug_enabled = false;
 const uint32_t rgbaMagicNumber =
     htonl(1380401729);  // the utf-8 binary encoding for "RGBA", big-endian
@@ -80,10 +75,11 @@ color_response encodeColorPNG(const void* data, const uint width, const uint hei
     return {std::move(encoded)};
 }
 
-std::unique_ptr<sdk::Camera::raw_image> encodeColorPNGToResponse(const void* data, const uint width,
-                                                                 const uint height) {
+std::unique_ptr<viam::sdk::Camera::raw_image> encodeColorPNGToResponse(const void* data,
+                                                                       const uint width,
+                                                                       const uint height) {
     color_response encoded = encodeColorPNG(data, width, height);
-    auto response = std::make_unique<sdk::Camera::raw_image>();
+    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/png";
     response->bytes = std::move(encoded.color_bytes);
@@ -132,10 +128,11 @@ jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint he
     return output;
 }
 
-std::unique_ptr<sdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
-                                                             const uint width, const uint height) {
+std::unique_ptr<viam::sdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
+                                                                   const uint width,
+                                                                   const uint height) {
     jpeg_image encoded = encodeJPEG(data, width, height);
-    auto response = std::make_unique<sdk::Camera::raw_image>();
+    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/jpeg";
     response->bytes.assign(encoded.data.get(), encoded.data.get() + encoded.size);
@@ -192,11 +189,11 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     return {std::move(rawBuf), totalByteCount};
 }
 
-std::unique_ptr<sdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
-                                                                 const uint width,
-                                                                 const uint height) {
+std::unique_ptr<viam::sdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
+                                                                       const uint width,
+                                                                       const uint height) {
     raw_camera_image encoded = encodeColorRAW(data, width, height);
-    auto response = std::make_unique<sdk::Camera::raw_image>();
+    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
     response->source_name = "color";
     response->mime_type = "image/vnd.viam.rgba";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
@@ -241,11 +238,11 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
     return {std::move(uniqueEncoded), encoded_size};
 }
 
-std::unique_ptr<sdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
-                                                                 const uint width,
-                                                                 const uint height) {
+std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
+                                                                       const uint width,
+                                                                       const uint height) {
     raw_camera_image encoded = encodeDepthPNG(data, width, height);
-    auto response = std::make_unique<sdk::Camera::raw_image>();
+    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/png";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
@@ -298,17 +295,26 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     return {std::move(rawBuf), std::move(totalByteCount)};
 }
 
-std::unique_ptr<sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
-                                                                 const uint width,
-                                                                 const uint height,
-                                                                 const bool littleEndian) {
+std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
+                                                                       const uint width,
+                                                                       const uint height,
+                                                                       const bool littleEndian) {
     raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
-    auto response = std::make_unique<sdk::Camera::raw_image>();
+    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
     response->source_name = "depth";
     response->mime_type = "image/vnd.viam.dep";
     response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
     return response;
 }
+}  // namespace
+
+namespace viam {
+namespace realsense {
+
+// Global AtomicFrameSet
+AtomicFrameSet GLOBAL_LATEST_FRAMES;
+// align to the color camera's origin when color and depth enabled
+const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 
 // CAMERA module methods
 
@@ -609,9 +615,6 @@ std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::Attr
 }
 
 // Loop functions
-// align to the color camera's origin when color and depth enabled
-const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
-
 void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
                std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm) {
     bool readyOnce = false;
@@ -901,6 +904,19 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
             }
         }
     }
+    if (attrs->count("sensors") >= 1) {
+        std::shared_ptr<sdk::ProtoType> sensors_proto = attrs->at("sensors");
+        auto sensors_value = sensors_proto->proto_value();
+        if (sensors_value.has_list_value()) {
+            auto sensors_list = sensors_value.list_value();
+            if (sensors_list.values().size() == 0) {
+                throw std::invalid_argument(
+                    "sensors field cannot be empty, must list color and/or depth sensor");
+            }
+        }
+    } else {
+        throw std::invalid_argument("could not find required 'sensors' attribute in the config");
+    }
     return {};
 }
 
@@ -950,16 +966,3 @@ int serve(const std::string& socket_path) {
 
 }  // namespace realsense
 }  // namespace viam
-
-int main(int argc, char* argv[]) {
-    const std::string usage = "usage: camera_realsense /path/to/unix/socket";
-
-    if (argc < 2) {
-        std::cout << "ERROR: insufficient arguments\n";
-        std::cout << usage << "\n";
-        return EXIT_FAILURE;
-    }
-    std::cout << "About to serve on socket " << argv[1] << std::endl;
-
-    return viam::realsense::serve(argv[1]);
-}
