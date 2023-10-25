@@ -18,15 +18,17 @@ set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp)
 # construct the library
 add_library(viamrealsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES})
 
-target_link_libraries(viamrealsense PRIVATE
-    viam-cpp-sdk::viamsdk
-    realsense2::realsense2
-    turbojpeg
-    ${CMAKE_DL_LIBS}
+target_link_libraries(viamrealsense 
+    PUBLIC
+        viam-cpp-sdk::viamsdk
+        realsense2::realsense2
+    PRIVATE
+	turbojpeg
+	${CMAKE_DL_LIBS}
 )
 
 # Add all the flags
-target_compile_features(viamrealsense PRIVATE 
+target_compile_features(viamrealsense PUBLIC
     cxx_std_17
 )
 target_compile_options(viamrealsense PRIVATE 
@@ -38,13 +40,7 @@ target_compile_options(viamrealsense PRIVATE
 # construct the module executable
 add_executable(viam-camera-realsense main.cpp)
 
-target_link_libraries(viam-camera-realsense PRIVATE
-    viamrealsense
-    viam-cpp-sdk::viamsdk
-    realsense2::realsense2
-    turbojpeg
-    ${CMAKE_DL_LIBS}
-)
+target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 
 target_compile_options(viam-camera-realsense PRIVATE 
     -O2 
