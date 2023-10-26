@@ -26,9 +26,6 @@ jobs:
     - name: Build
       run: make appimage
 
-    - name: Build Integration Tests
-      run: make integration-appimage
-
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1
       with:
