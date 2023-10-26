@@ -1,0 +1,42 @@
+name: Build Integration Tests AppImage
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+    paths:
+      - 'integration/**'
+
+jobs:
+  appimage:
+    name: Integration Tests for RealSense
+    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
+    container:
+      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+      options: --platform linux/arm64
+    timeout-minutes: 30
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v3
+
+    - name: Build Integration Tests
+      run: make integration-appimage
+
+    - name: Authorize GCP Upload
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+    - name: Upload Files
+      uses: google-github-actions/upload-cloud-storage@v0.10.4
+      with:
+        headers: "cache-control: no-cache"
+        path: 'packaging/appimages/deploy/'
+        destination: 'packages.viam.com/apps/camera-servers/'
+        glob: '*'
+        parent: false
+        gzip: false
