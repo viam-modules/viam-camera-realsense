@@ -1,4 +1,4 @@
-name: Build AppImage Intel RealSense
+name: Build Integration Tests AppImage
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
   push:
     branches: [ 'main' ]
-    paths-ignore:
-      - 'README.md'
+    paths:
+      - 'integration/**'
 
 jobs:
   appimage:
-    name: AppImage Build Intel RealSense
+    name: Integration Tests for RealSense
     runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
     container:
       image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
@@ -23,8 +23,8 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
 
-    - name: Build
-      run: make appimage
+    - name: Build Integration Tests
+      run: make integration-appimage
 
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1
