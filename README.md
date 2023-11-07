@@ -83,6 +83,16 @@ If you would like to compile the integration tests yourself, you will need to co
 - run `make realsense-integration-tests`
 - run the tests with `./realsense-integration-tests -module /path/to/realsense/module`
 
+## Known Supported Hardware
+
+Support for specific hardware is known for the following devices. The table is not complete and subject to change. In order to test out the module for your specific set up, it is recommended you run the integration tests provided.
+
+| Devices               | D435 | D435i | D455 |
+|-----------------------|------|-------|------|
+| RPi 4B Bullseye       |  X   |       |      |
+| Orin Nano JetPack 5.1 |  X   |   X   |  X   |
+
+
 ## Troubleshooting
 
 If you get an error like "failed to set power state", or "Permission denied", you may need to install the udev rules for when the USB plugs in. 
