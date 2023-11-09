@@ -68,12 +68,12 @@ The attributes for the module are as follows:
 The repo comes with a suite of integration tests that allow one to test if the module works with an actual realsense device on the machine of interest. These integration tests are compiled into a binary and can be downloaded here:
 
 ```
-sudo curl -o realsense-integration-tests http://packages.viam.com/apps/camera-servers/realsense-integration-tests-latest-aarch64.AppImage
+curl -o realsense-integration-tests http://packages.viam.com/apps/camera-servers/realsense-integration-tests-latest-aarch64.AppImage
 sudo chmod a+x realsense-integration-tests
-sudo ./realsense-integration-tests -module /path/to/the/module
+./realsense-integration-tests -module /path/to/the/module
 ```
 
-The binary takes one argument, which is the location to the module you would like to test out. 
+The binary takes one argument, which is the location to the module you would like to test out. Make sure only one RealSense device is connected to the machine you will be running the tests on.
 
 ### Compiling the integration tests
 
