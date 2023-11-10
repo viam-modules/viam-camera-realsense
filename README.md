@@ -2,48 +2,48 @@
 
 This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras. Registered at https://app.viam.com/module/viam/realsense.
 
-## Getting Started
+## Build and Run
 
-### Using the Registry
+To use this module, follow these instructions to [add a module from the Viam Registry](https://docs.viam.com/modular-resources/configure/#add-a-module-from-the-viam-registry) and select the `viam:camera:realsense` model from the [`realsense` module](https://app.viam.com/module/viam/realsense).
 
-The recommended way to install the module is through the viam registry.
+## Configure your Realsense Camera
 
-- Go to your robot's page on app.viam.com.
-- Click on the *Create Component* button in the Components section.
-- Search for the *realsense* module and select it. 
+> [!NOTE]  
+> Before configuring your camera, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
 
-This will automatically install the module to your robot.
+Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/).
+Click on the **Components** subtab and click **Create component**. Select the `camera` type, then select the `realsense` model.
+Enter a name for your camera and click **Create**.
 
-
-### Locally installing the module
-
-If you do not want to use the viam registry, for Linux distros, download the module AppImage from our servers to your robot.
-
-```
-sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
-sudo chmod a+rx /usr/local/bin/viam-camera-realsense
-```
-
-If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.X`.
-
-Then modify your robot's JSON file as follows
-
-```
-  "modules": [
-    {
-      "type": "local",
-      "name": "intel",
-      "executable_path": "/usr/local/bin/viam-camera-realsense"
-    }
-  ],
+On the new component panel, copy and paste the following attribute template into your camera’s **Attributes** box. 
+```json
+{
+  "sensors": ["color","depth"],
+  "width_px": 640,
+  "height_px": 480,
+  "little_endian_depth": false,
+}
 ```
 
-## Attributes and Sample Config
+Edit the attributes as applicable.
 
-The attributes for the module are as follows:
-- `sensors` (required): a list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor" and will be the image that gets returned by `get_image` calls and what will appear in the Control tab on app.viam.
-- `width_px`, `height_px`: the width and height of the output images. If the RealSense cannot produce the requested resolution, the component will fail to be built.
-- `little_endian_depth`: a bool that specifices whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order.
+> [!NOTE]  
+> For more information, see [Configure a Robot](https://docs.viam.com/manage/configuration/).
+
+## Attributes
+
+The following attributes are available for `viam:camera:realsense` cameras:
+
+| Name | Type | Inclusion | Description |
+| ---- | ---- | --------- | ----------- |
+| `sensors` | list | **Required** | The RealSense data streams you want your robot to sense from. A list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor", and is the image that gets returned by `get_image` calls and appears in the **Control** tab on the [Viam app](https://app.viam.com). |
+| `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
+| `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
+| `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
+
+
+### Example configuration:
+
 ```
 {
   "components": [
@@ -62,6 +62,30 @@ The attributes for the module are as follows:
   ]
 }
 ```
+
+### Locally installing the module
+
+If you do not want to use the Viam Registry, for Linux distros, download the module AppImage from our servers to your robot.
+
+```
+sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
+sudo chmod a+rx /usr/local/bin/viam-camera-realsense
+```
+
+If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.X`.
+
+Then modify your robot's JSON file as follows:
+
+```
+  "modules": [
+    {
+      "type": "local",
+      "name": "intel",
+      "executable_path": "/usr/local/bin/viam-camera-realsense"
+    }
+  ],
+```
+
 ## Integration Tests
 
 ### Running the tests
