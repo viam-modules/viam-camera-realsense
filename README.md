@@ -15,7 +15,8 @@ Navigate to the **Config** tab of your robot’s page in [the Viam app](https://
 Click on the **Components** subtab and click **Create component**. Select the `camera` type, then select the `realsense` model.
 Enter a name for your camera and click **Create**.
 
-On the new component panel, copy and paste the following attribute template into your camera’s **Attributes** box. 
+On the new component panel, copy and paste the following attribute template into your camera’s **Attributes** box:
+
 ```json
 {
   "sensors": ["color","depth"],
