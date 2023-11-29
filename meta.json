@@ -1,5 +1,5 @@
 {
-  "name": "viam:realsense",
+  "module_id": "viam:realsense",
   "visibility": "public",
   "url": "https://github.com/viamrobotics/viam-camera-realsense",
   "description": "C++ camera module for the RealSense",
