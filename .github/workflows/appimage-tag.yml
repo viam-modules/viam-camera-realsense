@@ -1,6 +1,6 @@
 name: Build AppImage Intel RealSense
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 on:
@@ -33,7 +33,6 @@ jobs:
 
     - uses: viamrobotics/upload-module@main
       with:
-        namespace: viam
         platform: linux/arm64
         version: ${{ github.ref_name }}
         key-id: ${{ secrets.viam_key_id }}
