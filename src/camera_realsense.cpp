@@ -110,6 +110,7 @@ jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint he
     try {
         success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
                               TJSAMP_420, 75, TJFLAG_FASTDCT);
+        tjDestroy(handle);
     } catch (const std::exception& e) {
         tjDestroy(handle);
         throw std::runtime_error("[GetImage] JPEG compressor failed to compress: " +
