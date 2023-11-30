@@ -73,7 +73,7 @@ sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
-If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `v0.0.X`.
+If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `0.0.X`.
 
 Then modify your robot's JSON file as follows:
 
