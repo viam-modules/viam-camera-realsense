@@ -22,7 +22,7 @@ On the new component panel, copy and paste the following attribute template into
   "sensors": ["color","depth"],
   "width_px": 640,
   "height_px": 480,
-  "little_endian_depth": false,
+  "little_endian_depth": false
 }
 ```
 
@@ -54,7 +54,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
         "sensors": ["color","depth"],
         "width_px": 640,
         "height_px": 480,
-        "little_endian_depth": false,
+        "little_endian_depth": false
       },
       "namespace": "rdk",
       "type": "camera",
