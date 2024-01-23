@@ -50,10 +50,13 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
     apt -y install nvidia-cuda-dev nvidia-cuda-toolkit
     
 RUN mkdir -p /root/opt/src
-# install viam c++ SDK from source
+
+# install Viam C++ SDK from source frozen at a commit
+ENV PINNED_COMMIT_HASH="802b70b234741d17345be77b4e52f39e4c40a252"
 RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
     cd viam-cpp-sdk && \
+    git checkout ${PINNED_COMMIT_HASH} && \
     mkdir build && \
     cd build && \
     cmake  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. -G Ninja  && \
