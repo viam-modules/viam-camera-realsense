@@ -8,7 +8,6 @@ int main(int argc, char** argv) {
         std::cout << usage << "\n";
         return EXIT_FAILURE;
     }
-    std::cout << "About to serve on socket " << argv[1] << std::endl;
 
     return viam::realsense::serve(argc, argv);
 }
