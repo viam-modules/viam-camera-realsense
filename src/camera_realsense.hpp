@@ -94,7 +94,7 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
 
 // Module functions
 std::vector<std::string> validate(sdk::ResourceConfig cfg);
-int serve(const std::string& socket_path);
+int serve(int argc, char** argv);
 
 // The camera module class and its methods
 class CameraRealSense : public sdk::Camera {

@@ -921,46 +921,19 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
     return {};
 }
 
-int serve(const std::string& socket_path) {
-    sigset_t sigset;
-    sigemptyset(&sigset);
-    sigaddset(&sigset, SIGINT);
-    sigaddset(&sigset, SIGTERM);
-    pthread_sigmask(SIG_BLOCK, &sigset, NULL);
-
-    auto module_registration = std::make_shared<sdk::ModelRegistration>(
-        sdk::ResourceType{kResourceType}, sdk::Camera::static_api(),
+int serve(int argc, char** argv) {
+    std::shared_ptr<sdk::ModelRegistration> mr = std::make_shared<sdk::ModelRegistration>(
+        sdk::API::get<sdk::Camera>(),
         sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
         [](sdk::Dependencies deps, sdk::ResourceConfig cfg) -> std::shared_ptr<sdk::Resource> {
-            return std::make_shared<CameraRealSense>(deps, cfg);
+            return std::make_unique<CameraRealSense>(deps, cfg);
         },
-        [](sdk::ResourceConfig cfg) -> std::vector<std::string> { return validate(cfg); });
+        validate
+    );
 
-    try {
-        sdk::Registry::register_model(module_registration);
-        std::cout << "registered model " << kAPINamespace << ":" << kAPIType << ":" << kAPISubtype
-                  << std::endl;
-    } catch (const std::runtime_error& e) {
-        std::cerr << "error registering model: " << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
-    auto module_service = std::make_shared<sdk::ModuleService_>(socket_path);
-
-    auto server = std::make_shared<sdk::Server>();
-    module_service->add_model_from_registry(server, module_registration->api(),
-                                            module_registration->model());
-
-    module_service->start(server);
-
-    std::thread server_thread([&server, &sigset]() {
-        server->start();
-        int sig = 0;
-        auto result = sigwait(&sigset, &sig);
-        server->shutdown();
-    });
-
-    server->wait();
-    server_thread.join();
+    std::vector<std::shared_ptr<sdk::ModelRegistration>> mrs = {mr};
+    auto module_service = std::make_shared<sdk::ModuleService>(argc, argv, mrs);
+    module_service->serve();
 
     return EXIT_SUCCESS;
 }
