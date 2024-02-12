@@ -460,6 +460,7 @@ CameraRealSense::~CameraRealSense() {
     std::unique_lock<std::mutex> lock(this->device_->mutex);
     this->device_->shouldRun = false;
     this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 void CameraRealSense::reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) {
