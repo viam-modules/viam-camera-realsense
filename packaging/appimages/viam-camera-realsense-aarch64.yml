@@ -44,4 +44,5 @@ AppDir:
         AIX_TARGET: usr/bin/viam-camera-realsense
 AppImage:
   arch: aarch64
+  comp: gzip
   update-information: zsync|http://packages.viam.com/apps/camera-servers/viam-camera-realsense-${TAG_NAME}-aarch64.AppImage.zsync
