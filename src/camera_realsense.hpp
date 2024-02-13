@@ -28,23 +28,19 @@ constexpr char kAPISubtype[] = "realsense";
 struct DeviceProperties {
     const uint colorWidth;
     const uint colorHeight;
-    const bool disableColor;
     const uint depthWidth;
     const uint depthHeight;
-    const bool disableDepth;
     bool shouldRun;
     bool isRunning;
     std::condition_variable cv;
     std::mutex mutex;
     // DeviceProperties construtor
-    DeviceProperties(int colorWidth_, int colorHeight_, bool disableColor_, int depthWidth_,
-                     int depthHeight_, bool disableDepth_)
+    DeviceProperties(int colorWidth_, int colorHeight_, int depthWidth_,
+                     int depthHeight_)
         : colorWidth(colorWidth_),
           colorHeight(colorHeight_),
-          disableColor(disableColor_),
           depthWidth(depthWidth_),
           depthHeight(depthHeight_),
-          disableDepth(disableDepth_),
           shouldRun(true),
           isRunning(false) {}
 };
@@ -85,12 +81,10 @@ struct AtomicFrameSet {
 // The underlying realsense loop functions
 float getDepthScale(rs2::device dev);
 void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
-               std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm);
+               std::shared_ptr<DeviceProperties> devicePropss);
 void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
                          std::shared_ptr<DeviceProperties> device);
-std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
-                                                             int depthHeight, bool disableColor,
-                                                             int colorWidth, int colorHeight);
+std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(int colorWidth, int colorHeight);
 
 // Module functions
 std::vector<std::string> validate(sdk::ResourceConfig cfg);
@@ -101,9 +95,7 @@ class CameraRealSense : public sdk::Camera {
    private:
     std::shared_ptr<DeviceProperties> device_;
     RealSenseProperties props_;
-    bool disableColor_;
-    bool disableDepth_;
-    std::tuple<RealSenseProperties, bool, bool> initialize(sdk::ResourceConfig cfg);
+    RealSenseProperties initialize(sdk::ResourceConfig cfg);
 
    public:
     explicit CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg);
