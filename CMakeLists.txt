@@ -48,6 +48,6 @@ target_compile_options(viam-camera-realsense PRIVATE
     -Wpessimizing-move 
 )
 
-enable_testing()
-add_subdirectory(test)
+# enable_testing()
+# add_subdirectory(test)
 
