@@ -634,6 +634,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         {
             std::lock_guard<std::mutex> lock(deviceProps->mutex);
             if (!deviceProps->shouldRun) {
+                ctx = rs2::context();  // deregisters callback
                 pipeline.stop();
                 std::cout << "[frameLoop] pipeline stopped, exiting frame loop" << std::endl;
                 break;
