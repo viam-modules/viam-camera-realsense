@@ -117,7 +117,7 @@ Support for specific hardware is known for the following devices. The table is n
 | RPi 4B Bullseye       |  X   |       |      |
 | Orin Nano JetPack 5.1 |  X   |   X   |  X   |
 
-## Linux Distribution Recommendation
+## Linux distribution recommendation
 
 This module depends on the [`librealsense` SDK](https://github.com/IntelRealSense/librealsense/releases). As of the time of writing, Ubuntu is the only Linux Distro `librealsense` officially supports. The module works on our setups using Bullseye on RPI4, and some setups on Bookworm. However, we recommend adhering to the requirements of the SDK dependency and to use Ubuntu when possible to avoid instability and unexpected behavior. 
 
