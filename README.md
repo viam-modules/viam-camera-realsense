@@ -108,7 +108,7 @@ If you would like to compile the integration tests yourself, you will need to co
 - run `make realsense-integration-tests`
 - run the tests with `./realsense-integration-tests -module /path/to/realsense/module`
 
-## Known Supported Hardware
+## Known supported hardware
 
 Support for specific hardware is known for the following devices. The table is not complete and subject to change. In order to test out the module for your specific set up, it is recommended you run the integration tests provided.
 
@@ -116,6 +116,10 @@ Support for specific hardware is known for the following devices. The table is n
 |-----------------------|------|-------|------|
 | RPi 4B Bullseye       |  X   |       |      |
 | Orin Nano JetPack 5.1 |  X   |   X   |  X   |
+
+## Linux distribution recommendation
+
+This module depends on the [`librealsense` SDK](https://github.com/IntelRealSense/librealsense/releases). As of the time of writing, Ubuntu is the only Linux Distro `librealsense` officially supports. The module works on our hardware setups using Bullseye on RPI4, and some setups on Bookworm. However, we recommend adhering to the requirements of the SDK dependency and to use Ubuntu when possible to avoid instability and unexpected behavior. 
 
 
 ## Troubleshooting
@@ -133,7 +137,7 @@ You can also look at the official RealSense troubleshooting guide [here](https:/
 
 The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on the Raspberry Pi for faster streaming and access to more resolution options.
 
-## Building The Module
+## Building the module
 
 You can also build it yourself using Docker and [Viam canon](https://github.com/viamrobotics/canon). 
 Use the commands
