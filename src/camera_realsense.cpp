@@ -634,7 +634,6 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         {
             std::lock_guard<std::mutex> lock(deviceProps->mutex);
             if (!deviceProps->shouldRun) {
-                ctx = rs2::context();  // deregisters callback
                 pipeline.stop();
                 std::cout << "[frameLoop] pipeline stopped, exiting frame loop" << std::endl;
                 break;
@@ -848,6 +847,9 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
     if (device == nullptr) {
         throw std::runtime_error(
             "no device info to reconnect to. RealSense device was never initialized.");
+    }
+    if (!device->shouldRun) {
+        return;
     }
     if (info.was_added(info.get_new_devices().front())) {
         std::cout << "Device was reconnected, restarting pipeline" << std::endl;
