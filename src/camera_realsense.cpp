@@ -876,12 +876,6 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         ready.get_future().wait();
         std::cout << "camera frame loop ready!" << std::endl;
         cameraThread.detach();
-    } else {
-        std::cout << "Device disconnected, stopping frame pipeline" << std::endl;
-        {
-            std::lock_guard<std::mutex> lock(device->mutex);
-            device->shouldRun = false;
-        }
     }
 };
 
