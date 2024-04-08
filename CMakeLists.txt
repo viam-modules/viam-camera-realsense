@@ -31,45 +31,23 @@ target_link_libraries(viamrealsense
 target_compile_features(viamrealsense PUBLIC
     cxx_std_17
 )
-
-# Adjust compiler flags for SSE4 compatibility
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    target_compile_options(viamrealsense PRIVATE 
-        -O2 
-        -Wredundant-move 
-        -Wpessimizing-move 
-        -msse4
-    )
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    target_compile_options(viamrealsense PRIVATE 
-        -O2 
-        -Wredundant-move 
-        -Wpessimizing-move 
-        -march=native
-    )
-endif()
+target_compile_options(viamrealsense PRIVATE 
+    -O2 
+    -Wredundant-move 
+    -Wpessimizing-move 
+)
 
 # construct the module executable
 add_executable(viam-camera-realsense main.cpp)
 
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 
-# Adjust compiler flags for SSE4 compatibility
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    target_compile_options(viam-camera-realsense PRIVATE 
-        -O2 
-        -Wredundant-move 
-        -Wpessimizing-move 
-        -msse4
-    )
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    target_compile_options(viam-camera-realsense PRIVATE 
-        -O2 
-        -Wredundant-move 
-        -Wpessimizing-move 
-        -march=native
-    )
-endif()
+target_compile_options(viam-camera-realsense PRIVATE 
+    -O2 
+    -Wredundant-move 
+    -Wpessimizing-move 
+)
 
 enable_testing()
 add_subdirectory(test)
+
