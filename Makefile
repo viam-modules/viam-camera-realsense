@@ -59,6 +59,13 @@ appimage: viam-camera-realsense
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
+appimage: viam-camera-realsense
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/viam-camera-realsense* && \
+	appimage-builder --recipe viam-camera-realsense-amd64.yml
+	cp ./packaging/appimages/viam-camera-realsense-*-x86_64.AppImage  ./packaging/appimages/deploy/
+
 integration-appimage: export TAG_NAME = ${TAG_VERSION}
 integration-appimage: realsense-integration-tests
 	cd packaging/appimages && \
