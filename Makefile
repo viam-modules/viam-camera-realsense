@@ -69,6 +69,13 @@ appimage: viam-camera-realsense
 	cd packaging/appimages && \
 	mkdir -p deploy && \
 	rm -f deploy/viam-camera-realsense* && \
+	appimage-builder --recipe viam-camera-realsense-arm64.yml
+	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
+
+appimage-amd64: viam-camera-realsense
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/viam-camera-realsense* && \
 	appimage-builder --recipe viam-camera-realsense-amd64.yml
 	cp ./packaging/appimages/viam-camera-realsense-*-x86_64.AppImage  ./packaging/appimages/deploy/
 
