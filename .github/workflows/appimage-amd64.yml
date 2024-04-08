@@ -15,8 +15,8 @@ jobs:
     name: AppImage amd64 Build Intel RealSense
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-      options: --platform linux/arm64
+      image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+      options: --platform linux/amd64
     timeout-minutes: 30
 
     steps:

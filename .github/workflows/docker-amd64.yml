@@ -1,0 +1,29 @@
+name: Publish Docker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'amd64-build' ]
+    # paths: ['etc/Dockerfile.debian.bookworm']
+
+jobs:
+  docker:
+    name: Build Docker Image
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check out code
+      uses: actions/checkout@v3
+
+    - name: Build and Push
+      run: make docker-amd64-ci
