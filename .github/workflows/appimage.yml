@@ -17,17 +17,22 @@ jobs:
     name: AppImage Build Intel RealSense
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+
     strategy:
       matrix:
         include:
           - os: 'buildjet-8vcpu-ubuntu-2204-arm'
-            container: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-            options: '--platform linux/arm64'
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              options: '--platform linux/arm64'
             cmd: 'make appimage-arm64'
           - os: 'ubuntu-latest'
-            container: ghcr.io/viamrobotics/viam-camera-realsense:amd64
-            options: '--platform linux/amd64'
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              options: '--platform linux/amd64'
             cmd: 'make appimage-amd64'
+
+    container: ${{ matrix.container }}
 
     steps:
       - name: Check out code

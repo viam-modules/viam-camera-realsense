@@ -1,4 +1,4 @@
-name: Test 
+name: Test
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,11 +14,15 @@ jobs:
       matrix:
         include:
           - os: buildjet-8vcpu-ubuntu-2204-arm
-            container: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-            options: --platform linux/arm64
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              options: --platform linux/arm64
           - os: ubuntu-latest
-            container: ghcr.io/viamrobotics/viam-camera-realsense:amd64
-            options: --platform linux/amd64
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              options: --platform linux/amd64
+
+    container: ${{ matrix.container }}
 
     steps:
       - name: Checkout code

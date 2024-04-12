@@ -18,24 +18,28 @@ jobs:
       matrix:
         include:
           - os: buildjet-8vcpu-ubuntu-2204-arm
-            container: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-            options: --platform linux/arm64
-            cmd: make appimage-arm64
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              options: --platform linux/arm64
+            build_command: make appimage-arm64
             appimage_arch_name: aarch64
             platform: linux/arm64
           - os: ubuntu-latest
-            container: ghcr.io/viamrobotics/viam-camera-realsense:amd64
-            options: --platform linux/amd64
-            cmd: make appimage-amd64
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              options: --platform linux/amd64
+            build_command: make appimage-amd64
             appimage_arch_name: x86_64
             platform: linux/amd64
+
+    container: ${{ matrix.container }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v3
 
       - name: Build
-        run: '${{ matrix.cmd }} TAG_VERSION="$GITHUB_REF_NAME"'
+        run: ${{ matrix.build_command }} TAG_VERSION="${{ github.ref_name }}"
 
       - name: bundle module
         run: |
