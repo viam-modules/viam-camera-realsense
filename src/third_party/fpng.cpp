@@ -33,13 +33,13 @@
 #endif
 
 // Detect if we're compiling on x86/x64
-// #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__i386) || \
-//     defined(__i486__) || defined(__i486) || defined(i386) || defined(__ia64__) ||  \
-//     defined(__x86_64__)
+#if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__i386) || \
+    defined(__i486__) || defined(__i486) || defined(i386) || defined(__ia64__) ||  \
+    defined(__x86_64__)
+#define FPNG_X86_OR_X64_CPU (1)
+#else
 #define FPNG_X86_OR_X64_CPU (0)
-// #else
-// #define FPNG_X86_OR_X64_CPU (0)
-// #endif
+#endif
 
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 #ifdef _MSC_VER

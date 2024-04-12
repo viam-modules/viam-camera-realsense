@@ -57,26 +57,20 @@ docker-amd64-ci:
 
 TAG_VERSION?=latest
 # build the AppImages
-appimage: export TAG_NAME = ${TAG_VERSION}
-appimage: viam-camera-realsense
+appimage-arm64: export TAG_NAME = ${TAG_VERSION}
+appimage-arm64: viam-camera-realsense
 	cd packaging/appimages && \
 	mkdir -p deploy && \
 	rm -f deploy/viam-camera-realsense* && \
 	appimage-builder --recipe viam-camera-realsense-aarch64.yml
 	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
-appimage: viam-camera-realsense
-	cd packaging/appimages && \
-	mkdir -p deploy && \
-	rm -f deploy/viam-camera-realsense* && \
-	appimage-builder --recipe viam-camera-realsense-arm64.yml
-	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
-
+appimage-amd64: export TAG_NAME = ${TAG_VERSION}
 appimage-amd64: viam-camera-realsense
 	cd packaging/appimages && \
 	mkdir -p deploy && \
 	rm -f deploy/viam-camera-realsense* && \
-	appimage-builder --recipe viam-camera-realsense-amd64.yml
+	appimage-builder --recipe viam-camera-realsense-x86_64.yml
 	cp ./packaging/appimages/viam-camera-realsense-*-x86_64.AppImage  ./packaging/appimages/deploy/
 
 integration-appimage: export TAG_NAME = ${TAG_VERSION}
