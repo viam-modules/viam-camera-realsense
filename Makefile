@@ -56,7 +56,7 @@ docker-amd64-ci:
 	$(BUILD_CMD)
 
 TAG_VERSION?=latest
-# Define a function for building and deploying AppImages
+# Define a function for building AppImages
 define BUILD_APPIMAGE
     export TAG_NAME=$(TAG_VERSION); \
     cd packaging/appimages && \

@@ -20,9 +20,9 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            make_command: docker-amd64-ci
+            make_target: docker-amd64-ci
           - os: buildjet-16vcpu-ubuntu-2204-arm
-            make_command: docker-arm64-ci
+            make_target: docker-arm64-ci
 
     steps:
       - name: Login to GitHub Container Registry
@@ -36,4 +36,4 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build and Push
-        run: make ${{ matrix.make_command }}
+        run: make ${{ matrix.make_target }}

@@ -22,13 +22,13 @@ jobs:
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
               options: --platform linux/arm64
-            cmd: make integration-appimage-arm64
+            make_target: integration-appimage-arm64
             arch: arm64
           - os: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
               options: --platform linux/amd64
-            cmd: make integration-appimage-amd64
+            make_target: integration-appimage-amd64
             arch: amd64
 
     container: ${{ matrix.container }}
@@ -38,7 +38,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Build Integration Tests
-      run: ${{ matrix.cmd }}
+      run: make ${{ matrix.make_target }}
 
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1

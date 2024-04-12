@@ -21,14 +21,14 @@ jobs:
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
               options: --platform linux/arm64
-            make_command: appimage-arm64
+            make_target: appimage-arm64
             appimage_arch_name: aarch64
             platform: linux/arm64
           - os: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
               options: --platform linux/amd64
-            make_command: appimage-amd64
+            make_target: appimage-amd64
             appimage_arch_name: x86_64
             platform: linux/amd64
 
@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build
-        run: make ${{ matrix.make_command }} TAG_VERSION="${{ github.ref_name }}"
+        run: make ${{ matrix.make_target }} TAG_VERSION="${{ github.ref_name }}"
 
       - name: bundle module
         run: |
