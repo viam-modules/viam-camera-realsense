@@ -18,7 +18,7 @@ import (
 func TestCameraServer(t *testing.T) {
 	fmt.Println("Starting the tests...")
 	var myRobot robot.Robot
-	// put all the tests in t.Run commands
+	// write all the tests as t.Run commands
 	t.Run("set up the robot", func(t *testing.T) {
 		myRobot = setupViamServer(context.Background(), t)
 	})
