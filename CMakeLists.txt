@@ -7,12 +7,15 @@ project(viam-camera-realsense
 )
 set(CMAKE_CXX_STANDARD 17)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 
+# The image encoders
 set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp)
 add_library(viamrealsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES})
+# construct the library
 target_link_libraries(viamrealsense PUBLIC viam-cpp-sdk::viamsdk realsense2::realsense2 PRIVATE turbojpeg ${CMAKE_DL_LIBS})
 
 # Conditionally apply SIMD flags based on the processor architecture for fpng acceleration

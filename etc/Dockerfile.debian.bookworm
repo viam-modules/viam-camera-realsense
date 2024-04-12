@@ -70,7 +70,7 @@ RUN cd /root/opt/src && \
     make install -j 4 && \
     rm -rf /root/opt/src/librealsense
 
-# install appimage-builder deps
+# install appimage-builder dependencies
 RUN apt install -y \
     binutils \
     coreutils \
