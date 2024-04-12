@@ -9,16 +9,16 @@ jobs:
   run-tests:
     name: Run Tests
     timeout-minutes: 10
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          - name: buildjet-8vcpu-ubuntu-2204-arm
+        include:
+          - os: buildjet-8vcpu-ubuntu-2204-arm
             container: ghcr.io/viamrobotics/viam-camera-realsense:arm64
             options: --platform linux/arm64
-          - name: ubuntu-latest
+          - os: ubuntu-latest
             container: ghcr.io/viamrobotics/viam-camera-realsense:amd64
             options: --platform linux/amd64
-    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code

@@ -15,12 +15,12 @@ jobs:
     permissions:
       packages: write
     timeout-minutes: 45
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: 
-          - ubuntu-latest
-          - buildjet-16vcpu-ubuntu-2204-arm
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: ubuntu-latest
+          - os: buildjet-16vcpu-ubuntu-2204-arm
 
     steps:
       - name: Login to GitHub Container Registry

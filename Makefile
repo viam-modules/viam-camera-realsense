@@ -56,30 +56,37 @@ docker-amd64-ci:
 	$(BUILD_CMD)
 
 TAG_VERSION?=latest
-# AppImages
-define build_appimage
-	cd packaging/appimages && \
-	mkdir -p packaging/appimages/deploy && \
-	rm -f packaging/appimages/deploy/$1* && \
-	appimage-builder --recipe packaging/appimages/$2 && \
-	cp packaging/appimages/$1* packaging/appimages/deploy/
-endef
-
+# build the AppImages
 appimage-arm64: export TAG_NAME = ${TAG_VERSION}
 appimage-arm64: viam-camera-realsense
-	$(call build_appimage,viam-camera-realsense-aarch64.AppImage,viam-camera-realsense-aarch64.yml)
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/viam-camera-realsense* && \
+	appimage-builder --recipe viam-camera-realsense-aarch64.yml
+	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
 appimage-amd64: export TAG_NAME = ${TAG_VERSION}
 appimage-amd64: viam-camera-realsense
-	$(call build_appimage,viam-camera-realsense-x86_64.AppImage,viam-camera-realsense-x86_64.yml)
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/viam-camera-realsense* && \
+	appimage-builder --recipe viam-camera-realsense-x86_64.yml
+	cp ./packaging/appimages/viam-camera-realsense-*-x86_64.AppImage  ./packaging/appimages/deploy/
 
 integration-appimage-arm64: export TAG_NAME = ${TAG_VERSION}
 integration-appimage-arm64: realsense-integration-tests
-	$(call build_appimage,realsense-integration-tests-aarch64.AppImage,realsense-integration-tests-aarch64.yml)
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/realsense-integration-tests* && \
+	appimage-builder --recipe realsense-integration-tests-aarch64.yml
+	cp ./packaging/appimages/realsense-integration-tests-*-aarch64.AppImage  ./packaging/appimages/deploy/
 
 integration-appimage-amd64: export TAG_NAME = ${TAG_VERSION}
 integration-appimage-amd64: realsense-integration-tests
-	$(call build_appimage,realsense-integration-tests-x86_64.AppImage,realsense-integration-tests-x86_64.yml)
+	cd packaging/appimages && \
+	mkdir -p deploy && \
+	rm -f deploy/realsense-integration-tests* && \
+	appimage-builder --recipe realsense-integration-tests-x86_64.yml
+	cp ./packaging/appimages/realsense-integration-tests-*-x86_64.AppImage  ./packaging/appimages/deploy/
 
-# Phony targets
-.PHONY: format viam-camera-realsense realsense-integration-tests docker docker-build docker-arm64 docker-upload docker-arm64-ci docker-amd64-ci appimage-arm64 appimage-amd64 integration-appimage-arm64 integration-appimage-amd64
+
