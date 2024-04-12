@@ -7,12 +7,18 @@ on: pull_request
 
 jobs:
   run-tests:
-    name: Run Tests arm64
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
-    container:
-      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-      options: --platform linux/arm64
+    name: Run Tests
     timeout-minutes: 10
+    strategy:
+      matrix:
+        os:
+          - name: buildjet-8vcpu-ubuntu-2204-arm
+            container: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+            options: --platform linux/arm64
+          - name: ubuntu-latest
+            container: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+            options: --platform linux/amd64
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
