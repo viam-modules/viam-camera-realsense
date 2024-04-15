@@ -24,6 +24,7 @@
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
+#include <xtensor/xarray.hpp>
 
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
@@ -240,14 +241,16 @@ std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthPNGToResponse(const uns
 
 raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
                                 const uint64_t height, const bool littleEndian) {
+    std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
 
-    sdk::Camera::depth_map m = xt::xadapt(reinterpret_cast<const uint16_t*>(data), height * width, xt::no_ownership(),
-                        {height, width});
-    sdk::Camera camera;
-    std::vector<unsigned char> encodedData = camera.encode_depth_map(m);
+    viam::sdk::Camera::depth_map m = xt::xarray<uint16_t>::from_shape({height, width});
+    std::copy(reinterpret_cast<const uint16_t*>(data),
+              reinterpret_cast<const uint16_t*>(data) + height * width, m.begin());
+
+    std::vector<unsigned char> encodedData = viam::sdk::Camera::encode_depth_map(m);
 
     unsigned char* rawBuf = new unsigned char[encodedData.size()];
     std::memcpy(rawBuf, encodedData.data(), encodedData.size());
@@ -566,7 +569,7 @@ sdk::Camera::image_collection CameraRealSense::get_images() {
     return response;
 }
 
-sdk::AttributeMap CameraRealSense::do_command(sdk::AttributeMap command) {
+sdk::AttributeMap CameraRealSense::do_command(const sdk::AttributeMap& command) {
     std::cerr << "do_command not implemented" << std::endl;
     return sdk::AttributeMap{};
 }
