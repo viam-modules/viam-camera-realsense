@@ -431,7 +431,7 @@ CameraRealSense::~CameraRealSense() {
     this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
 }
 
-void CameraRealSense::reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) {
+void CameraRealSense::reconfigure(const sdk::Dependencies& deps, const sdk::ResourceConfig& cfg) {
     RealSenseProperties props;
     bool disableColor;
     bool disableDepth;
