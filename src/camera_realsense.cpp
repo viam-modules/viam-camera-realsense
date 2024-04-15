@@ -244,7 +244,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         start = std::chrono::high_resolution_clock::now();
     }
 
-    auto m = xt::xadapt(reinterpret_cast<const uint16_t*>(data), height * width, xt::no_ownership(),
+    sdk::Camera::depth_map m = xt::xadapt(reinterpret_cast<const uint16_t*>(data), height * width, xt::no_ownership(),
                         {height, width});
     sdk::Camera camera;
     std::vector<unsigned char> encodedData = camera.encode_depth_map(m);
