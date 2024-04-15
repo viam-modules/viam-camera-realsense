@@ -244,8 +244,8 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         start = std::chrono::high_resolution_clock::now();
     }
 
-    auto m = xt::xadapt(reinterpret_cast<const uint16_t*>(data), height * width,
-                        xt::no_ownership(), {height, width});
+    auto m = xt::xadapt(reinterpret_cast<const uint16_t*>(data), height * width, xt::no_ownership(),
+                        {height, width});
     sdk::Camera camera;
     std::vector<unsigned char> encodedData = camera.encode_depth_map(m);
 
@@ -258,7 +258,8 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
-    return raw_camera_image{raw_camera_image::uniq(rawBuf, raw_camera_image::array_delete_deleter), encodedData.size()};
+    return raw_camera_image{raw_camera_image::uniq(rawBuf, raw_camera_image::array_delete_deleter),
+                            encodedData.size()};
 }
 
 std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
@@ -885,13 +886,11 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
 
 int serve(int argc, char** argv) {
     std::shared_ptr<sdk::ModelRegistration> mr = std::make_shared<sdk::ModelRegistration>(
-        sdk::API::get<sdk::Camera>(),
-        sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
+        sdk::API::get<sdk::Camera>(), sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
         [](sdk::Dependencies deps, sdk::ResourceConfig cfg) -> std::shared_ptr<sdk::Resource> {
             return std::make_unique<CameraRealSense>(deps, cfg);
         },
-        validate
-    );
+        validate);
 
     std::vector<std::shared_ptr<sdk::ModelRegistration>> mrs = {mr};
     auto module_service = std::make_shared<sdk::ModuleService>(argc, argv, mrs);
