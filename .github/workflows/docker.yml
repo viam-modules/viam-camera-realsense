@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'amd64-build'
     paths:
       - 'etc/Dockerfile.debian.bookworm'
 

@@ -10,11 +10,11 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-#include <viam/sdk/components/camera/camera.hpp>
-#include <viam/sdk/components/camera/server.hpp>
+#include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/components/component.hpp>
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
+#include <viam/sdk/resource/reconfigurable.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
 namespace viam {
@@ -97,7 +97,7 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg);
 int serve(int argc, char** argv);
 
 // The camera module class and its methods
-class CameraRealSense : public sdk::Camera {
+class CameraRealSense : public sdk::Camera, public sdk::Reconfigurable {
    private:
     std::shared_ptr<DeviceProperties> device_;
     RealSenseProperties props_;
@@ -108,12 +108,12 @@ class CameraRealSense : public sdk::Camera {
    public:
     explicit CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg);
     ~CameraRealSense();
-    void reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) override;
+    void reconfigure(const sdk::Dependencies& deps, const sdk::ResourceConfig& cfg) override;
     sdk::Camera::raw_image get_image(std::string mime_type,
                                      const sdk::AttributeMap& extra) override;
     sdk::Camera::properties get_properties() override;
     sdk::Camera::image_collection get_images() override;
-    sdk::AttributeMap do_command(sdk::AttributeMap command) override;
+    sdk::AttributeMap do_command(const sdk::AttributeMap& command) override;
     sdk::Camera::point_cloud get_point_cloud(std::string mime_type,
                                              const sdk::AttributeMap& extra) override;
     std::vector<sdk::GeometryConfig> get_geometries(const sdk::AttributeMap& extra) override;
