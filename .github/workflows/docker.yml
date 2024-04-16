@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'amd64-build'
       - 'main'
     paths:
       - 'etc/Dockerfile.debian.bookworm'

@@ -6,7 +6,7 @@ concurrency:
 on:
   workflow_dispatch:
   push:
-    branches: [ 'main', 'amd64-build' ]
+    branches: [ 'main' ]
     paths:
       - 'integration/**'
 
