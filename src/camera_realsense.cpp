@@ -24,12 +24,10 @@
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
+#include <xtensor/xarray.hpp>
 
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
-
-#define htonll(x) \
-    ((1 == htonl(1)) ? (x) : ((uint64_t)htonl((x)&0xFFFFFFFF) << 32) | htonl((x) >> 32))
 
 namespace {
 bool debug_enabled = false;
@@ -41,15 +39,6 @@ const size_t rgbaWidthByteCount =
     sizeof(uint32_t);  // number of bytes used to represent rgba image width
 const size_t rgbaHeightByteCount =
     sizeof(uint32_t);  // number of bytes used to represent rgba image height
-
-const uint64_t depthMagicNumber =
-    htonll(4919426490892632400);  // the utf-8 binary encoding for "DEPTHMAP", big-endian
-const size_t depthMagicByteCount =
-    sizeof(uint64_t);  // number of bytes used to represent the depth magic number
-const size_t depthWidthByteCount =
-    sizeof(uint64_t);  // number of bytes used to represent depth image width
-const size_t depthHeightByteCount =
-    sizeof(uint64_t);  // number of bytes used to represent depth image height
 
 // COLOR responses
 struct color_response {
@@ -256,36 +245,15 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
     }
-    // Depth header contains 8 bytes worth of magic number, followed by 8 bytes for width and
-    // another 8 bytes for height each pixel has 2 bytes.
-    size_t pixelByteCount = 2 * width * height;
-    uint64_t widthToEncode = htonll(width);    // make sure everything is big-endian
-    uint64_t heightToEncode = htonll(height);  // make sure everything is big-endian
-    size_t totalByteCount =
-        depthMagicByteCount + depthWidthByteCount + depthHeightByteCount + pixelByteCount;
-    // memcpy data into buffer
-    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount],
-                                  raw_camera_image::array_delete_deleter);
-    int offset = 0;
-    std::memcpy(rawBuf.get() + offset, &depthMagicNumber, depthMagicByteCount);
-    offset += depthMagicByteCount;
-    std::memcpy(rawBuf.get() + offset, &widthToEncode, depthWidthByteCount);
-    offset += depthWidthByteCount;
-    std::memcpy(rawBuf.get() + offset, &heightToEncode, depthHeightByteCount);
-    offset += depthHeightByteCount;
-    if (littleEndian) {
-        std::memcpy(rawBuf.get() + offset, data, pixelByteCount);
-    } else {
-        int pixelOffset = 0;
-        for (int i = 0; i < width * height; i++) {
-            uint16_t pix;
-            std::memcpy(&pix, data + pixelOffset, 2);
-            uint16_t pixEncode = htons(pix);  // make sure the pixel values are big-endian
-            std::memcpy(rawBuf.get() + offset, &pixEncode, 2);
-            pixelOffset += 2;
-            offset += 2;
-        }
-    }
+
+    viam::sdk::Camera::depth_map m = xt::xarray<uint16_t>::from_shape({height, width});
+    std::copy(reinterpret_cast<const uint16_t*>(data),
+              reinterpret_cast<const uint16_t*>(data) + height * width, m.begin());
+
+    std::vector<unsigned char> encodedData = viam::sdk::Camera::encode_depth_map(m);
+
+    unsigned char* rawBuf = new unsigned char[encodedData.size()];
+    std::memcpy(rawBuf, encodedData.data(), encodedData.size());
 
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
@@ -293,7 +261,8 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
         std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
     }
 
-    return {std::move(rawBuf), std::move(totalByteCount)};
+    return raw_camera_image{raw_camera_image::uniq(rawBuf, raw_camera_image::array_delete_deleter),
+                            encodedData.size()};
 }
 
 std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
@@ -462,7 +431,7 @@ CameraRealSense::~CameraRealSense() {
     this->device_->cv.wait(lock, [this] { return !(device_->isRunning); });
 }
 
-void CameraRealSense::reconfigure(sdk::Dependencies deps, sdk::ResourceConfig cfg) {
+void CameraRealSense::reconfigure(const sdk::Dependencies& deps, const sdk::ResourceConfig& cfg) {
     RealSenseProperties props;
     bool disableColor;
     bool disableDepth;
@@ -600,7 +569,7 @@ sdk::Camera::image_collection CameraRealSense::get_images() {
     return response;
 }
 
-sdk::AttributeMap CameraRealSense::do_command(sdk::AttributeMap command) {
+sdk::AttributeMap CameraRealSense::do_command(const sdk::AttributeMap& command) {
     std::cerr << "do_command not implemented" << std::endl;
     return sdk::AttributeMap{};
 }
@@ -920,13 +889,11 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
 
 int serve(int argc, char** argv) {
     std::shared_ptr<sdk::ModelRegistration> mr = std::make_shared<sdk::ModelRegistration>(
-        sdk::API::get<sdk::Camera>(),
-        sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
+        sdk::API::get<sdk::Camera>(), sdk::Model{kAPINamespace, kAPIType, kAPISubtype},
         [](sdk::Dependencies deps, sdk::ResourceConfig cfg) -> std::shared_ptr<sdk::Resource> {
             return std::make_unique<CameraRealSense>(deps, cfg);
         },
-        validate
-    );
+        validate);
 
     std::vector<std::shared_ptr<sdk::ModelRegistration>> mrs = {mr};
     auto module_service = std::make_shared<sdk::ModuleService>(argc, argv, mrs);
