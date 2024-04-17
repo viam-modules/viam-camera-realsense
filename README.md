@@ -116,6 +116,7 @@ Support for specific hardware is known for the following devices. The table is n
 |-----------------------|------|-------|------|
 | RPi 4B Bullseye       |  X   |       |      |
 | Orin Nano JetPack 5.1 |  X   |   X   |  X   |
+| UP 4000               |  X   |       |      |
 
 ## Linux distribution recommendation
 
@@ -149,7 +150,7 @@ cd viam-camera-realsense/
 canon -arch arm64 make appimage
 ```
 
-This will use the Docker container to compile a binary for the `aarch64` architecture. The AppImage will be put in the `packaging/appimages/deploy` directory.
+This will use the Docker container to compile a binary for the `aarch64` architecture. If you want to compile for `x86_64`/`amd64` architecture, change `arm64` to `amd64` in the above commands. The AppImage will be put in the `packaging/appimages/deploy` directory.
 
 If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
 

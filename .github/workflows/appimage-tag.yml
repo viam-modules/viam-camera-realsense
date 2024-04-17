@@ -43,8 +43,8 @@ jobs:
 
       - name: bundle module
         run: |
-          cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-${{ matrix.appimage_arch_name }}.AppImage viam-camera-realsense-${{ matrix.appimage_arch_name }}.AppImage
-          tar czf module.tar.gz viam-camera-realsense-${{ matrix.appimage_arch_name }}.AppImage
+          cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-${{ matrix.appimage_arch_name }}.AppImage viam-camera-realsense.AppImage
+          tar czf module.tar.gz viam-camera-realsense.AppImage
 
       - uses: viamrobotics/upload-module@main
         with:
