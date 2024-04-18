@@ -22,14 +22,12 @@ jobs:
               image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
               options: --platform linux/arm64
             make_target: appimage-arm64
-            appimage_arch_name: aarch64
             platform: linux/arm64
           - os: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
               options: --platform linux/amd64
             make_target: appimage-amd64
-            appimage_arch_name: x86_64
             platform: linux/amd64
 
     container: ${{ matrix.container }}
