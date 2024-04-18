@@ -1,4 +1,4 @@
-name: Build AppImage Intel RealSense
+name: Build AppImage and publish to registry
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -6,8 +6,8 @@ concurrency:
 on:
   workflow_dispatch:
   push:
-    tags:
-      - '*'
+    # tags:
+    #   - '*'
 
 jobs:
   appimage:
@@ -43,7 +43,7 @@ jobs:
 
       - name: bundle module
         run: |
-          cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-${{ matrix.appimage_arch_name }}.AppImage viam-camera-realsense.AppImage
+          cp packaging/appimages/deploy/viam-camera-realsense-*.AppImage viam-camera-realsense.AppImage
           tar czf module.tar.gz viam-camera-realsense.AppImage
 
       - uses: viamrobotics/upload-module@main
