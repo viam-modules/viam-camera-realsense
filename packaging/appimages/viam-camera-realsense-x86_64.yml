@@ -1,9 +1,8 @@
-# appimage-builder recipe see https://appimage-builder.readthedocs.io for details
 version: 1
 script:
- - rm -rf AppDir | true
+ - rm -rf AppDir || true
  - mkdir -p $TARGET_APPDIR/usr/bin
- - cp ../../realsense-integration-tests $TARGET_APPDIR/usr/bin/
+ - cp ../../viam-camera-realsense $TARGET_APPDIR/usr/bin/
  - mkdir -p $TARGET_APPDIR/usr/share/icons/viam/256x256/apps/
  - cp ./viam-server.png $TARGET_APPDIR/usr/share/icons/viam/256x256/apps/viam-server.png
  - go install github.com/Otterverse/aix@latest
@@ -13,29 +12,36 @@ script:
 AppDir:
   path: ./AppDir
   app_info:
-    id: com.viam.realsenseintegration
-    name: realsense-integration-tests
+    id: com.viam.camerarealsense
+    name: viam-camera-realsense
     icon: viam-server
-    version: ${TAG_NAME}
+    version: "latest"
     exec: usr/bin/aix
     exec_args: $@
   apt:
     arch:
-    - arm64
+    - amd64
     allow_unauthenticated: true
     sources:
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main
     include:
-    - libturbojpeg0:arm64
+    - libprotobuf32:amd64
+    - libturbojpeg0:amd64
+  files:
+    include:
+    - /usr/local/lib/libviamsdk* 
+    - /usr/local/lib/libviamapi* 
+    - /usr/local/lib/libviam_rust_utils* 
+    - /usr/local/lib/librealsense2*
     exclude:
     - usr/share/man
     - usr/share/doc
   runtime:
     env:
-        AIX_TARGET: usr/bin/realsense-integration-tests
+        AIX_TARGET: usr/bin/viam-camera-realsense
 AppImage:
-  arch: aarch64
+  arch: x86_64
   comp: gzip
-  update-information: zsync|http://packages.viam.com/apps/camera-servers/realsense-integration-tests-${TAG_NAME}-aarch64.AppImage.zsync
+  update-information: zsync|http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-x86_64.AppImage.zsync

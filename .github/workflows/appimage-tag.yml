@@ -9,46 +9,61 @@ on:
     tags:
       - '*'
 
-
 jobs:
   appimage:
     name: AppImage Build Intel RealSense
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
-    container:
-      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-      options: --platform linux/arm64
     timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: buildjet-8vcpu-ubuntu-2204-arm
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              options: --platform linux/arm64
+            make_target: appimage-arm64
+            appimage_arch_name: aarch64
+            platform: linux/arm64
+          - os: ubuntu-latest
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              options: --platform linux/amd64
+            make_target: appimage-amd64
+            appimage_arch_name: x86_64
+            platform: linux/amd64
+
+    container: ${{ matrix.container }}
 
     steps:
-    - name: Check out code
-      uses: actions/checkout@v3
+      - name: Check out code
+        uses: actions/checkout@v3
 
-    - name: Build
-      run: make appimage TAG_VERSION="$GITHUB_REF_NAME"
+      - name: Build
+        run: make ${{ matrix.make_target }} TAG_VERSION="${{ github.ref_name }}"
 
-    - name: bundle module
-      run: |
-        cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-aarch64.AppImage viam-camera-realsense-aarch64.AppImage
-        tar czf module.tar.gz viam-camera-realsense-aarch64.AppImage
+      - name: bundle module
+        run: |
+          cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-${{ matrix.appimage_arch_name }}.AppImage viam-camera-realsense.AppImage
+          tar czf module.tar.gz viam-camera-realsense.AppImage
 
-    - uses: viamrobotics/upload-module@main
-      with:
-        platform: linux/arm64
-        version: ${{ github.ref_name }}
-        key-id: ${{ secrets.viam_key_id }}
-        key-value: ${{ secrets.viam_key_value }}
+      - uses: viamrobotics/upload-module@main
+        with:
+          platform: ${{ matrix.platform }}
+          version: ${{ github.ref_name }}
+          key-id: ${{ secrets.viam_key_id }}
+          key-value: ${{ secrets.viam_key_value }}
 
-    - name: Authorize GCP Upload
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - name: Authorize GCP Upload
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
-    - name: Upload Files
-      uses: google-github-actions/upload-cloud-storage@v0.10.4
-      with:
-        headers: "cache-control: no-cache"
-        path: 'packaging/appimages/deploy/'
-        destination: 'packages.viam.com/apps/camera-servers/'
-        glob: '*'
-        parent: false
-        gzip: false
+      - name: Upload Files
+        uses: google-github-actions/upload-cloud-storage@v0.10.4
+        with:
+          headers: "cache-control: no-cache"
+          path: 'packaging/appimages/deploy/'
+          destination: 'packages.viam.com/apps/camera-servers/'
+          glob: '*'
+          parent: false
+          gzip: false

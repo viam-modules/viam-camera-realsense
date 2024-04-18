@@ -13,18 +13,32 @@ on:
 jobs:
   appimage:
     name: Integration Tests for RealSense
-    runs-on: [buildjet-8vcpu-ubuntu-2204-arm]
-    container:
-      image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
-      options: --platform linux/arm64
     timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: buildjet-8vcpu-ubuntu-2204-arm
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              options: --platform linux/arm64
+            make_target: integration-appimage-arm64
+            arch: arm64
+          - os: ubuntu-latest
+            container:
+              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              options: --platform linux/amd64
+            make_target: integration-appimage-amd64
+            arch: amd64
+
+    container: ${{ matrix.container }}
 
     steps:
     - name: Check out code
       uses: actions/checkout@v3
 
     - name: Build Integration Tests
-      run: make integration-appimage
+      run: make ${{ matrix.make_target }}
 
     - name: Authorize GCP Upload
       uses: google-github-actions/auth@v1

@@ -21,14 +21,14 @@ AppDir:
     exec_args: $@
   apt:
     arch:
-    - arm64
+    - amd64
     allow_unauthenticated: true
     sources:
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main
     include:
-    - libturbojpeg0:arm64
+    - libturbojpeg0:amd64
     exclude:
     - usr/share/man
     - usr/share/doc
@@ -36,6 +36,6 @@ AppDir:
     env:
         AIX_TARGET: usr/bin/realsense-integration-tests
 AppImage:
-  arch: aarch64
+  arch: x86_64
   comp: gzip
-  update-information: zsync|http://packages.viam.com/apps/camera-servers/realsense-integration-tests-${TAG_NAME}-aarch64.AppImage.zsync
+  update-information: zsync|http://packages.viam.com/apps/camera-servers/realsense-integration-tests-${TAG_NAME}-x86_64.AppImage.zsync

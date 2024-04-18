@@ -49,22 +49,43 @@ docker-arm64-ci: BUILD_PUSH = --push
 docker-arm64-ci:
 	$(BUILD_CMD)
 
+docker-amd64-ci: MAIN_TAG = ghcr.io/viamrobotics/viam-camera-realsense
+docker-amd64-ci: BUILD_TAG = amd64
+docker-amd64-ci: BUILD_PUSH = --push
+docker-amd64-ci:
+	$(BUILD_CMD)
+
 TAG_VERSION?=latest
-# build the AppImages
-appimage: export TAG_NAME = ${TAG_VERSION}
-appimage: viam-camera-realsense
-	cd packaging/appimages && \
-	mkdir -p deploy && \
-	rm -f deploy/viam-camera-realsense* && \
-	appimage-builder --recipe viam-camera-realsense-aarch64.yml
-	cp ./packaging/appimages/viam-camera-realsense-*-aarch64.AppImage  ./packaging/appimages/deploy/
+# Define a function for building AppImages
+define BUILD_APPIMAGE
+    export TAG_NAME=$(TAG_VERSION); \
+    cd packaging/appimages && \
+    mkdir -p deploy && \
+    rm -f deploy/$(1)* && \
+    appimage-builder --recipe $(1)-$(2).yml
+endef
 
-integration-appimage: export TAG_NAME = ${TAG_VERSION}
-integration-appimage: realsense-integration-tests
-	cd packaging/appimages && \
-	mkdir -p deploy && \
-	rm -f deploy/realsense-integration-tests* && \
-	appimage-builder --recipe realsense-integration-tests-aarch64.yml
-	cp ./packaging/appimages/realsense-integration-tests-*-aarch64.AppImage  ./packaging/appimages/deploy/
+# Targets for building AppImages
+appimage-arm64: export OUTPUT_NAME = viam-camera-realsense
+appimage-arm64: export ARCH = aarch64
+appimage-arm64: viam-camera-realsense
+	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
 
+appimage-amd64: export OUTPUT_NAME = viam-camera-realsense
+appimage-amd64: export ARCH = x86_64
+appimage-amd64: viam-camera-realsense
+	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
 
+integration-appimage-arm64: export OUTPUT_NAME = realsense-integration-tests
+integration-appimage-arm64: export ARCH = aarch64
+integration-appimage-arm64: realsense-integration-tests
+	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
+
+integration-appimage-amd64: export OUTPUT_NAME = realsense-integration-tests
+integration-appimage-amd64: export ARCH = x86_64
+integration-appimage-amd64: realsense-integration-tests
+	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
