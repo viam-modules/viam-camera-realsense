@@ -1,4 +1,4 @@
-name: Build AppImage Intel RealSense
+name: Build AppImage and publish to registry
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,14 +22,12 @@ jobs:
               image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
               options: --platform linux/arm64
             make_target: appimage-arm64
-            appimage_arch_name: aarch64
             platform: linux/arm64
           - os: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
               options: --platform linux/amd64
             make_target: appimage-amd64
-            appimage_arch_name: x86_64
             platform: linux/amd64
 
     container: ${{ matrix.container }}
@@ -43,7 +41,7 @@ jobs:
 
       - name: bundle module
         run: |
-          cp packaging/appimages/deploy/viam-camera-realsense-${{ github.ref_name }}-${{ matrix.appimage_arch_name }}.AppImage viam-camera-realsense.AppImage
+          cp packaging/appimages/deploy/viam-camera-realsense-*.AppImage viam-camera-realsense.AppImage
           tar czf module.tar.gz viam-camera-realsense.AppImage
 
       - uses: viamrobotics/upload-module@main
