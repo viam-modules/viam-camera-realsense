@@ -7,6 +7,9 @@ project(viam-camera-realsense
 )
 set(CMAKE_CXX_STANDARD 17)
 
+# Define an option for enabling build with AddressSanitizer
+option(ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(realsense2 REQUIRED)
@@ -31,6 +34,14 @@ endif()
 
 add_executable(viam-camera-realsense main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
+
+if(ENABLE_SANITIZER)
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static-libasan")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libasan")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libasan")
+endif()
 
 # Add shared flags
 target_compile_features(viamrealsense PUBLIC
