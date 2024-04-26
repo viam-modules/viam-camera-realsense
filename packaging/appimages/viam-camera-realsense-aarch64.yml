@@ -42,6 +42,7 @@ AppDir:
   runtime:
     env:
         AIX_TARGET: usr/bin/viam-camera-realsense
+        LSAN_OPTIONS: verbosity=1:log_threads=1
 AppImage:
   arch: aarch64
   comp: gzip

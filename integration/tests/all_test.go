@@ -28,6 +28,14 @@ func TestCameraServer(t *testing.T) {
 		_, _, err = cam.Images(context.Background())
 		test.That(t, err, test.ShouldBeNil)
 	})
+	t.Run("get image method", func(t *testing.T) {
+		cam, err := camera.FromRobot(myRobot, "TheRealSense")
+		test.That(t, err, test.ShouldBeNil)
+		stream, err := cam.Stream(context.Background())
+		test.That(t, err, test.ShouldBeNil)
+		_, _, err = stream.Next(context.Background())
+		test.That(t, err, test.ShouldBeNil)
+	})
 	t.Run("shutdown the robot", func(t *testing.T) {
 		test.That(t, myRobot.Close(context.Background()), test.ShouldBeNil)
 	})

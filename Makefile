@@ -2,11 +2,12 @@
 format: src/*.cpp src/*.hpp test/*.cpp
 	ls src/*.cpp src/*.hpp test/*.cpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
+SANITIZER_FLAG ?= OFF
 viam-camera-realsense: src/*
 	rm -rf build/ && \
 	mkdir build && \
 	cd build && \
-	cmake -G Ninja .. && \
+	cmake -G Ninja -DENABLE_SANITIZER=$(SANITIZER_FLAG) .. && \
 	ninja all -j 4 && \
 	cp viam-camera-realsense ../
 

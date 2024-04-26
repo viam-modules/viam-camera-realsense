@@ -41,6 +41,10 @@ if(ENABLE_SANITIZER)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static-libasan")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libasan")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libasan")
+    target_compile_options(viamrealsense PRIVATE -fsanitize=address)
+    target_link_options(viamrealsense PRIVATE -fsanitize=address)
+    target_compile_options(viam-camera-realsense PRIVATE -fsanitize=address)
+    target_link_options(viam-camera-realsense PRIVATE -fsanitize=address)
 endif()
 
 # Add shared flags
