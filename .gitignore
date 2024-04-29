@@ -3,5 +3,4 @@ module.tar.gz
 integration/realsense-integration-tests
 realsense-integration-tests
 build
-local-build
 .vscode
