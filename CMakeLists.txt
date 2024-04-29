@@ -36,15 +36,37 @@ add_executable(viam-camera-realsense main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 
 if(ENABLE_SANITIZER)
-    add_compile_options(-fsanitize=address)
-    add_link_options(-fsanitize=address)
+    add_compile_options(
+        -fsanitize=address
+        -fsanitize-address-use-after-scope
+        -fno-omit-frame-pointer
+    )
+    add_link_options(
+        -fsanitize=address
+        -fno-omit-frame-pointer
+    )
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static-libasan")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libasan")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libasan -fno-omit-frame-pointer")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libasan")
-    target_compile_options(viamrealsense PRIVATE -fsanitize=address)
-    target_link_options(viamrealsense PRIVATE -fsanitize=address)
-    target_compile_options(viam-camera-realsense PRIVATE -fsanitize=address)
-    target_link_options(viam-camera-realsense PRIVATE -fsanitize=address)
+
+    target_compile_options(viamrealsense PRIVATE
+        -fsanitize=address
+        -fsanitize-address-use-after-scope
+        -fno-omit-frame-pointer
+    )
+    target_link_options(viamrealsense PRIVATE
+        -fsanitize=address
+        -fno-omit-frame-pointer
+    )
+    target_compile_options(viam-camera-realsense PRIVATE
+        -fsanitize=address
+        -fsanitize-address-use-after-scope
+        -fno-omit-frame-pointer
+    )
+    target_link_options(viam-camera-realsense PRIVATE
+        -fsanitize=address
+        -fno-omit-frame-pointer
+    )
 endif()
 
 # Add shared flags
