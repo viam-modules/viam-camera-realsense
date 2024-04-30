@@ -147,7 +147,7 @@ Use the commands
 docker pull ghcr.io/viamrobotics/viam-camera-realsense:arm64
 git clone https://github.com/viamrobotics/viam-camera-realsense/
 cd viam-camera-realsense/
-canon -arch arm64 make appimage
+canon -arch arm64 make appimage-arm64
 ```
 
 This will use the Docker container to compile a binary for the `aarch64` architecture. If you want to compile for `x86_64`/`amd64` architecture, change `arm64` to `amd64` in the above commands. The AppImage will be put in the `packaging/appimages/deploy` directory.
@@ -164,3 +164,6 @@ If you would like to try to gather all of the dependencies yourself and not use 
 
 then do `make viam-camera-realsense` to compile the binary, and `make appimage` to create the AppImage.
 
+## Building with Address Sanitizer
+
+When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App. Additionally, running the integration test binary against the debug ASAN/LSAN build will fail if a leak is detected. Currently the debug ASAN/LSAN build is only supported on linux/arm64.

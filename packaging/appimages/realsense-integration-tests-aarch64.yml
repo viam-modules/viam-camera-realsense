@@ -29,6 +29,7 @@ AppDir:
     - sourceline: deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main
     include:
     - libturbojpeg0:arm64
+    - libjpeg62-turbo:arm64
     exclude:
     - usr/share/man
     - usr/share/doc
