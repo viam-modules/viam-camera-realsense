@@ -15,10 +15,10 @@ find_package(Threads REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 
-set(ENCODING_SOURCES src/encoding.hpp)
+set(HELPER_SOURCES src/encoding.hpp)
 set(THIRD_PARTY_SOURCES src/third_party/fpng.cpp src/third_party/lodepng.cpp) 
 # construct the library
-add_library(viamrealsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES} ${ENCODING_SOURCES}) 
+add_library(viamrealsense src/camera_realsense.cpp ${THIRD_PARTY_SOURCES} ${HELPER_SOURCES}) 
 target_link_libraries(viamrealsense PUBLIC viam-cpp-sdk::viamsdk realsense2::realsense2 PRIVATE turbojpeg ${CMAKE_DL_LIBS})
 
 # Conditionally apply SIMD flags based on the processor architecture for fpng acceleration
