@@ -18,23 +18,35 @@ import (
 func TestCameraServer(t *testing.T) {
 	fmt.Println("Starting the tests...")
 	var myRobot robot.Robot
+	var cam camera.Camera
 	// put all the tests in t.Run commands
 	t.Run("set up the robot", func(t *testing.T) {
 		myRobot = setupViamServer(context.Background(), t)
+		cameraFromRobot, err := camera.FromRobot(myRobot, "TheRealSense")
+		cam = cameraFromRobot
+		test.That(t, err, test.ShouldBeNil)
 	})
 	t.Run("get images method", func(t *testing.T) {
-		cam, err := camera.FromRobot(myRobot, "TheRealSense")
-		test.That(t, err, test.ShouldBeNil)
-		_, _, err = cam.Images(context.Background())
+		_, _, err := cam.Images(context.Background())
 		test.That(t, err, test.ShouldBeNil)
 	})
 	t.Run("get image method", func(t *testing.T) {
-		cam, err := camera.FromRobot(myRobot, "TheRealSense")
-		test.That(t, err, test.ShouldBeNil)
 		stream, err := cam.Stream(context.Background())
 		test.That(t, err, test.ShouldBeNil)
 		_, _, err = stream.Next(context.Background())
 		test.That(t, err, test.ShouldBeNil)
+	})
+	t.Run("get image method", func(t *testing.T) {
+		stream, err := cam.Stream(context.Background())
+		test.That(t, err, test.ShouldBeNil)
+		_, _, err = stream.Next(context.Background())
+		test.That(t, err, test.ShouldBeNil)
+	})
+	t.Run("get point cloud method", func(t *testing.T) {
+		pc, err := cam.NextPointCloud(context.Background())
+		test.That(t, err, test.ShouldBeNil)
+		test.That(t, pc, test.ShouldNotBeNil)
+		test.That(t, pc.Size(), test.ShouldBeGreaterThan, 0)
 	})
 	t.Run("shutdown the robot", func(t *testing.T) {
 		test.That(t, myRobot.Close(context.Background()), test.ShouldBeNil)
@@ -58,7 +70,6 @@ func setupViamServer(ctx context.Context, t *testing.T) robot.Robot {
 		"      \"namespace\": \"rdk\","+
 		"      \"attributes\": {"+
 		"        \"sensors\": ["+
-		"          \"color\","+
 		"          \"depth\""+
 		"        ],"+
 		"        \"width_px\": 640,"+

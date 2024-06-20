@@ -296,18 +296,15 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
 
     if (hasColor && colorFrame) {
         colorData = static_cast<const uint8_t*>(colorFrame.get_data());
-        auto video_frame = dynamic_cast<const rs2::video_frame*>(&colorFrame);
-        if (video_frame) {
-            width = video_frame->get_width();
-            height = video_frame->get_height();
+        if (colorFrame.is<rs2::video_frame>()) {
+            auto video_frame = colorFrame.as<rs2::video_frame>();
+            width = video_frame.get_width();
+            height = video_frame.get_height();
             if (width <= 0 || height <= 0) {
-                std::string error_msg = "Error processing point cloud: color frame dimensions must be positive "
-                                        "non-zero values. Received dimensions: " + std::to_string(width) + "x" + 
-                                        std::to_string(height);
-                throw std::runtime_error(error_msg);
+                throw std::runtime_error("Error processing point cloud: color frame dimensions must be positive non-zero values.");
             }
         } else {
-            throw std::runtime_error("Error processing point cloud: color frame incompatible as video frame")
+            throw std::runtime_error("Error processing point cloud: provided frame is not a video frame.");
         }
     }
 
@@ -331,6 +328,7 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
         }
     }
 
+    // TODO RSDK-7976: Change string to new gRPC size limit or remove totally
     if (dataBytes.size() > 4194304) {
         std::cerr << "PCD size: " << dataBytes.size() 
           << " bytes exceeds 4mb gRPC size limit. "
