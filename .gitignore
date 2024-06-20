@@ -1,5 +1,5 @@
 module.tar.gz
-*.AppImage
+*.AppImage*
 integration/realsense-integration-tests
 realsense-integration-tests
 build

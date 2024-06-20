@@ -298,6 +298,9 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
         colorData = static_cast<const uint8_t*>(colorFrame.get_data());
         width = colorFrame.as<rs2::video_frame>().get_width();
         height = colorFrame.as<rs2::video_frame>().get_height();
+        if (width <= 0 || height <= 0) {
+            throw std::runtime_error("Error processing point cloud: color frame dimensions must be positive non-zero values"); 
+        }
     }
 
     for (size_t i = 0; i < vertexCount; ++i) {
@@ -320,14 +323,10 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
         }
     }
 
-    // Post-process subsampling if the data size exceeds 4MB (gRPC message size limit)
     if (dataBytes.size() > 4194304) {
-        std::vector<unsigned char> subsampledData;
-        int subsampleRatio = dataBytes.size() / 4194304 + 1;
-        for (size_t i = 0; i < dataBytes.size(); i += subsampleRatio * pointSize) {
-            subsampledData.insert(subsampledData.end(), dataBytes.begin() + i, dataBytes.begin() + i + pointSize);
-        }
-        dataBytes = std::move(subsampledData);
+        std::cerr << "PCD size: " << dataBytes.size() 
+          << " bytes exceeds 4mb gRPC size limit. "
+          << "Consider lowering camera resolution\n";
     }
 
     size_t numPoints = dataBytes.size() / pointSize;
