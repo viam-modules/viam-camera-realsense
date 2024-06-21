@@ -10,6 +10,7 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/components/component.hpp>
 #include <viam/sdk/module/service.hpp>
@@ -79,6 +80,7 @@ struct AtomicFrameSet {
     std::mutex mutex;
     rs2::frame colorFrame;
     std::shared_ptr<std::vector<uint16_t>> depthFrame;
+    rs2::frame rsDepthFrame;
     std::chrono::milliseconds timestamp;
 };
 

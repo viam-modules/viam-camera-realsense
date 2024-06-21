@@ -1,282 +1,21 @@
 #include "camera_realsense.hpp"
+#include "encoding.hpp"
 
-#include <arpa/inet.h>
-#include <grpc/grpc.h>
-#include <grpcpp/security/server_credentials.h>
-#include <grpcpp/server.h>
-#include <grpcpp/server_builder.h>
-#include <grpcpp/server_context.h>
-#include <pthread.h>
-#include <signal.h>
-#include <turbojpeg.h>
 
-#include <algorithm>
+#include <chrono>        
 #include <condition_variable>
-#include <future>
 #include <iostream>
-#include <librealsense2/rs.hpp>
+#include <memory>
 #include <mutex>
-#include <optional>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <tuple>
-#include <vector>
+#include <vector> 
+
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
-#include <xtensor/xarray.hpp>
-
-#include "third_party/fpng.h"
-#include "third_party/lodepng.h"
-
-namespace {
-bool debug_enabled = false;
-const uint32_t rgbaMagicNumber =
-    htonl(1380401729);  // the utf-8 binary encoding for "RGBA", big-endian
-const size_t rgbaMagicByteCount =
-    sizeof(uint32_t);  // number of bytes used to represent the rgba magic number
-const size_t rgbaWidthByteCount =
-    sizeof(uint32_t);  // number of bytes used to represent rgba image width
-const size_t rgbaHeightByteCount =
-    sizeof(uint32_t);  // number of bytes used to represent rgba image height
-
-// COLOR responses
-struct color_response {
-    std::vector<uint8_t> color_bytes;
-};
-
-color_response encodeColorPNG(const void* data, const uint width, const uint height) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (debug_enabled) {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    std::vector<uint8_t> encoded;
-    if (!fpng::fpng_encode_image_to_memory(data, width, height, 3, encoded)) {
-        throw std::runtime_error("failed to encode color PNG");
-    }
-
-    if (debug_enabled) {
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
-    }
-    return {std::move(encoded)};
-}
-
-std::unique_ptr<viam::sdk::Camera::raw_image> encodeColorPNGToResponse(const void* data,
-                                                                       const uint width,
-                                                                       const uint height) {
-    color_response encoded = encodeColorPNG(data, width, height);
-    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
-    response->source_name = "color";
-    response->mime_type = "image/png";
-    response->bytes = std::move(encoded.color_bytes);
-    return response;
-}
-
-struct jpeg_image {
-    std::unique_ptr<unsigned char, decltype(&tjFree)> data;
-    long unsigned int size;
-    // constructor
-    jpeg_image(unsigned char* imageData, long unsigned int imageSize)
-        : data(imageData, &tjFree), size(imageSize) {}
-};
-
-jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint height) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (debug_enabled) {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    unsigned char* encoded = nullptr;
-    long unsigned int encodedSize = 0;
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        throw std::runtime_error("[GetImage] failed to init JPEG compressor");
-    }
-    int success;
-    try {
-        success = tjCompress2(handle, data, width, 0, height, TJPF_RGB, &encoded, &encodedSize,
-                              TJSAMP_420, 75, TJFLAG_FASTDCT);
-        tjDestroy(handle);
-    } catch (const std::exception& e) {
-        tjDestroy(handle);
-        throw std::runtime_error("[GetImage] JPEG compressor failed to compress: " +
-                                 std::string(e.what()));
-    }
-    if (success != 0) {
-        throw std::runtime_error("[GetImage] JPEG compressor failed to compress image");
-    }
-    if (debug_enabled) {
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
-    }
-
-    jpeg_image output(encoded, encodedSize);
-    return output;
-}
-
-std::unique_ptr<viam::sdk::Camera::raw_image> encodeJPEGToResponse(const unsigned char* data,
-                                                                   const uint width,
-                                                                   const uint height) {
-    jpeg_image encoded = encodeJPEG(data, width, height);
-    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
-    response->source_name = "color";
-    response->mime_type = "image/jpeg";
-    response->bytes.assign(encoded.data.get(), encoded.data.get() + encoded.size);
-    return response;
-}
-
-struct raw_camera_image {
-    using deleter_type = void (*)(unsigned char*);
-    using uniq = std::unique_ptr<unsigned char[], deleter_type>;
-
-    static constexpr deleter_type free_deleter = [](unsigned char* ptr) { free(ptr); };
-
-    static constexpr deleter_type array_delete_deleter = [](unsigned char* ptr) { delete[] ptr; };
-
-    uniq bytes;
-    size_t size;
-};
-
-raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
-                                const uint32_t height) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (debug_enabled) {
-        start = std::chrono::high_resolution_clock::now();
-    }
-    // set size of raw file
-    size_t pixelByteCount = 4 * width * height;
-    uint32_t widthToEncode = htonl(width);    // make sure everything is big-endian
-    uint32_t heightToEncode = htonl(height);  // make sure everything is big-endian
-    size_t totalByteCount =
-        rgbaMagicByteCount + rgbaWidthByteCount + rgbaHeightByteCount + pixelByteCount;
-    // memcpy data into buffer
-    raw_camera_image::uniq rawBuf(new unsigned char[totalByteCount],
-                                  raw_camera_image::array_delete_deleter);
-    int offset = 0;
-    std::memcpy(rawBuf.get() + offset, &rgbaMagicNumber, rgbaMagicByteCount);
-    offset += rgbaMagicByteCount;
-    std::memcpy(rawBuf.get() + offset, &widthToEncode, rgbaWidthByteCount);
-    offset += rgbaWidthByteCount;
-    std::memcpy(rawBuf.get() + offset, &heightToEncode, rgbaHeightByteCount);
-    offset += rgbaHeightByteCount;
-    int pixelOffset = 0;
-    uint8_t alphaValue = 255;  // alpha  channel is always 255 for color images
-    for (int i = 0; i < width * height; i++) {
-        std::memcpy(rawBuf.get() + offset, data + pixelOffset, 3);  // 3 bytes for RGB
-        std::memcpy(rawBuf.get() + offset + 3, &alphaValue, 1);     // 1 byte for A
-        pixelOffset += 3;
-        offset += 4;
-    }
-    if (debug_enabled) {
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
-    }
-    return {std::move(rawBuf), totalByteCount};
-}
-
-std::unique_ptr<viam::sdk::Camera::raw_image> encodeColorRAWToResponse(const unsigned char* data,
-                                                                       const uint width,
-                                                                       const uint height) {
-    raw_camera_image encoded = encodeColorRAW(data, width, height);
-    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
-    response->source_name = "color";
-    response->mime_type = "image/vnd.viam.rgba";
-    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
-    return response;
-}
-
-// DEPTH responses
-raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, const uint height) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (debug_enabled) {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    // convert data to guarantee big-endian
-    size_t pixelByteCount = 2 * width * height;
-    std::unique_ptr<unsigned char[]> rawBuf(new unsigned char[pixelByteCount]);
-    int offset = 0;
-    int pixelOffset = 0;
-    for (int i = 0; i < width * height; i++) {
-        uint16_t pix;
-        std::memcpy(&pix, data + pixelOffset, 2);
-        uint16_t pixEncode = htons(pix);  // PNG expects pixel values to be big-endian
-        std::memcpy(rawBuf.get() + offset, &pixEncode, 2);
-        pixelOffset += 2;
-        offset += 2;
-    }
-    unsigned char* encoded = 0;
-    size_t encoded_size = 0;
-    unsigned result =
-        lodepng_encode_memory(&encoded, &encoded_size, rawBuf.get(), width, height, LCT_GREY, 16);
-    raw_camera_image::uniq uniqueEncoded(encoded, raw_camera_image::free_deleter);
-    if (result != 0) {
-        throw std::runtime_error("[GetImage]  failed to encode depth PNG");
-    }
-
-    if (debug_enabled) {
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
-    }
-
-    return {std::move(uniqueEncoded), encoded_size};
-}
-
-std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthPNGToResponse(const unsigned char* data,
-                                                                       const uint width,
-                                                                       const uint height) {
-    raw_camera_image encoded = encodeDepthPNG(data, width, height);
-    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
-    response->source_name = "depth";
-    response->mime_type = "image/png";
-    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
-    return response;
-}
-
-raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
-                                const uint64_t height, const bool littleEndian) {
-    std::chrono::time_point<std::chrono::high_resolution_clock> start;
-    if (debug_enabled) {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    viam::sdk::Camera::depth_map m = xt::xarray<uint16_t>::from_shape({height, width});
-    std::copy(reinterpret_cast<const uint16_t*>(data),
-              reinterpret_cast<const uint16_t*>(data) + height * width, m.begin());
-
-    std::vector<unsigned char> encodedData = viam::sdk::Camera::encode_depth_map(m);
-
-    unsigned char* rawBuf = new unsigned char[encodedData.size()];
-    std::memcpy(rawBuf, encodedData.data(), encodedData.size());
-
-    if (debug_enabled) {
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
-    }
-
-    return raw_camera_image{raw_camera_image::uniq(rawBuf, raw_camera_image::array_delete_deleter),
-                            encodedData.size()};
-}
-
-std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthRAWToResponse(const unsigned char* data,
-                                                                       const uint width,
-                                                                       const uint height,
-                                                                       const bool littleEndian) {
-    raw_camera_image encoded = encodeDepthRAW(data, width, height, littleEndian);
-    auto response = std::make_unique<viam::sdk::Camera::raw_image>();
-    response->source_name = "depth";
-    response->mime_type = "image/vnd.viam.dep";
-    response->bytes.assign(encoded.bytes.get(), encoded.bytes.get() + encoded.size);
-    return response;
-}
-}  // namespace
 
 namespace viam {
 namespace realsense {
@@ -285,8 +24,6 @@ namespace realsense {
 AtomicFrameSet GLOBAL_LATEST_FRAMES;
 // align to the color camera's origin when color and depth enabled
 const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
-
-// CAMERA module methods
 
 // initialize will use the ResourceConfigs to begin the realsense pipeline.
 std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::ResourceConfig cfg) {
@@ -576,9 +313,40 @@ sdk::AttributeMap CameraRealSense::do_command(const sdk::AttributeMap& command) 
 
 sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
                                                           const sdk::AttributeMap& extra) {
-    std::cerr << "get_point_cloud not implemented" << std::endl;
-    return sdk::Camera::point_cloud{};
+    std::chrono::time_point<std::chrono::high_resolution_clock> start;
+    if (debug_enabled) {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    rs2::frame latestColorFrame;
+    rs2::frame latestDepthFrame;
+    rs2::pointcloud pc;
+    rs2::points points;
+    std::vector<unsigned char> pcdBytes;
+    {
+        std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
+        latestColorFrame = GLOBAL_LATEST_FRAMES.colorFrame;
+        latestDepthFrame = GLOBAL_LATEST_FRAMES.rsDepthFrame;
+    }
+
+    if (latestColorFrame) {
+        pc.map_to(latestColorFrame);
+    }
+    if (!latestDepthFrame) {
+        std::cerr << "cannot get point cloud as there is no depth frame" << std::endl;
+        return sdk::Camera::point_cloud{};
+    }
+    points = pc.calculate(latestDepthFrame);
+    pcdBytes = rsPointsToPCDBytes(points, latestColorFrame);
+
+    if (debug_enabled) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        std::cout << "[get_point_cloud]  total:           " << duration.count() << "ms\n";
+    }
+    return sdk::Camera::point_cloud{mime_type, pcdBytes};
 }
+
 std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::AttributeMap& extra) {
     std::cerr << "get_geometries not implemented" << std::endl;
     return std::vector<sdk::GeometryConfig>{};
@@ -676,6 +444,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             std::lock_guard<std::mutex> lock(GLOBAL_LATEST_FRAMES.mutex);
             GLOBAL_LATEST_FRAMES.colorFrame = frames.get_color_frame();
             GLOBAL_LATEST_FRAMES.depthFrame = std::move(depthFrameScaled);
+            GLOBAL_LATEST_FRAMES.rsDepthFrame = frames.get_depth_frame();
             GLOBAL_LATEST_FRAMES.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::duration<double, std::milli>(frames.get_timestamp()));
         }
