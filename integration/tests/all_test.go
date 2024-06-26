@@ -57,7 +57,6 @@ func setupViamServer(ctx context.Context, t *testing.T) robot.Robot {
 	logger := golog.NewTestLogger(t)
 	moduleString := strings.TrimSpace(*modulePath)
 	logger.Info("testing module at %v", moduleString)
-	// TODO RSDK-7976: add back color sensor after gRPC max is lifted
 	configString := fmt.Sprintf("{"+
 		"  \"network\": {"+
 		"    \"bind_address\": \"0.0.0.0:90831\","+
@@ -71,6 +70,7 @@ func setupViamServer(ctx context.Context, t *testing.T) robot.Robot {
 		"      \"namespace\": \"rdk\","+
 		"      \"attributes\": {"+
 		"        \"sensors\": ["+
+		"          \"color\","+
 		"          \"depth\""+
 		"        ],"+
 		"        \"width_px\": 640,"+
