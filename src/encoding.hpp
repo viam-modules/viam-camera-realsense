@@ -328,6 +328,13 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
         }
     }
 
+    // TODO RSDK-7976: Change string to new gRPC size limit or remove totally
+    if (dataBytes.size() > 4194304) {
+        std::cerr << "PCD size: " << dataBytes.size() 
+          << " bytes exceeds 4mb gRPC size limit. "
+          << "Consider lowering camera resolution\n";
+    }
+
     size_t numPoints = dataBytes.size() / pointSize;
     header << "WIDTH " << numPoints << "\n";
     header << "HEIGHT 1\n";
