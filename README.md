@@ -1,21 +1,14 @@
-# Intel RealSense Modular Component
+# [`realsense` module](https://app.viam.com/module/viam/realsense)
 
-This is a [Viam module](https://docs.viam.com/manage/configuration/#modules) for the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras. Registered at https://app.viam.com/module/viam/realsense.
+This [module](https://docs.viam.com/registry/#modular-resources) implements the [`rdk:component:camera` API](https://docs.viam.com/components/camera/) in an `viam:camera:realsense` model.
+Configure this model on your machine to stream image and depth data from the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras to Viam.
 
-## Build and Run
+## Configure your `realsense` camera
 
-To use this module, follow these instructions to [add a module from the Viam Registry](https://docs.viam.com/modular-resources/configure/#add-a-module-from-the-viam-registry) and select the `viam:camera:realsense` model from the [`realsense` module](https://app.viam.com/module/viam/realsense).
+Navigate to the [**CONFIGURE** tab](https://docs.viam.com/build/configure/) of your [machine](https://docs.viam.com/fleet/machines/) in [the Viam app](https://app.viam.com/).
+[Add `camera / realsense` to your machine](https://docs.viam.com/build/configure/#components).
 
-## Configure your Realsense Camera
-
-> [!NOTE]  
-> Before configuring your camera, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
-
-Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/).
-Click on the **Components** subtab and click **Create component**. Select the `camera` type, then select the `realsense` model.
-Enter a name for your camera and click **Create**.
-
-On the new component panel, copy and paste the following attribute template into your camera’s **Attributes** box:
+On the new component panel, copy and paste the following attribute template into your camera’s attributes field:
 
 ```json
 {
@@ -29,7 +22,7 @@ On the new component panel, copy and paste the following attribute template into
 Edit the attributes as applicable.
 
 > [!NOTE]  
-> For more information, see [Configure a Robot](https://docs.viam.com/manage/configuration/).
+> For more information, see [Configure a Machine](https://docs.viam.com/manage/configuration/).
 
 ## Attributes
 
@@ -37,7 +30,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
-| `sensors` | list | **Required** | The RealSense data streams you want your robot to sense from. A list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor", and is the image that gets returned by `get_image` calls and appears in the **Control** tab on the [Viam app](https://app.viam.com). If you would like a list of images from all listed sensors simultaneously, use `get_images`.  |
+| `sensors` | list | **Required** | The RealSense data streams you want your robot to sense from. A list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor", and is the image that gets returned by `get_image` calls and appears in the **Control** tab on the [Viam app](https://). If you would like a list of images from all listed sensors simultaneously, use `get_images`.  |
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
@@ -64,9 +57,28 @@ The following attributes are available for `viam:camera:realsense` cameras:
 }
 ```
 
-### Locally installing the module
+## Test the module
 
-If you do not want to use the Viam Registry, for Linux distros, download the module AppImage from our servers to your robot.
+Before testing the module, make sure that your machine is connected to the Viam app, displaying as **Live** in the part status dropdown in the top right corner of the machine's page.
+
+### Camera API
+
+Once the `realsense` model is configured on your machine, you can access the depth and color data the camera streams through the [Viam camera API](https://docs.viam.com/components/camera/#api).
+The following methods of the Viam camera API are supported:
+
+- [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud)
+- [`GetImage`](https://docs.viam.com/components/camera/#getimage)
+- [`GetImages`](https://docs.viam.com/components/camera/#getimage)
+- [`GetProperties`](https://docs.viam.com/components/camera/#getproperties)
+
+### CONTROL tab of app.viam.com
+
+You can view the data your camera streams live on the **CONTROL** tab of the Viam app.
+For more information, see [Control Machines](https://docs.viam.com/fleet/control/).
+
+### Locally install the module
+
+If you do not want to use the Viam registry, for Linux distros, download the module AppImage from our servers to your robot.
 
 ```
 sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
@@ -121,7 +133,6 @@ Support for specific hardware is known for the following devices. The table is n
 ## Linux distribution recommendation
 
 This module depends on the [`librealsense` SDK](https://github.com/IntelRealSense/librealsense/releases). As of the time of writing, Ubuntu is the only Linux Distro `librealsense` officially supports. The module works on our hardware setups using Bullseye on RPI4, and some setups on Bookworm. However, we recommend adhering to the requirements of the SDK dependency and to use Ubuntu when possible to avoid instability and unexpected behavior. 
-
 
 ## Troubleshooting
 
