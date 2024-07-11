@@ -66,9 +66,9 @@ Before testing the module, make sure that your machine is connected to the Viam 
 Once the `realsense` model is configured on your machine, you can access the depth and color data the camera streams through the [Viam camera API](https://docs.viam.com/components/camera/#api).
 The following methods of the Viam camera API are supported:
 
-- [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud)
-- [`GetImage`](https://docs.viam.com/components/camera/#getimage)
-- [`GetImages`](https://docs.viam.com/components/camera/#getimages)
+- [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud): always depth and sometimes color
+- [`GetImage`](https://docs.viam.com/components/camera/#getimage): color
+- [`GetImages`](https://docs.viam.com/components/camera/#getimages): both depth and color
 - [`GetProperties`](https://docs.viam.com/components/camera/#getproperties)
 
 ### CONTROL tab of app.viam.com
