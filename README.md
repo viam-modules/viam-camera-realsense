@@ -78,10 +78,15 @@ For more information, see [Control Machines](https://docs.viam.com/fleet/control
 
 ### Locally install the module
 
-If you do not want to use the Viam registry, for Linux distros, download the module AppImage from our servers to your robot.
+If you are using a Linux machine, and do not want to use the Viam registry, you can download the module AppImage from our servers directly to your machine:
 
 ```
 sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
+```
+
+Then, follow the instructions to [add a local module](https://docs.viam.com/registry/configure/#add-a-local-module) to add the local instance of the `realsense` module to your machine.
+Provide an **Executable path** of `/usr/local/bin/viam-camera-realsense` when adding the module.
+
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
