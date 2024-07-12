@@ -35,7 +35,6 @@ The following attributes are available for `viam:camera:realsense` cameras:
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
 
-
 ### Example configuration:
 
 ```
@@ -82,17 +81,15 @@ If you are using a Linux machine, and do not want to use the Viam registry, you 
 
 ```
 sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
-```
-
-Then, follow the instructions to [add a local module](https://docs.viam.com/registry/configure/#add-a-local-module) to add the local instance of the `realsense` module to your machine.
-Provide an **Executable path** of `/usr/local/bin/viam-camera-realsense` when adding the module.
-
 sudo chmod a+rx /usr/local/bin/viam-camera-realsense
 ```
 
 If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `0.0.X`.
 
-Then modify your robot's JSON file as follows:
+Then, follow the instructions to [add a local module](https://docs.viam.com/registry/configure/#add-a-local-module) to add the local instance of the `realsense` module to your machine.
+Provide an **Executable path** of `/usr/local/bin/viam-camera-realsense` when adding the module.
+
+Or, if you aren't using the Viam app to manage your machine's configuration, modify your machine's JSON file as follows to add the `realsense` module to your machine:
 
 ```
   "modules": [
