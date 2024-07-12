@@ -35,7 +35,6 @@ The following attributes are available for `viam:camera:realsense` cameras:
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
 
-
 ### Example configuration:
 
 ```
@@ -101,7 +100,6 @@ Or, if you aren't using the Viam app to manage your machine's configuration, mod
     }
   ],
 ```
-
 
 ## Integration Tests
 
