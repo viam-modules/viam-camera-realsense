@@ -1,7 +1,7 @@
 # [`realsense` module](https://app.viam.com/module/viam/realsense)
 
-This [module](https://docs.viam.com/registry/#modular-resources) implements the [`rdk:component:camera` API](https://docs.viam.com/components/camera/) in an `viam:camera:realsense` model.
-Configure this model on your machine to stream image and depth data from the [Intel® RealSense™](https://github.com/IntelRealSense/librealsense) family of cameras to Viam.
+This [module](https://docs.viam.com/registry/#modular-resources) implements the [`rdk:component:camera` API](https://docs.viam.com/components/camera/) in a `viam:camera:realsense` model.
+Configure this model on your machine to stream image and depth data from the [Intel RealSense](https://github.com/IntelRealSense/librealsense) family of cameras to Viam.
 
 ## Configure your `realsense` camera
 
@@ -66,10 +66,10 @@ Before testing the module, make sure that your machine is connected to the Viam 
 Once the `realsense` model is configured on your machine, you can access the depth and color data the camera streams through the [Viam camera API](https://docs.viam.com/components/camera/#api).
 The following methods of the Viam camera API are supported:
 
-- [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud): always depth and sometimes color
-- [`GetImage`](https://docs.viam.com/components/camera/#getimage): color
-- [`GetImages`](https://docs.viam.com/components/camera/#getimages): both depth and color
-- [`GetProperties`](https://docs.viam.com/components/camera/#getproperties)
+- [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud): returns depth data and can return color data depending on the provided image
+- [`GetImage`](https://docs.viam.com/components/camera/#getimage): returns color data
+- [`GetImages`](https://docs.viam.com/components/camera/#getimages): returns both depth and color data
+- [`GetProperties`](https://docs.viam.com/components/camera/#getproperties): returns intrinsic properties of a camera
 
 ### CONTROL tab of app.viam.com
 
