@@ -238,8 +238,8 @@ sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
 }
 
 sdk::Camera::properties CameraRealSense::get_properties() {
-    auto fillResp = [](sdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
-        p->supports_pcd = supportsPCD;
+    auto fillResp = [](sdk::Camera::properties* p, CameraProperties props) {
+        p->supports_pcd = true;
         p->intrinsic_parameters.width_px = props.width;
         p->intrinsic_parameters.height_px = props.height;
         p->intrinsic_parameters.focal_x_px = props.fx;
@@ -253,12 +253,10 @@ sdk::Camera::properties CameraRealSense::get_properties() {
     };
 
     sdk::Camera::properties response{};
-    // pcd enabling will be a config parameter, for now, just put false
-    bool pcdEnabled = false;
     if (this->props_.mainSensor.compare("color") == 0) {
-        fillResp(&response, this->props_.color, pcdEnabled);
+        fillResp(&response, this->props_.color);
     } else if (props_.mainSensor.compare("depth") == 0) {
-        fillResp(&response, this->props_.depth, pcdEnabled);
+        fillResp(&response, this->props_.depth);
     }
 
     return response;
