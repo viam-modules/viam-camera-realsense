@@ -68,7 +68,6 @@ struct RealSenseProperties {
     std::string mainSensor;
     std::vector<std::string> sensors;
     bool littleEndianDepth;
-    bool enablePointClouds;
 };
 
 struct PipelineWithProperties {

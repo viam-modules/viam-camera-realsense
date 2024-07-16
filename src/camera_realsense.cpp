@@ -77,15 +77,6 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             littleEndianDepth = endian_bool;
         }
     }
-    bool enablePointClouds = false;
-    if (attrs->count("enable_point_clouds") == 1) {
-        std::shared_ptr<sdk::ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
-        auto pointclouds_value = pointclouds_proto->proto_value();
-        if (pointclouds_value.has_bool_value()) {
-            bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
-            enablePointClouds = pointclouds_bool;
-        }
-    }
     bool disableDepth = true;
     bool disableColor = true;
     std::vector<std::string> sensors;
@@ -132,9 +123,6 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
         std::cout << std::boolalpha << "depth little endian encoded: " << littleEndianDepth
                   << std::endl;
     }
-    props.enablePointClouds = enablePointClouds;
-    std::string pointcloudString = (enablePointClouds) ? "true" : "false";
-    std::cout << "point clouds enabled: " << pointcloudString << std::endl;
     std::promise<void> ready;
     std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
     std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
