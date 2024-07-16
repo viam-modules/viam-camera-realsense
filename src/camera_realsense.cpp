@@ -77,15 +77,6 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             littleEndianDepth = endian_bool;
         }
     }
-    bool enablePointClouds = false;
-    if (attrs->count("enable_point_clouds") == 1) {
-        std::shared_ptr<sdk::ProtoType> pointclouds_proto = attrs->at("enable_point_clouds");
-        auto pointclouds_value = pointclouds_proto->proto_value();
-        if (pointclouds_value.has_bool_value()) {
-            bool pointclouds_bool = static_cast<bool>(pointclouds_value.bool_value());
-            enablePointClouds = pointclouds_bool;
-        }
-    }
     bool disableDepth = true;
     bool disableColor = true;
     std::vector<std::string> sensors;
@@ -132,9 +123,6 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
         std::cout << std::boolalpha << "depth little endian encoded: " << littleEndianDepth
                   << std::endl;
     }
-    props.enablePointClouds = enablePointClouds;
-    std::string pointcloudString = (enablePointClouds) ? "true" : "false";
-    std::cout << "point clouds enabled: " << pointcloudString << std::endl;
     std::promise<void> ready;
     std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
     std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
@@ -238,8 +226,8 @@ sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
 }
 
 sdk::Camera::properties CameraRealSense::get_properties() {
-    auto fillResp = [](sdk::Camera::properties* p, CameraProperties props, bool supportsPCD) {
-        p->supports_pcd = supportsPCD;
+    auto fillResp = [](sdk::Camera::properties* p, CameraProperties props) {
+        p->supports_pcd = true;
         p->intrinsic_parameters.width_px = props.width;
         p->intrinsic_parameters.height_px = props.height;
         p->intrinsic_parameters.focal_x_px = props.fx;
@@ -253,12 +241,10 @@ sdk::Camera::properties CameraRealSense::get_properties() {
     };
 
     sdk::Camera::properties response{};
-    // pcd enabling will be a config parameter, for now, just put false
-    bool pcdEnabled = false;
     if (this->props_.mainSensor.compare("color") == 0) {
-        fillResp(&response, this->props_.color, pcdEnabled);
+        fillResp(&response, this->props_.color);
     } else if (props_.mainSensor.compare("depth") == 0) {
-        fillResp(&response, this->props_.depth, pcdEnabled);
+        fillResp(&response, this->props_.depth);
     }
 
     return response;
