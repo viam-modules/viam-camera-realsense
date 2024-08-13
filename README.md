@@ -180,3 +180,11 @@ then do `make viam-camera-realsense` to compile the binary, and `make appimage` 
 ## Building with Address Sanitizer
 
 When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App. Additionally, running the integration test binary against the debug ASAN/LSAN build will fail if a leak is detected. Currently the debug ASAN/LSAN build is only supported on linux/arm64.
+
+
+## Using within a Frame System
+
+It is important to consider that the coordinate system of the camera might not match the coordinate system of the component it is mounted on. Let us consider the scenario where the camera is mounted on a base, such that the camera faces the forward direction of movement of the base. Let the base's forward direction be the +Y axis. Following the right hand rule, the +X axis points right, and so the +Z axis of the base points up. For the intel realsense camera the +Z axis points out the camera lens, the +X axis points to the right, and the +Y axis points down. To properly configure these components in the frame system we say that the camera's parent is the base. We say that the orientation of the camera in Viam's Orientation Vector Degrees is OX:0, OY:1, OZ:0, Theta:-90. It is important to note that the base itself must also be in the frame system, the base would have parent as world with the default Viam Orientation Vector Degrees values, i.e. OX:0, OY:0, OZ:1, Theta:0.
+
+Below is an image of the intel realsense's coordinate system.
+![intel realsense internal coordinate system](https://www.intelrealsense.com/wp-content/uploads/2019/02/LRS_CS_axis_base.png)
