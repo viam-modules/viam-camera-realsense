@@ -10,6 +10,10 @@ on:
     paths:
       - 'integration/**'
 
+permissions:
+    pull-requests: write
+    id-token: write
+
 jobs:
   appimage:
     name: Integration Tests for RealSense
