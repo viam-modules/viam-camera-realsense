@@ -1,7 +1,7 @@
 {
   "module_id": "viam:realsense",
   "visibility": "public",
-  "url": "https://github.com/viamrobotics/viam-camera-realsense",
+  "url": "https://github.com/viam-modules/viam-camera-realsense",
   "description": "C++ camera module for the RealSense",
   "models": [
     {
