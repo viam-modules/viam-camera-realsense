@@ -46,7 +46,7 @@ RUN apt-get -y --no-install-recommends install -t llvm-toolchain-bookworm-15 \
 
 RUN mkdir -p /root/opt/src
 
-# install Viam C++ SDK from source frozen at a commit
+# Install Viam C++ SDK from source frozen at a commit
 ENV PINNED_COMMIT_HASH="5461780d4a6bcab18ed4cba51be1de2feb76dddf"
 RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
@@ -59,7 +59,7 @@ RUN cd /root/opt/src && \
 	ninja install -j 4 && \
     rm -rf /root/opt/src/viam-cpp-sdk
 
-# install librealsense from source
+# Install librealsense from source
 RUN cd /root/opt/src && \
     git clone https://github.com/IntelRealSense/librealsense.git && \
     cd librealsense && \
@@ -70,7 +70,7 @@ RUN cd /root/opt/src && \
     make install -j 4 && \
     rm -rf /root/opt/src/librealsense
 
-# install appimage-builder deps
+# Install appimage-builder deps
 RUN apt install -y \
     binutils \
     coreutils \
@@ -87,14 +87,14 @@ RUN apt install -y \
 
 RUN pip3 install -U pip setuptools urllib3==1.26.12 requests==2.26.0 --break-system-packages
 
-# install appimage-builder
+# Install appimage-builder
 RUN pip3 install --break-system-packages git+https://github.com/AppImageCrafters/appimage-builder.git@61c8ddde9ef44b85d7444bbe79d80b44a6a5576d
 
-# install Go
+# Install Go
 RUN apt install -y golang-go 
 
-# necessary library for jpeg
+# Necessary library for jpeg
 RUN apt install -y libturbojpeg-dev
 
-# install GTest
+# Install GTest
 RUN apt install -y libgtest-dev

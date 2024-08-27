@@ -15,11 +15,11 @@ jobs:
         include:
           - os: buildjet-8vcpu-ubuntu-2204-arm
             container:
-              image: ghcr.io/viamrobotics/viam-camera-realsense:arm64
+              image: ghcr.io/viam-modules/viam-camera-realsense:arm64
               options: --platform linux/arm64
           - os: ubuntu-latest
             container:
-              image: ghcr.io/viamrobotics/viam-camera-realsense:amd64
+              image: ghcr.io/viam-modules/viam-camera-realsense:amd64
               options: --platform linux/amd64
 
     container: ${{ matrix.container }}

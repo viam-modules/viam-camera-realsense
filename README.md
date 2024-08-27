@@ -118,7 +118,7 @@ The binary takes one argument, which is the location to the module you would lik
 
 If you would like to compile the integration tests yourself, you will need to compile the binary on the same machine you expect to run it on.
 
-- Copy the repo to your local robot: `git clone https://github.com/viamrobotics/viam-camera-realsense.git`
+- Copy the repo to your local robot: `git clone https://github.com/viam-modules/viam-camera-realsense.git`
 - run `make realsense-integration-tests`
 - run the tests with `./realsense-integration-tests -module /path/to/realsense/module`
 
@@ -157,8 +157,8 @@ You can also build it yourself using Docker and [Viam canon](https://github.com/
 Use the commands
 
 ```
-docker pull ghcr.io/viamrobotics/viam-camera-realsense:arm64
-git clone https://github.com/viamrobotics/viam-camera-realsense/
+docker pull ghcr.io/viam-modules/viam-camera-realsense:arm64
+git clone https://github.com/viam-modules/viam-camera-realsense/
 cd viam-camera-realsense/
 canon -arch arm64 make appimage-arm64
 ```

@@ -12,7 +12,7 @@ var modulePath = flag.String("module", "", "the path to the intel realsense modu
 
 func TestMain(m *testing.M) {
 	fmt.Println("VIAM REALSENSE MODULE INTEGRATION TESTS")
-	fmt.Println("Tests defined at https://github.com/viamrobotics/viam-camera-realsense/tree/main/integration/tests")
+	fmt.Println("Tests defined at https://github.com/viam-modules/viam-camera-realsense/tree/main/integration/tests")
 	flag.Parse()
 	moduleString := strings.TrimSpace(*modulePath)
 	if moduleString == "" {

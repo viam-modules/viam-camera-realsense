@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 
 project(viam-camera-realsense
     DESCRIPTION "Viam Module for the Intel RealSense Camera"
-    HOMEPAGE_URL https://github.com/viamrobotics/viam-camera-realsense
+    HOMEPAGE_URL https://github.com/viam-modules/viam-camera-realsense
     LANGUAGES CXX
 )
 set(CMAKE_CXX_STANDARD 17)
