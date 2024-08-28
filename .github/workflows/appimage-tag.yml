@@ -51,10 +51,13 @@ jobs:
           key-id: ${{ secrets.viam_key_id }}
           key-value: ${{ secrets.viam_key_value }}
 
-      - name: Authorize GCP Upload
-        uses: google-github-actions/auth@v1
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
         with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          create_credentials_file: true
+          workload_identity_provider: ${{ secrets.GCP_WORKFLOW_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Upload Files
         uses: google-github-actions/upload-cloud-storage@v0.10.4
