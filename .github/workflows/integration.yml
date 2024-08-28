@@ -3,20 +3,16 @@ name: Build Integration Tests AppImage
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
 
-# on:
-#   workflow_dispatch:
-#   push:
-#     branches: [ 'main' ]
-#     paths:
-#       - 'integration/**'
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+    paths:
+      - 'integration/**'
 
 permissions:
   id-token: write
   contents: read
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   appimage:
