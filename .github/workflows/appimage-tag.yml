@@ -60,7 +60,7 @@ jobs:
         uses: 'google-github-actions/auth@v1'
         with:
           create_credentials_file: true
-          workload_identity_provider: ${{ secrets.GCP_WORKFLOW_IDENTITY_PROVIDER }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Upload Files
