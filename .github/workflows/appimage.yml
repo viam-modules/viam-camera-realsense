@@ -11,6 +11,10 @@ on:
     paths-ignore:
       - 'README.md'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   appimage:
     name: AppImage Build Intel RealSense

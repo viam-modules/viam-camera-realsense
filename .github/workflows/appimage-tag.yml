@@ -9,6 +9,10 @@ on:
     tags:
       - '*'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   appimage:
     name: AppImage Build Intel RealSense
