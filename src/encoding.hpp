@@ -27,6 +27,7 @@ const size_t rgbaWidthByteCount =
     sizeof(uint32_t);  // number of bytes used to represent rgba image width
 const size_t rgbaHeightByteCount =
     sizeof(uint32_t);  // number of bytes used to represent rgba image height
+const size_t MAX_GRPC_MESSAGE_SIZE = 33554432;  // 32MB gRPC message size limit
 
 // COLOR responses
 struct color_response {
@@ -328,15 +329,16 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
         }
     }
 
-    // Post-process subsampling if the data size exceeds 4MB (gRPC message size limit)
-    // TODO RSDK-7976: Change string to new gRPC size limit or remove totally
-    if (dataBytes.size() > 4194304) {
+    // Post-process subsampling if the data size exceeds the gRPC message size limit
+    if (dataBytes.size() > MAX_GRPC_MESSAGE_SIZE) {
+        std::cout << "Subsampling point cloud data: original size=" << dataBytes.size() << " bytes" << std::endl;
         std::vector<unsigned char> subsampledData;
-        int subsampleRatio = dataBytes.size() / 4194304 + 1;
+        int subsampleRatio = dataBytes.size() / MAX_GRPC_MESSAGE_SIZE + 1;
         for (size_t i = 0; i < dataBytes.size(); i += subsampleRatio * pointSize) {
             subsampledData.insert(subsampledData.end(), dataBytes.begin() + i, dataBytes.begin() + i + pointSize);
         }
         dataBytes = std::move(subsampledData);
+        std::cout << "Subsampled point cloud data: new size=" << dataBytes.size() << " bytes" << std::endl;
     }
 
     size_t numPoints = dataBytes.size() / pointSize;
