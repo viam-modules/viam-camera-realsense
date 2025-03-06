@@ -11,7 +11,7 @@ Navigate to the [**CONFIGURE** tab](https://docs.viam.com/build/configure/) of y
 
 ## Configure your `realsense` camera
 
-Copy and paste the following attributes into your arm’s JSON configuration:
+Copy and paste the following attributes into your camera's JSON configuration:
 
 ```json
 {
@@ -101,30 +101,9 @@ Or, if you aren't using the Viam app to manage your machine's configuration, mod
   ],
 ```
 
-## Integration Tests
-
-### Running the tests
-The repo comes with a suite of integration tests that allow one to test if the module works with an actual realsense device on the machine of interest. These integration tests are compiled into a binary and can be downloaded here:
-
-```
-curl -o realsense-integration-tests http://packages.viam.com/apps/camera-servers/realsense-integration-tests-latest-aarch64.AppImage
-sudo chmod a+x realsense-integration-tests
-./realsense-integration-tests -module /path/to/the/module
-```
-
-The binary takes one argument, which is the location to the module you would like to test out. Make sure only one RealSense device is connected to the machine you will be running the tests on.
-
-### Compiling the integration tests
-
-If you would like to compile the integration tests yourself, you will need to compile the binary on the same machine you expect to run it on.
-
-- Copy the repo to your local robot: `git clone https://github.com/viam-modules/viam-camera-realsense.git`
-- run `make realsense-integration-tests`
-- run the tests with `./realsense-integration-tests -module /path/to/realsense/module`
-
 ## Known supported hardware
 
-Support for specific hardware is known for the following devices. The table is not complete and subject to change. In order to test out the module for your specific set up, it is recommended you run the integration tests provided.
+Support for specific hardware is known for the following devices. The table is not complete and subject to change.
 
 | Devices               | D435 | D435i | D455 |
 |-----------------------|------|-------|------|
@@ -179,7 +158,7 @@ then do `make viam-camera-realsense` to compile the binary, and `make appimage` 
 
 ## Building with Address Sanitizer
 
-When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App. Additionally, running the integration test binary against the debug ASAN/LSAN build will fail if a leak is detected. Currently the debug ASAN/LSAN build is only supported on linux/arm64.
+When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App. Currently the debug ASAN/LSAN build is only supported on linux/arm64.
 
 
 ## Using within a Frame System

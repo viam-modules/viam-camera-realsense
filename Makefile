@@ -11,11 +11,6 @@ viam-camera-realsense: src/*
 	ninja all -j 4 && \
 	cp viam-camera-realsense ../
 
-realsense-integration-tests: integration/tests/*
-	cd integration && \
-	go test -c -o realsense-integration-tests ./tests/ && \
-	cp realsense-integration-tests ../
-
 default: viam-camera-realsense
 
 all: default
@@ -76,17 +71,5 @@ appimage-arm64: viam-camera-realsense
 appimage-amd64: export OUTPUT_NAME = viam-camera-realsense
 appimage-amd64: export ARCH = x86_64
 appimage-amd64: viam-camera-realsense
-	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
-	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
-
-integration-appimage-arm64: export OUTPUT_NAME = realsense-integration-tests
-integration-appimage-arm64: export ARCH = aarch64
-integration-appimage-arm64: realsense-integration-tests
-	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
-	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
-
-integration-appimage-amd64: export OUTPUT_NAME = realsense-integration-tests
-integration-appimage-amd64: export ARCH = x86_64
-integration-appimage-amd64: realsense-integration-tests
 	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
 	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/

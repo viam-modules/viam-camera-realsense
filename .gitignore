@@ -1,7 +1,5 @@
 module.tar.gz
 *.AppImage*
-integration/realsense-integration-tests
 viam-camera-realsense
-realsense-integration-tests
 build
 .vscode
