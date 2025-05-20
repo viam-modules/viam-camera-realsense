@@ -28,7 +28,7 @@ TEST(ResourceConfigTest, ValidConfig) {
     // create the attributes field
     (*testConfig.mutable_attributes()->mutable_fields())["sensors"] = sensorListValue;
     std::vector<std::string> expected;  // the empty string vector is expected
-    EXPECT_EQ(vrs::validate(vsdk::ResourceConfig::from_proto(testConfig)), expected);
+    EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected);
 }
 
 // Test that the validate function returns an expected error when the required "sensors" are not
@@ -40,8 +40,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     testConfig.set_api("rdk:component:camera");
     // test that the sensors attribute is missing
     try {
-        std::vector<std::string> result =
-            vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+        std::vector<std::string> result = vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch sensors attribute missing";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
@@ -55,8 +54,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     sensorListValue.mutable_list_value()->CopyFrom(sensorList);
     (*testConfig.mutable_attributes()->mutable_fields())["sensors"] = sensorListValue;
     try {
-        std::vector<std::string> result =
-            vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+        std::vector<std::string> result = vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch empty sensors list";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
