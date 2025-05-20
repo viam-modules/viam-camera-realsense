@@ -41,74 +41,63 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     uint width = 0;
     uint height = 0;
     auto attrs = cfg.attributes();
-    if (attrs->count("width_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
-        auto width_value = width_proto->proto_value();
-        if (width_value.has_number_value()) {
-            uint width_num = static_cast<uint>(width_value.number_value());
-            width = width_num;
+
+    if (attrs.count("width_px")) {
+        if (const double* width_val = attrs["width_pix"].get<double>()) {
+            width = static_cast<uint>(*width_val);
         }
     }
-    if (attrs->count("height_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
-        auto height_value = height_proto->proto_value();
-        if (height_value.has_number_value()) {
-            uint height_num = static_cast<uint>(height_value.number_value());
-            height = height_num;
+
+    if (attrs.count("height_px")) {
+        if (const double* height_val = attrs["height_px"].get<double>()) {
+            height = static_cast<uint>(*height_val);
         }
     }
+
     if (width == 0 || height == 0) {
         std::cout << "note: will pick any suitable width and height" << std::endl;
     }
-    if (attrs->count("debug") == 1) {
-        std::shared_ptr<sdk::ProtoType> debug_proto = attrs->at("debug");
-        auto debug_value = debug_proto->proto_value();
-        if (debug_value.has_bool_value()) {
-            bool debug_bool = static_cast<bool>(debug_value.bool_value());
-            debug_enabled = debug_bool;
+
+    if (attrs.count("debug")) {
+        if (const bool* debug_val = attrs["debug"].get<bool>()) {
+            debug_enabled = debug_val;
         }
     }
+
     bool littleEndianDepth = false;
-    if (attrs->count("little_endian_depth") == 1) {
-        std::shared_ptr<sdk::ProtoType> endian_proto = attrs->at("little_endian_depth");
-        auto endian_value = endian_proto->proto_value();
-        if (endian_value.has_bool_value()) {
-            bool endian_bool = static_cast<bool>(endian_value.bool_value());
-            littleEndianDepth = endian_bool;
+    if (attrs.count("little_endian_depth") == 1) {
+        if (const bool* endian_depth = attrs["little_endian_depth"].get<bool>()) {
+            littleEndianDepth = endian_depth;
         }
     }
+
     bool disableDepth = true;
     bool disableColor = true;
     std::vector<std::string> sensors;
-    if (attrs->count("sensors") == 1) {
-        std::shared_ptr<sdk::ProtoType> sensor_proto = attrs->at("sensors");
-        auto sensor_value = sensor_proto->proto_value();
-        if (sensor_value.has_list_value()) {
-            auto sensor_list = sensor_value.list_value();
-            for (const auto element : sensor_list.values()) {
-                if (element.has_string_value()) {
-                    std::string sensor_name = static_cast<std::string>(element.string_value());
-                    if (sensor_name == "color") {
+
+    if (attrs.count("sensors")) {
+        if (sdk::ProtoList* sensors = attrs["sensors"].get<sdk::ProtoList>()) {
+            for (const auto& element : *sensors) {
+                if (const std::string* sensor_name = element.get<std::string>()) {
+                    if (*sensor_name == "color") {
                         disableColor = false;
-                        sensors.push_back("color");
-                    }
-                    if (sensor_name == "depth") {
+                        sensors->push_back("color");
+                    } else if (*sensor_name == "depth") {
                         disableDepth = false;
-                        sensors.push_back("depth");
+                        sensors->push_back("depth");
                     }
                 }
             }
         }
     }
+
     if (disableColor && disableDepth) {
         throw std::runtime_error("cannot disable both color and depth");
     }
 
     // DeviceProperties context also holds a bool that can stop the thread if device gets
     // disconnected
-    std::shared_ptr<DeviceProperties> newDevice = std::make_shared<DeviceProperties>(
-        width, height, disableColor, width, height, disableDepth);
-    device_ = std::move(newDevice);
+    device_ = std::make_shared<DeviceProperties>(width, height, disableColor, width, height, disableDepth);
 
     // First start of Pipeline
     rs2::pipeline pipe;
@@ -171,7 +160,7 @@ void CameraRealSense::reconfigure(const sdk::Dependencies& deps, const sdk::Reso
 }
 
 sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
-                                                  const sdk::AttributeMap& extra) {
+                                                  const sdk::ProtoStruct& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -282,23 +271,26 @@ sdk::Camera::image_collection CameraRealSense::get_images() {
             response.images.emplace_back(std::move(*depth_response));
         }
     }
-    response.metadata.captured_at = std::chrono::time_point<long long, std::chrono::nanoseconds>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
+
+    response.metadata.captured_at = 
+        sdk::time_pt{std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp)};
+    
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
         std::cout << "[get_images]  total:           " << duration.count() << "ms\n";
     }
+
     return response;
 }
 
-sdk::AttributeMap CameraRealSense::do_command(const sdk::AttributeMap& command) {
+sdk::ProtoStruct CameraRealSense::do_command(const sdk::ProtoStruct& command) {
     std::cerr << "do_command not implemented" << std::endl;
-    return sdk::AttributeMap{};
+    return sdk::ProtoStruct{};
 }
 
 sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
-                                                          const sdk::AttributeMap& extra) {
+                                                          const sdk::ProtoStruct& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -333,7 +325,7 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
     return sdk::Camera::point_cloud{mime_type, pcdBytes};
 }
 
-std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::AttributeMap& extra) {
+std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::ProtoStruct& extra) {
     std::cerr << "get_geometries not implemented" << std::endl;
     return std::vector<sdk::GeometryConfig>{};
 }
@@ -606,32 +598,27 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
 std::vector<std::string> validate(sdk::ResourceConfig cfg) {
     auto attrs = cfg.attributes();
-    if (attrs->count("width_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
-        auto width_value = width_proto->proto_value();
-        if (width_value.has_number_value()) {
-            int width_num = static_cast<int>(width_value.number_value());
-            if (width_num < 0) {
+
+    if (attrs.count("width_px")) {
+        if (const double* width = attrs["width_px"].get<double>()) {
+            if (static_cast<int>(*width) < 0) {
                 throw std::invalid_argument("width_px cannot be negative");
             }
         }
     }
-    if (attrs->count("height_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
-        auto height_value = height_proto->proto_value();
-        if (height_value.has_number_value()) {
-            int height_num = static_cast<int>(height_value.number_value());
-            if (height_num < 0) {
+
+    if (attrs.count("height_px")) {
+        if (const double* height = attrs["height_px"].get<double>()) {
+            if (static_cast<int>(*height) < 0) {
                 throw std::invalid_argument("height_px cannot be negative");
             }
         }
     }
-    if (attrs->count("sensors") >= 1) {
-        std::shared_ptr<sdk::ProtoType> sensors_proto = attrs->at("sensors");
-        auto sensors_value = sensors_proto->proto_value();
-        if (sensors_value.has_list_value()) {
-            auto sensors_list = sensors_value.list_value();
-            if (sensors_list.values().size() == 0) {
+
+
+    if (attrs.count("sensors")) {
+        if (const sdk::ProtoList* sensors = attrs["sensors"].get<sdk::ProtoList>()) {
+            if (sensors->empty()) {
                 throw std::invalid_argument(
                     "sensors field cannot be empty, must list color and/or depth sensor");
             }
@@ -639,6 +626,7 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
     } else {
         throw std::invalid_argument("could not find required 'sensors' attribute in the config");
     }
+
     return {};
 }
 
