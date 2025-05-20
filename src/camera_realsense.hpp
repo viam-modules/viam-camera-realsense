@@ -111,13 +111,13 @@ class CameraRealSense : public sdk::Camera, public sdk::Reconfigurable {
     ~CameraRealSense();
     void reconfigure(const sdk::Dependencies& deps, const sdk::ResourceConfig& cfg) override;
     sdk::Camera::raw_image get_image(std::string mime_type,
-                                     const sdk::AttributeMap& extra) override;
+                                     const sdk::ProtoStruct& extra) override;
     sdk::Camera::properties get_properties() override;
     sdk::Camera::image_collection get_images() override;
-    sdk::AttributeMap do_command(const sdk::AttributeMap& command) override;
+    sdk::ProtoStruct do_command(const sdk::ProtoStruct& command) override;
     sdk::Camera::point_cloud get_point_cloud(std::string mime_type,
-                                             const sdk::AttributeMap& extra) override;
-    std::vector<sdk::GeometryConfig> get_geometries(const sdk::AttributeMap& extra) override;
+                                             const sdk::ProtoStruct& extra) override;
+    std::vector<sdk::GeometryConfig> get_geometries(const sdk::ProtoStruct& extra) override;
 };
 
 }  // namespace realsense
