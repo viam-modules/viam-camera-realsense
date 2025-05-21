@@ -13,6 +13,7 @@
 #include <tuple>
 #include <vector> 
 
+#include <viam/sdk/log/logging.hpp>
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
@@ -28,7 +29,7 @@ const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 // initialize will use the ResourceConfigs to begin the realsense pipeline.
 std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::ResourceConfig cfg) {
     if (device_ != nullptr) {
-        std::cout << "reinitializing, restarting pipeline" << std::endl;
+        VIAM_SDK_LOG(info) << "reinitializing, restarting pipeline";
         {
             // wait until frameLoop is stopped
             std::unique_lock<std::mutex> lock(device_->mutex);
@@ -36,7 +37,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             device_->cv.wait(lock, [this] { return !(device_->isRunning); });
         }
     }
-    std::cout << "initializing the Intel RealSense Camera Module" << std::endl;
+    VIAM_SDK_LOG(info) << "initializing the Intel RealSense Camera Module";
     // set variables from config
     uint width = 0;
     uint height = 0;
@@ -55,7 +56,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     }
 
     if (width == 0 || height == 0) {
-        std::cout << "note: will pick any suitable width and height" << std::endl;
+        VIAM_SDK_LOG(debug) << "note: will pick any suitable width and height";
     }
 
     if (attrs.count("debug")) {
@@ -106,17 +107,16 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     // First start of camera thread
     props.sensors = sensors;
     props.mainSensor = sensors[0];
-    std::cout << "main sensor will be " << sensors[0] << std::endl;
+    VIAM_SDK_LOG(info) << "main sensor will be " << sensors[0];
     props.littleEndianDepth = littleEndianDepth;
     if (props.mainSensor == "depth") {
-        std::cout << std::boolalpha << "depth little endian encoded: " << littleEndianDepth
-                  << std::endl;
+        VIAM_SDK_LOG(debug) << std::boolalpha << "depth little endian encoded: " << littleEndianDepth;
     }
     std::promise<void> ready;
     std::thread cameraThread(frameLoop, pipe, ref(ready), device_, props.depthScaleMm);
-    std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+    VIAM_SDK_LOG(info) << "waiting for camera frame loop thread to be ready...";
     ready.get_future().wait();
-    std::cout << "camera frame loop ready!" << std::endl;
+    VIAM_SDK_LOG(info) << "camera frame loop ready!";
     cameraThread.detach();
     return std::make_tuple(props, disableColor, disableDepth);
 }
@@ -208,7 +208,7 @@ sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_image]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_image]  total:           " << duration.count() << "ms\n";
     }
 
     return std::move(*response);
@@ -278,14 +278,14 @@ sdk::Camera::image_collection CameraRealSense::get_images() {
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_images]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_images]  total:           " << duration.count() << "ms\n";
     }
 
     return response;
 }
 
 sdk::ProtoStruct CameraRealSense::do_command(const sdk::ProtoStruct& command) {
-    std::cerr << "do_command not implemented" << std::endl;
+    VIAM_SDK_LOG(error) << "do_command not implemented";
     return sdk::ProtoStruct{};
 }
 
@@ -311,7 +311,7 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
         pc.map_to(latestColorFrame);
     }
     if (!latestDepthFrame) {
-        std::cerr << "cannot get point cloud as there is no depth frame" << std::endl;
+        VIAM_SDK_LOG(error) << "cannot get point cloud as there is no depth frame";
         return sdk::Camera::point_cloud{};
     }
     points = pc.calculate(latestDepthFrame);
@@ -320,13 +320,13 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_point_cloud]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_point_cloud]  total:           " << duration.count() << "ms\n";
     }
     return sdk::Camera::point_cloud{mime_type, pcdBytes};
 }
 
 std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::ProtoStruct& extra) {
-    std::cerr << "get_geometries not implemented" << std::endl;
+    VIAM_SDK_LOG(error) << "get_geometries not implemented";
     return std::vector<sdk::GeometryConfig>{};
 }
 
@@ -344,13 +344,13 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
     rs2::context ctx;
     ctx.set_devices_changed_callback(
         [&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
-    std::cout << "[frameLoop] frame loop is starting" << std::endl;
+    VIAM_SDK_LOG(info) << "[frameLoop] frame loop is starting";
     while (true) {
         {
             std::lock_guard<std::mutex> lock(deviceProps->mutex);
             if (!deviceProps->shouldRun) {
                 pipeline.stop();
-                std::cout << "[frameLoop] pipeline stopped, exiting frame loop" << std::endl;
+                VIAM_SDK_LOG(info) << "[frameLoop] pipeline stopped, exiting frame loop";
                 break;
             }
         }
@@ -369,8 +369,8 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         bool succ = pipeline.try_wait_for_frames(&frames, timeoutMillis);
         if (!succ) {
             if (debug_enabled) {
-                std::cerr << "[frameLoop] could not get frames from realsense after "
-                          << timeoutMillis << "ms" << std::endl;
+                VIAM_SDK_LOG(error) << "[frameLoop] could not get frames from realsense after "
+                          << timeoutMillis << "ms";
             }
             std::this_thread::sleep_for(failureWait);
             continue;
@@ -378,7 +378,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-            std::cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
+            VIAM_SDK_LOG(debug) << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
         }
 
         if (!deviceProps->disableColor && !deviceProps->disableDepth) {
@@ -390,8 +390,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             try {
                 frames = FRAME_ALIGNMENT.process(frames);
             } catch (const std::exception& e) {
-                std::cerr << "[frameLoop] exception while aligning images: " << e.what()
-                          << std::endl;
+                VIAM_SDK_LOG(error) << "[frameLoop] exception while aligning images: " << e.what();
                 std::this_thread::sleep_for(failureWait);
                 continue;
             }
@@ -399,7 +398,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             if (debug_enabled) {
                 auto stop = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-                std::cout << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
+                VIAM_SDK_LOG(debug) << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
             }
         }
         // scale every pixel value to be depth in units of mm
@@ -430,7 +429,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-            std::cout << "[frameLoop] total:           " << duration.count() << "ms\n";
+            VIAM_SDK_LOG(debug) << "[frameLoop] total:           " << duration.count() << "ms\n";
         }
 
         if (!readyOnce) {
@@ -468,14 +467,12 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     rs2::device selected_device = devices.front();
 
     auto serial = selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-    std::cout << "found device:\n";
-    std::cout << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME) << "\n";
-    std::cout << "serial:    " << serial << "\n";
-    std::cout << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION)
-              << "\n";
-    std::cout << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT) << "\n";
-    std::cout << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR)
-              << "\n";
+    VIAM_SDK_LOG(info) << "found device:";
+    VIAM_SDK_LOG(info) << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME);
+    VIAM_SDK_LOG(info) << "serial:    " << serial;
+    VIAM_SDK_LOG(info) << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+    VIAM_SDK_LOG(info) << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT);
+    VIAM_SDK_LOG(info) << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
 
     float depthScaleMm = 0.0;
     if (!disableDepth) {
@@ -486,14 +483,14 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     cfg.enable_device(serial);
 
     if (!disableColor) {
-        std::cout << "color width and height from config: (" << colorWidth << ", " << colorHeight
-                  << ")\n";
+        VIAM_SDK_LOG(info) << "color width and height from config: (" << colorWidth << ", " << colorHeight
+                  << ")";
         cfg.enable_stream(RS2_STREAM_COLOR, colorWidth, colorHeight, RS2_FORMAT_RGB8);
     }
 
     if (!disableDepth) {
-        std::cout << "depth width and height from config: (" << depthWidth << ", " << depthHeight
-                  << ")\n";
+        VIAM_SDK_LOG(info) << "depth width and height from config: (" << depthWidth << ", " << depthHeight
+                  << ")";
         cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight, RS2_FORMAT_Z16);
     }
 
@@ -539,20 +536,19 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
         }
     }
 
-    std::cout << "pipeline started with:\n";
-    std::cout << "color_enabled:  " << std::boolalpha << !disableColor << "\n";
+    VIAM_SDK_LOG(info) << "pipeline started with:";
+    VIAM_SDK_LOG(info) << "color_enabled:  " << std::boolalpha << !disableColor;
     if (!disableColor) {
-        std::cout << "color_width:    " << props.color.width << "\n";
-        std::cout << "color_height:   " << props.color.height << "\n";
+        VIAM_SDK_LOG(info) << "color_width:    " << props.color.width << "    color_height:   " << props.color.height;
     }
-    std::cout << "depth_enabled:  " << !disableDepth << std::endl;
+
+    VIAM_SDK_LOG(info) << "depth_enabled:  " << !disableDepth;
     if (!disableDepth) {
         auto alignedText = "";
         if (!disableColor) {
             alignedText = " (aligned to color)";
         }
-        std::cout << "depth_width:    " << props.depth.width << alignedText << "\n";
-        std::cout << "depth_height:   " << props.depth.height << alignedText << std::endl;
+        VIAM_SDK_LOG(info) << "depth_width:    " << props.depth.width << alignedText << " depth_height:   " << props.depth.height << alignedText;
     }
 
     return std::make_tuple(pipeline, props);
@@ -568,7 +564,7 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         return;
     }
     if (info.was_added(info.get_new_devices().front())) {
-        std::cout << "Device was reconnected, restarting pipeline" << std::endl;
+        VIAM_SDK_LOG(info) << "Device was reconnected, restarting pipeline";
         {
             // wait until frameLoop is stopped
             std::unique_lock<std::mutex> lock(device->mutex);
@@ -582,15 +578,17 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
                 startPipeline(device->disableDepth, device->depthWidth, device->depthHeight,
                               device->disableColor, device->colorWidth, device->colorHeight);
         } catch (const std::exception& e) {
-            std::cout << "caught exception: \"" << e.what() << "\"" << std::endl;
+            VIAM_SDK_LOG(error) << "caught exception: \"" << e.what();
             return;
         }
+
         // Start the camera std::thread
         std::promise<void> ready;
         std::thread cameraThread(frameLoop, pipeline, ref(ready), device, props.depthScaleMm);
-        std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+
+        VIAM_SDK_LOG(info) << "waiting for camera frame loop thread to be ready...";
         ready.get_future().wait();
-        std::cout << "camera frame loop ready!" << std::endl;
+        VIAM_SDK_LOG(info) << "camera frame loop ready!";
         cameraThread.detach();
     }
 };

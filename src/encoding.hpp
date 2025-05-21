@@ -48,7 +48,7 @@ color_response encodeColorPNG(const void* data, const uint width, const uint hei
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  PNG color encode:      " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[GetImage]  PNG color encode:      " << duration.count() << "ms";
     }
     return {std::move(encoded)};
 }
@@ -100,7 +100,7 @@ jpeg_image encodeJPEG(const unsigned char* data, const uint width, const uint he
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  JPEG color encode:     " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[GetImage]  JPEG color encode:     " << duration.count() << "ms";
     }
 
     jpeg_image output(encoded, encodedSize);
@@ -163,7 +163,7 @@ raw_camera_image encodeColorRAW(const unsigned char* data, const uint32_t width,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  RAW color encode:      " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[GetImage]  RAW color encode:      " << duration.count() << "ms";
     }
     return {std::move(rawBuf), totalByteCount};
 }
@@ -211,7 +211,7 @@ raw_camera_image encodeDepthPNG(const unsigned char* data, const uint width, con
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  PNG depth encode:      " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[GetImage]  PNG depth encode:      " << duration.count() << "ms";
     }
 
     return {std::move(uniqueEncoded), encoded_size};
@@ -247,7 +247,7 @@ raw_camera_image encodeDepthRAW(const unsigned char* data, const uint64_t width,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[GetImage]  RAW depth encode:      " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[GetImage]  RAW depth encode:      " << duration.count() << "ms";
     }
 
     return raw_camera_image{raw_camera_image::uniq(rawBuf, raw_camera_image::array_delete_deleter),
@@ -331,14 +331,14 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
 
     // Post-process subsampling if the data size exceeds the gRPC message size limit
     if (dataBytes.size() > MAX_GRPC_MESSAGE_SIZE) {
-        std::cout << "Subsampling point cloud data: original size=" << dataBytes.size() << " bytes" << std::endl;
+        VIAM_SDK_LOG(info) << "Subsampling point cloud data: original size=" << dataBytes.size() << " bytes";
         std::vector<unsigned char> subsampledData;
         int subsampleRatio = dataBytes.size() / MAX_GRPC_MESSAGE_SIZE + 1;
         for (size_t i = 0; i < dataBytes.size(); i += subsampleRatio * pointSize) {
             subsampledData.insert(subsampledData.end(), dataBytes.begin() + i, dataBytes.begin() + i + pointSize);
         }
         dataBytes = std::move(subsampledData);
-        std::cout << "Subsampled point cloud data: new size=" << dataBytes.size() << " bytes" << std::endl;
+        VIAM_SDK_LOG(info) << "Subsampled point cloud data: new size=" << dataBytes.size() << " bytes";
     }
 
     size_t numPoints = dataBytes.size() / pointSize;
