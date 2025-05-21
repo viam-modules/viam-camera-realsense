@@ -77,15 +77,15 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     std::vector<std::string> sensors;
 
     if (attrs.count("sensors")) {
-        if (sdk::ProtoList* sensors = attrs["sensors"].get<sdk::ProtoList>()) {
-            for (const auto& element : *sensors) {
+        if (const sdk::ProtoList* sensor_list = attrs["sensors"].get<sdk::ProtoList>()) {
+            for (const auto& element : *sensor_list) {
                 if (const std::string* sensor_name = element.get<std::string>()) {
                     if (*sensor_name == "color") {
                         disableColor = false;
-                        sensors->push_back("color");
+                        sensors.push_back("color");
                     } else if (*sensor_name == "depth") {
                         disableDepth = false;
-                        sensors->push_back("depth");
+                        sensors.push_back("depth");
                     }
                 }
             }
@@ -95,6 +95,9 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     if (disableColor && disableDepth) {
         throw std::runtime_error("cannot disable both color and depth");
     }
+
+    VIAM_SDK_LOG(debug) << "disableDepth: " << disableDepth << " disableColor: " << disableColor
+        << " sensors size " << sensors.size();
 
     // DeviceProperties context also holds a bool that can stop the thread if device gets
     // disconnected
@@ -106,8 +109,8 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     std::tie(pipe, props) = startPipeline(disableDepth, width, height, disableColor, width, height);
     // First start of camera thread
     props.sensors = sensors;
-    props.mainSensor = sensors[0];
-    VIAM_SDK_LOG(info) << "main sensor will be " << sensors[0];
+    props.mainSensor = sensors.front();
+    VIAM_SDK_LOG(info) << "main sensor will be " << sensors.front();
     props.littleEndianDepth = littleEndianDepth;
     if (props.mainSensor == "depth") {
         VIAM_SDK_LOG(debug) << std::boolalpha << "depth little endian encoded: " << littleEndianDepth;
