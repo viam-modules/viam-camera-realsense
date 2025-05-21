@@ -34,6 +34,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
+| `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. If not provided, the module will use the first RealSense camera it detects. If provided but empty, an error will occur. |
 
 ## Example configuration:
 
@@ -46,7 +47,8 @@ The following attributes are available for `viam:camera:realsense` cameras:
         "sensors": ["color","depth"],
         "width_px": 640,
         "height_px": 480,
-        "little_endian_depth": false
+        "little_endian_depth": false,
+        "serial_number": "YOUR_CAMERA_SERIAL_NUMBER"
       },
       "namespace": "rdk",
       "type": "camera",

@@ -20,6 +20,7 @@
 namespace viam {
 namespace realsense {
 
+// align to the color camera's origin when color and depth enabled
 const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 
 // initialize will use the ResourceConfigs to begin the realsense pipeline.
@@ -487,7 +488,7 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     } else {
         for (auto&& dev : devices) {
             std::string current_serial = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            std::cout << "current_serial: " << current_serial << std::endl;
+            std::cout << "current_serial: " << current_serial << std::endl; // change to debug log once lia's change is in
             if (current_serial == serial_number_from_config) {
                 selected_device = dev;
                 break;
