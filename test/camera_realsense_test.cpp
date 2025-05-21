@@ -33,8 +33,8 @@ TEST(ResourceConfigTest, ValidConfig) {
     serialNumberValue.set_string_value("1234567890");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = serialNumberValue;
 
-    std::vector<std::string> expected;  // the empty string vector is expected
-    EXPECT_EQ(vrs::validate(vsdk::ResourceConfig::from_proto(testConfig)), expected);
+    std::vector<std::string> expected_deps;
+    EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected_deps);
 }
 
 // Test that the validate function returns an expected error when the required "sensors" are not
@@ -47,7 +47,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     // test that the sensors attribute is missing
     try {
         std::vector<std::string> result =
-            vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+            vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch sensors attribute missing";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
@@ -62,7 +62,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     (*testConfig.mutable_attributes()->mutable_fields())["sensors"] = sensorListValue;
     try {
         std::vector<std::string> result =
-            vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+            vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch empty sensors list";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
@@ -94,7 +94,7 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
     emptySerialNumberValue.set_string_value("");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = emptySerialNumberValue;
     try {
-        vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+        vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument for empty serial_number";
     } catch (const std::invalid_argument& e) {
         EXPECT_EQ(std::string(e.what()), "serial_number cannot be empty");
@@ -107,7 +107,7 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
     nonStringSerialNumberValue.set_number_value(12345);
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = nonStringSerialNumberValue;
     try {
-        vrs::validate(vsdk::ResourceConfig::from_proto(testConfig));
+        vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument for non-string serial_number";
     } catch (const std::invalid_argument& e) {
         EXPECT_EQ(std::string(e.what()), "serial_number must be a string");
@@ -119,8 +119,8 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
     ::google::protobuf::Value validSerialNumberValue;
     validSerialNumberValue.set_string_value("1234567890");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = validSerialNumberValue;
-    std::vector<std::string> expected_deps; // empty vector expected for successful validation
-    EXPECT_EQ(vrs::validate(vsdk::ResourceConfig::from_proto(testConfig)), expected_deps);
+    std::vector<std::string> expected_deps_valid_serial; // empty vector expected for successful validation
+    EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected_deps_valid_serial);
 }
 
 int main(int argc, char** argv) {

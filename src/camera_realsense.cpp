@@ -13,6 +13,7 @@
 #include <tuple>
 #include <vector> 
 
+#include <viam/sdk/log/logging.hpp>
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
@@ -26,7 +27,7 @@ const rs2::align FRAME_ALIGNMENT = RS2_STREAM_COLOR;
 // initialize will use the ResourceConfigs to begin the realsense pipeline.
 std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::ResourceConfig cfg) {
     if (device_ != nullptr) {
-        std::cout << "reinitializing, restarting pipeline" << std::endl;
+        VIAM_SDK_LOG(info) << "reinitializing, restarting pipeline";
         {
             // wait until frameLoop is stopped
             std::unique_lock<std::mutex> lock(device_->mutex);
@@ -34,71 +35,58 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             device_->cv.wait(lock, [this] { return !(device_->isRunning); });
         }
     }
-    std::cout << "initializing the Intel RealSense Camera Module" << std::endl;
+    VIAM_SDK_LOG(info) << "initializing the Intel RealSense Camera Module";
     // set variables from config
     uint width = 0;
     uint height = 0;
     auto attrs = cfg.attributes();
-    if (attrs->count("width_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
-        auto width_value = width_proto->proto_value();
-        if (width_value.has_number_value()) {
-            uint width_num = static_cast<uint>(width_value.number_value());
-            width = width_num;
+
+    if (attrs.count("width_px")) {
+        if (const double* width_val = attrs["width_px"].get<double>()) {
+            width = static_cast<uint>(*width_val);
         }
     }
-    if (attrs->count("height_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
-        auto height_value = height_proto->proto_value();
-        if (height_value.has_number_value()) {
-            uint height_num = static_cast<uint>(height_value.number_value());
-            height = height_num;
+
+    if (attrs.count("height_px")) {
+        if (const double* height_val = attrs["height_px"].get<double>()) {
+            height = static_cast<uint>(*height_val);
         }
     }
+
     if (width == 0 || height == 0) {
-        std::cout << "note: will pick any suitable width and height" << std::endl;
+        VIAM_SDK_LOG(debug) << "note: will pick any suitable width and height";
     }
     std::string serial_number;
-    if (attrs->count("serial_number") == 1) {
-        std::shared_ptr<sdk::ProtoType> serial_proto = attrs->at("serial_number");
-        auto serial_value = serial_proto->proto_value();
-        if (serial_value.has_string_value()) {
-            serial_number = serial_value.string_value();
+    if (attrs.count("serial_number")) {
+        if (const std::string* serial_val = attrs["serial_number"].get<std::string>()) {
+            serial_number = *serial_val;
         }
     }
-    if (attrs->count("debug") == 1) {
-        std::shared_ptr<sdk::ProtoType> debug_proto = attrs->at("debug");
-        auto debug_value = debug_proto->proto_value();
-        if (debug_value.has_bool_value()) {
-            bool debug_bool = static_cast<bool>(debug_value.bool_value());
-            debug_enabled = debug_bool;
+    if (attrs.count("debug")) {
+        if (const bool* debug_val = attrs["debug"].get<bool>()) {
+            debug_enabled = *debug_val;
         }
     }
+
     bool littleEndianDepth = false;
-    if (attrs->count("little_endian_depth") == 1) {
-        std::shared_ptr<sdk::ProtoType> endian_proto = attrs->at("little_endian_depth");
-        auto endian_value = endian_proto->proto_value();
-        if (endian_value.has_bool_value()) {
-            bool endian_bool = static_cast<bool>(endian_value.bool_value());
-            littleEndianDepth = endian_bool;
+    if (attrs.count("little_endian_depth")) {
+        if (const bool* endian_depth = attrs["little_endian_depth"].get<bool>()) {
+            littleEndianDepth = endian_depth;
         }
     }
+
     bool disableDepth = true;
     bool disableColor = true;
     std::vector<std::string> sensors;
-    if (attrs->count("sensors") == 1) {
-        std::shared_ptr<sdk::ProtoType> sensor_proto = attrs->at("sensors");
-        auto sensor_value = sensor_proto->proto_value();
-        if (sensor_value.has_list_value()) {
-            auto sensor_list = sensor_value.list_value();
-            for (const auto element : sensor_list.values()) {
-                if (element.has_string_value()) {
-                    std::string sensor_name = static_cast<std::string>(element.string_value());
-                    if (sensor_name == "color") {
+
+    if (attrs.count("sensors")) {
+        if (const sdk::ProtoList* sensor_list_ptr = attrs["sensors"].get<sdk::ProtoList>()) {
+            for (const auto& element : *sensor_list_ptr) {
+                if (const std::string* sensor_name = element.get<std::string>()) {
+                    if (*sensor_name == "color") {
                         disableColor = false;
                         sensors.push_back("color");
-                    }
-                    if (sensor_name == "depth") {
+                    } else if (*sensor_name == "depth") {
                         disableDepth = false;
                         sensors.push_back("depth");
                     }
@@ -106,9 +94,13 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             }
         }
     }
+
     if (disableColor && disableDepth) {
         throw std::runtime_error("cannot disable both color and depth");
     }
+
+    VIAM_SDK_LOG(debug) << "disableDepth: " << disableDepth << " disableColor: " << disableColor
+        << " sensors size " << sensors.size();
 
     // DeviceProperties context also holds a bool that can stop the thread if device gets
     // disconnected
@@ -123,18 +115,17 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     std::tie(pipe, props) = startPipeline(disableDepth, width, height, disableColor, width, height, serial_number);
     // First start of camera thread
     props.sensors = sensors;
-    props.mainSensor = sensors[0];
-    std::cout << "main sensor will be " << sensors[0] << std::endl;
+    props.mainSensor = sensors.front();
+    VIAM_SDK_LOG(info) << "main sensor will be " << sensors.front();
     props.littleEndianDepth = littleEndianDepth;
     if (props.mainSensor == "depth") {
-        std::cout << std::boolalpha << "depth little endian encoded: " << littleEndianDepth
-                  << std::endl;
+        VIAM_SDK_LOG(debug) << std::boolalpha << "depth little endian encoded: " << littleEndianDepth;
     }
     std::promise<void> ready;
     std::thread cameraThread(frameLoop, pipe, std::ref(ready), device_, props.depthScaleMm, std::ref(this->latest_frames_));
-    std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+    VIAM_SDK_LOG(info) << "waiting for camera frame loop thread to be ready...";
     ready.get_future().wait();
-    std::cout << "camera frame loop ready!" << std::endl;
+    VIAM_SDK_LOG(info) << "camera frame loop ready!";
     cameraThread.detach();
     return std::make_tuple(props, disableColor, disableDepth);
 }
@@ -178,7 +169,7 @@ void CameraRealSense::reconfigure(const sdk::Dependencies& deps, const sdk::Reso
 }
 
 sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
-                                                  const sdk::AttributeMap& extra) {
+                                                  const sdk::ProtoStruct& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -226,7 +217,7 @@ sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_image]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_image]  total:           " << duration.count() << "ms\n";
     }
 
     return std::move(*response);
@@ -289,23 +280,26 @@ sdk::Camera::image_collection CameraRealSense::get_images() {
             response.images.emplace_back(std::move(*depth_response));
         }
     }
-    response.metadata.captured_at = std::chrono::time_point<long long, std::chrono::nanoseconds>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp));
+
+    response.metadata.captured_at = 
+        sdk::time_pt{std::chrono::duration_cast<std::chrono::nanoseconds>(latestTimestamp)};
+    
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_images]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_images]  total:           " << duration.count() << "ms\n";
     }
+
     return response;
 }
 
-sdk::AttributeMap CameraRealSense::do_command(const sdk::AttributeMap& command) {
-    std::cerr << "do_command not implemented" << std::endl;
-    return sdk::AttributeMap{};
+sdk::ProtoStruct CameraRealSense::do_command(const sdk::ProtoStruct& command) {
+    VIAM_SDK_LOG(error) << "do_command not implemented";
+    return sdk::ProtoStruct{};
 }
 
 sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
-                                                          const sdk::AttributeMap& extra) {
+                                                          const sdk::ProtoStruct& extra) {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     if (debug_enabled) {
         start = std::chrono::high_resolution_clock::now();
@@ -326,7 +320,7 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
         pc.map_to(latestColorFrame);
     }
     if (!latestDepthFrame) {
-        std::cerr << "cannot get point cloud as there is no depth frame" << std::endl;
+        VIAM_SDK_LOG(error) << "cannot get point cloud as there is no depth frame";
         return sdk::Camera::point_cloud{};
     }
     points = pc.calculate(latestDepthFrame);
@@ -335,13 +329,13 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
     if (debug_enabled) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << "[get_point_cloud]  total:           " << duration.count() << "ms\n";
+        VIAM_SDK_LOG(debug) << "[get_point_cloud]  total:           " << duration.count() << "ms\n";
     }
     return sdk::Camera::point_cloud{mime_type, pcdBytes};
 }
 
-std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::AttributeMap& extra) {
-    std::cerr << "get_geometries not implemented" << std::endl;
+std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::ProtoStruct& extra) {
+    VIAM_SDK_LOG(error) << "get_geometries not implemented";
     return std::vector<sdk::GeometryConfig>{};
 }
 
@@ -360,13 +354,13 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
     rs2::context ctx;
     ctx.set_devices_changed_callback(
         [&](rs2::event_information& info) { on_device_reconnect(info, pipeline, deviceProps); });
-    std::cout << "[frameLoop] frame loop is starting" << std::endl;
+    VIAM_SDK_LOG(info) << "[frameLoop] frame loop is starting";
     while (true) {
         {
             std::lock_guard<std::mutex> lock(deviceProps->mutex);
             if (!deviceProps->shouldRun) {
                 pipeline.stop();
-                std::cout << "[frameLoop] pipeline stopped, exiting frame loop" << std::endl;
+                VIAM_SDK_LOG(info) << "[frameLoop] pipeline stopped, exiting frame loop";
                 break;
             }
         }
@@ -385,8 +379,8 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         bool succ = pipeline.try_wait_for_frames(&frames, timeoutMillis);
         if (!succ) {
             if (debug_enabled) {
-                std::cerr << "[frameLoop] could not get frames from realsense after "
-                          << timeoutMillis << "ms" << std::endl;
+                VIAM_SDK_LOG(error) << "[frameLoop] could not get frames from realsense after "
+                          << timeoutMillis << "ms";
             }
             std::this_thread::sleep_for(failureWait);
             continue;
@@ -394,7 +388,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-            std::cout << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
+            VIAM_SDK_LOG(debug) << "[frameLoop] wait for frames: " << duration.count() << "ms\n";
         }
 
         if (!deviceProps->disableColor && !deviceProps->disableDepth) {
@@ -406,8 +400,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             try {
                 frames = FRAME_ALIGNMENT.process(frames);
             } catch (const std::exception& e) {
-                std::cerr << "[frameLoop] exception while aligning images: " << e.what()
-                          << std::endl;
+                VIAM_SDK_LOG(error) << "[frameLoop] exception while aligning images: " << e.what();
                 std::this_thread::sleep_for(failureWait);
                 continue;
             }
@@ -415,7 +408,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
             if (debug_enabled) {
                 auto stop = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-                std::cout << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
+                VIAM_SDK_LOG(debug) << "[frameLoop] frame alignment: " << duration.count() << "ms\n";
             }
         }
         // scale every pixel value to be depth in units of mm
@@ -446,7 +439,7 @@ void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
         if (debug_enabled) {
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-            std::cout << "[frameLoop] total:           " << duration.count() << "ms\n";
+            VIAM_SDK_LOG(debug) << "[frameLoop] total:           " << duration.count() << "ms\n";
         }
 
         if (!readyOnce) {
@@ -488,9 +481,9 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     } else {
         for (auto&& dev : devices) {
             std::string current_serial = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            std::cout << "Found device with serial number: " << current_serial << "\n"; // TODO(sean yu): change to debug log once lia's change is in
+            VIAM_SDK_LOG(debug) << "Found device with serial number: " << current_serial;
             if (current_serial == serial_number_from_config) {
-                std::cout << "Found device with same serial number as from config: " << current_serial << "\n"; // TODO(sean yu): change to debug log once lia's change is in
+                VIAM_SDK_LOG(debug) << "Found device with same serial number as from config: " << current_serial;
                 selected_device = dev;
             }
         }
@@ -500,14 +493,12 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     }
 
     auto serial_from_rs2 = selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-    std::cout << "found device:\n";
-    std::cout << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME) << "\n";
-    std::cout << "serial:    " << serial_from_rs2 << "\n";
-    std::cout << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION)
-              << "\n";
-    std::cout << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT) << "\n";
-    std::cout << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR)
-              << "\n";
+    VIAM_SDK_LOG(info) << "found device:";
+    VIAM_SDK_LOG(info) << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME);
+    VIAM_SDK_LOG(info) << "serial:    " << serial_from_rs2;
+    VIAM_SDK_LOG(info) << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+    VIAM_SDK_LOG(info) << "port:      " << selected_device.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT);
+    VIAM_SDK_LOG(info) << "usb type:  " << selected_device.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
 
     float depthScaleMm = 0.0;
     if (!disableDepth) {
@@ -518,14 +509,14 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     cfg.enable_device(serial_from_rs2);
 
     if (!disableColor) {
-        std::cout << "color width and height from config: (" << colorWidth << ", " << colorHeight
-                  << ")\n";
+        VIAM_SDK_LOG(info) << "color width and height from config: (" << colorWidth << ", " << colorHeight
+                  << ")";
         cfg.enable_stream(RS2_STREAM_COLOR, colorWidth, colorHeight, RS2_FORMAT_RGB8);
     }
 
     if (!disableDepth) {
-        std::cout << "depth width and height from config: (" << depthWidth << ", " << depthHeight
-                  << ")\n";
+        VIAM_SDK_LOG(info) << "depth width and height from config: (" << depthWidth << ", " << depthHeight
+                  << ")";
         cfg.enable_stream(RS2_STREAM_DEPTH, depthWidth, depthHeight, RS2_FORMAT_Z16);
     }
 
@@ -572,20 +563,19 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
         }
     }
 
-    std::cout << "pipeline started with:\n";
-    std::cout << "color_enabled:  " << std::boolalpha << !disableColor << "\n";
+    VIAM_SDK_LOG(info) << "pipeline started with:";
+    VIAM_SDK_LOG(info) << "color_enabled:  " << std::boolalpha << !disableColor;
     if (!disableColor) {
-        std::cout << "color_width:    " << props.color.width << "\n";
-        std::cout << "color_height:   " << props.color.height << "\n";
+        VIAM_SDK_LOG(info) << "color_width:    " << props.color.width << "    color_height:   " << props.color.height;
     }
-    std::cout << "depth_enabled:  " << !disableDepth << std::endl;
+
+    VIAM_SDK_LOG(info) << "depth_enabled:  " << !disableDepth;
     if (!disableDepth) {
         auto alignedText = "";
         if (!disableColor) {
             alignedText = " (aligned to color)";
         }
-        std::cout << "depth_width:    " << props.depth.width << alignedText << "\n";
-        std::cout << "depth_height:   " << props.depth.height << alignedText << std::endl;
+        VIAM_SDK_LOG(info) << "depth_width:    " << props.depth.width << alignedText << " depth_height:   " << props.depth.height << alignedText;
     }
 
     return std::make_tuple(pipeline, props);
@@ -609,15 +599,15 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
             std::string new_dev_serial = new_dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
             if (target_serial_number.empty()) {
                 // No specific S/N configured, any new device is a candidate.
-                std::cout << "[on_device_reconnect] A new RealSense device (S/N: " << new_dev_serial
-                          << ") was connected. Attempting to use it as no specific S/N was configured.\n";
+                VIAM_SDK_LOG(info) << "[on_device_reconnect] A new RealSense device (S/N: " << new_dev_serial
+                          << ") was connected. Attempting to use it as no specific S/N was configured.";
                 device_found_to_reconnect = true;
                 break; 
             } else {
                 // Specific S/N configured, check for a match.
                 if (new_dev_serial == target_serial_number) {
-                    std::cout << "[on_device_reconnect] Configured device with S/N " << target_serial_number
-                              << " reconnected." << std::endl;
+                    VIAM_SDK_LOG(info) << "[on_device_reconnect] Configured device with S/N " << target_serial_number
+                              << " reconnected.";
                     device_found_to_reconnect = true;
                     break;
                 }
@@ -629,7 +619,7 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         return;
     }
 
-    std::cout << "[on_device_reconnect] Device was reconnected, restarting pipeline" << std::endl;
+    VIAM_SDK_LOG(info) << "[on_device_reconnect] Device was reconnected, restarting pipeline";
     {
         // wait until frameLoop is stopped
         std::unique_lock<std::mutex> lock(device->mutex);
@@ -644,7 +634,7 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
                             device->disableColor, device->colorWidth, device->colorHeight,
                             target_serial_number);
     } catch (const std::exception& e) {
-        std::cerr << "[on_device_reconnect] Failed to restart pipeline: " << e.what() << std::endl;
+        VIAM_SDK_LOG(error) << "[on_device_reconnect] Failed to restart pipeline: " << e.what();
         std::lock_guard<std::mutex> lock(device->mutex);
         device->isRunning = false; 
         device->shouldRun = false; 
@@ -658,61 +648,62 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         device->shouldRun = true;
     }
     std::thread cameraThread(frameLoop, pipeline, std::ref(ready), device, props.depthScaleMm, std::ref(device->latest_frames_ref));
-    std::cout << "waiting for camera frame loop thread to be ready..." << std::endl;
+    VIAM_SDK_LOG(info) << "waiting for camera frame loop thread to be ready...";
     ready.get_future().wait();
-    std::cout << "camera frame loop ready!" << std::endl;
+    VIAM_SDK_LOG(info) << "camera frame loop ready!";
     cameraThread.detach();
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will throw an exception.
 std::vector<std::string> validate(sdk::ResourceConfig cfg) {
     auto attrs = cfg.attributes();
-    if (attrs->count("width_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> width_proto = attrs->at("width_px");
-        auto width_value = width_proto->proto_value();
-        if (width_value.has_number_value()) {
-            int width_num = static_cast<int>(width_value.number_value());
-            if (width_num < 0) {
+
+    if (attrs.count("width_px")) {
+        if (const double* width = attrs["width_px"].get<double>()) {
+            if (static_cast<int>(*width) < 0) {
                 throw std::invalid_argument("width_px cannot be negative");
             }
         }
     }
-    if (attrs->count("height_px") == 1) {
-        std::shared_ptr<sdk::ProtoType> height_proto = attrs->at("height_px");
-        auto height_value = height_proto->proto_value();
-        if (height_value.has_number_value()) {
-            int height_num = static_cast<int>(height_value.number_value());
-            if (height_num < 0) {
+
+    if (attrs.count("height_px")) {
+        if (const double* height = attrs["height_px"].get<double>()) {
+            if (static_cast<int>(*height) < 0) {
                 throw std::invalid_argument("height_px cannot be negative");
             }
         }
     }
-    if (attrs->count("serial_number") == 1) {
-        std::shared_ptr<sdk::ProtoType> serial_proto = attrs->at("serial_number");
-        auto serial_value = serial_proto->proto_value();
-        if (serial_value.has_string_value()) {
-            std::string serial_str = serial_value.string_value();
-            if (serial_str.empty()) {
+    if (attrs.count("serial_number") == 1) {
+        if (const std::string* serial_val = attrs["serial_number"].get<std::string>()) {
+            if (serial_val->empty()) {
                 throw std::invalid_argument("serial_number cannot be empty");
             }
         } else {
             throw std::invalid_argument("serial_number must be a string");
         }
     }
-    if (attrs->count("sensors") >= 1) {
-        std::shared_ptr<sdk::ProtoType> sensors_proto = attrs->at("sensors");
-        auto sensors_value = sensors_proto->proto_value();
-        if (sensors_value.has_list_value()) {
-            auto sensors_list = sensors_value.list_value();
-            if (sensors_list.values().size() == 0) {
+
+    if (attrs.count("sensors")) {
+        if (const sdk::ProtoList* sensors_list = attrs["sensors"].get<sdk::ProtoList>()) {
+            if (sensors_list->empty()) {
                 throw std::invalid_argument(
                     "sensors field cannot be empty, must list color and/or depth sensor");
             }
+            for (const auto& sensor_element : *sensors_list) {
+                if (!sensor_element.get<std::string>()) {
+                    throw std::invalid_argument(
+                        "elements in 'sensors' list must be strings (e.g., \"color\", "
+                        "\"depth\")");
+                }
+            }
+        } else {
+            throw std::invalid_argument("'sensors' attribute must be a list of strings");
         }
     } else {
         throw std::invalid_argument("could not find required 'sensors' attribute in the config");
     }
-    return {};
+
+    return {}; // Empty vector means validation passed
 }
 
 int serve(int argc, char** argv) {
@@ -732,3 +723,4 @@ int serve(int argc, char** argv) {
 
 }  // namespace realsense
 }  // namespace viam
+

@@ -1,5 +1,7 @@
 #include "src/camera_realsense.hpp"
 
+#include <viam/sdk/common/instance.hpp>
+
 int main(int argc, char** argv) {
     const std::string usage = "usage: camera_realsense /path/to/unix/socket";
 
@@ -9,5 +11,6 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    viam::sdk::Instance instance;
     return viam::realsense::serve(argc, argv);
 }
