@@ -26,6 +26,14 @@ constexpr char kAPINamespace[] = "viam";
 constexpr char kAPIType[] = "camera";
 constexpr char kAPISubtype[] = "realsense";
 
+struct AtomicFrameSet {
+    std::mutex mutex;
+    rs2::frame colorFrame;
+    std::shared_ptr<std::vector<uint16_t>> depthFrame;
+    rs2::frame rsDepthFrame;
+    std::chrono::milliseconds timestamp;
+};
+
 struct DeviceProperties {
     const uint colorWidth;
     const uint colorHeight;
@@ -33,19 +41,23 @@ struct DeviceProperties {
     const uint depthWidth;
     const uint depthHeight;
     const bool disableDepth;
+    std::string serial_number_to_use;
+    AtomicFrameSet& latest_frames_ref;
     bool shouldRun;
     bool isRunning;
     std::condition_variable cv;
     std::mutex mutex;
-    // DeviceProperties construtor
+    // DeviceProperties constructor
     DeviceProperties(int colorWidth_, int colorHeight_, bool disableColor_, int depthWidth_,
-                     int depthHeight_, bool disableDepth_)
+                     int depthHeight_, bool disableDepth_,
+                     AtomicFrameSet& frames_ref)
         : colorWidth(colorWidth_),
           colorHeight(colorHeight_),
           disableColor(disableColor_),
           depthWidth(depthWidth_),
           depthHeight(depthHeight_),
           disableDepth(disableDepth_),
+          latest_frames_ref(frames_ref),
           shouldRun(true),
           isRunning(false) {}
 };
@@ -68,6 +80,7 @@ struct RealSenseProperties {
     std::string mainSensor;
     std::vector<std::string> sensors;
     bool littleEndianDepth;
+    std::string serial_number;
 };
 
 struct PipelineWithProperties {
@@ -75,23 +88,17 @@ struct PipelineWithProperties {
     RealSenseProperties properties;
 };
 
-struct AtomicFrameSet {
-    std::mutex mutex;
-    rs2::frame colorFrame;
-    std::shared_ptr<std::vector<uint16_t>> depthFrame;
-    rs2::frame rsDepthFrame;
-    std::chrono::milliseconds timestamp;
-};
-
 // The underlying realsense loop functions
 float getDepthScale(rs2::device dev);
 void frameLoop(rs2::pipeline pipeline, std::promise<void>& ready,
-               std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm);
+               std::shared_ptr<DeviceProperties> deviceProps, float depthScaleMm,
+               AtomicFrameSet& instance_latest_frames);
 void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
                          std::shared_ptr<DeviceProperties> device);
 std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
                                                              int depthHeight, bool disableColor,
-                                                             int colorWidth, int colorHeight);
+                                                             int colorWidth, int colorHeight,
+                                                             const std::string& serial_number);
 
 // Module functions
 std::vector<std::string> validate(sdk::ResourceConfig cfg);
@@ -104,6 +111,7 @@ class CameraRealSense : public sdk::Camera, public sdk::Reconfigurable {
     RealSenseProperties props_;
     bool disableColor_;
     bool disableDepth_;
+    AtomicFrameSet latest_frames_;
     std::tuple<RealSenseProperties, bool, bool> initialize(sdk::ResourceConfig cfg);
 
    public:
