@@ -66,7 +66,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
     }
 
     bool littleEndianDepth = false;
-    if (attrs.count("little_endian_depth") == 1) {
+    if (attrs.count("little_endian_depth")) {
         if (const bool* endian_depth = attrs["little_endian_depth"].get<bool>()) {
             littleEndianDepth = endian_depth;
         }
