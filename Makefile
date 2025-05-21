@@ -1,25 +1,29 @@
-# format the source code
+default: viam-camera-realsense
+
 format: src/*.cpp src/*.hpp test/*.cpp
 	ls src/*.cpp src/*.hpp test/*.cpp | xargs clang-format -i --style="{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
 
-SANITIZE ?= OFF
-viam-camera-realsense: src/*
-	rm -rf build/ && \
-	mkdir build && \
-	cd build && \
-	cmake -G Ninja -DENABLE_SANITIZER=$(SANITIZE) .. && \
-	ninja all -j 4 && \
-	cp viam-camera-realsense ../
+build:
+	mkdir build
 
-default: viam-camera-realsense
+build/build.ninja: build CMakeLists.txt
+	cd build && cmake -G Ninja -DENABLE_SANITIZER=$(SANITIZE) .. 
+
+SANITIZE ?= OFF
+viam-camera-realsense: src/* *.cpp build/build.ninja
+	cd build && ninja all -j 4
+	cp build/viam-camera-realsense .
 
 all: default
 
 clean:
-	rm -rf viam-camera-realsense
+	rm -rf viam-camera-realsense build
 
 clean-all: clean
 	git clean -fxd
+
+test: build/build.ninja
+	cd build && ninja -j 4 test/all && ctest
 
 # Docker
 BUILD_CMD = docker buildx build --pull $(BUILD_PUSH) --force-rm --no-cache --build-arg MAIN_TAG=$(MAIN_TAG) --build-arg BASE_TAG=$(BUILD_TAG) --platform linux/$(BUILD_TAG) -f $(BUILD_FILE) -t '$(MAIN_TAG):$(BUILD_TAG)' .
