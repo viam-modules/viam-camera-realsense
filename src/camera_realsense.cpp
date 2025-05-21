@@ -488,10 +488,10 @@ std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, 
     } else {
         for (auto&& dev : devices) {
             std::string current_serial = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            std::cout << "current_serial: " << current_serial << std::endl; // change to debug log once lia's change is in
+            std::cout << "Found device with serial number: " << current_serial << std::endl; // TODO(sean yu): change to debug log once lia's change is in
             if (current_serial == serial_number_from_config) {
+                std::cout << "Found device with same serial number as from config: " << current_serial << std::endl; // TODO(sean yu): change to debug log once lia's change is in
                 selected_device = dev;
-                break;
             }
         }
         if (!selected_device) {
