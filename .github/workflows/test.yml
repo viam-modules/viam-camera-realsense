@@ -28,17 +28,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create build directory
-        run: mkdir build
-
-      - name: Configure CMake
-        working-directory: build
-        run: cmake -G Ninja ..
-
       - name: Build the binary
-        working-directory: build
-        run: ninja all -j 4
+        run: make viam-camera-realsense
 
       - name: Run the tests
-        working-directory: build
-        run: ctest
+        run: make test
