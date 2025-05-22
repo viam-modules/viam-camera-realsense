@@ -469,31 +469,32 @@ float getDepthScale(rs2::device dev) {
 std::tuple<rs2::pipeline, RealSenseProperties> startPipeline(bool disableDepth, int depthWidth,
                                                              int depthHeight, bool disableColor,
                                                              int colorWidth, int colorHeight,
-                                                             const std::string& serial_number_from_config) {
+                                                             const std::string& target_serial_number) {
     rs2::context ctx;
     auto devices = ctx.query_devices();
     if (devices.size() == 0) {
-        throw std::runtime_error("no device connected; please connect an Intel RealSense device");
+        throw std::runtime_error("no devices connected; please connect an Intel RealSense device");
     }
+
     rs2::device selected_device;
-    if (serial_number_from_config.empty()) {
+    for (auto&& dev : devices) {
+        std::string current_serial_number = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+        VIAM_SDK_LOG(info) << "found available RealSense device with serial number: " << current_serial_number;
+        if (!target_serial_number.empty() && current_serial_number == target_serial_number) {
+            selected_device = dev;
+            // don't break because we want to log all available devices
+        }
+    }
+    if (target_serial_number.empty()) {
+        VIAM_SDK_LOG(info) << "no serial number specified in config, using first available device";
         selected_device = devices.front();
-    } else {
-        for (auto&& dev : devices) {
-            std::string current_serial = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-            VIAM_SDK_LOG(debug) << "Found device with serial number: " << current_serial;
-            if (current_serial == serial_number_from_config) {
-                VIAM_SDK_LOG(debug) << "Found device with same serial number as from config: " << current_serial;
-                selected_device = dev;
-            }
-        }
-        if (!selected_device) {
-            throw std::runtime_error("no device with the specified serial number " + serial_number_from_config + " found");
-        }
+    }
+    if (!selected_device) {
+        throw std::runtime_error("no device found with specified serial number: " + target_serial_number);
     }
 
     auto serial_from_rs2 = selected_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-    VIAM_SDK_LOG(info) << "found device:";
+    VIAM_SDK_LOG(info) << "starting pipeline with selected device:";
     VIAM_SDK_LOG(info) << "name:      " << selected_device.get_info(RS2_CAMERA_INFO_NAME);
     VIAM_SDK_LOG(info) << "serial:    " << serial_from_rs2;
     VIAM_SDK_LOG(info) << "firmware:  " << selected_device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
