@@ -35,7 +35,7 @@ std::tuple<RealSenseProperties, bool, bool> CameraRealSense::initialize(sdk::Res
             device_->cv.wait(lock, [this] { return !(device_->isRunning); });
         }
     }
-    VIAM_SDK_LOG(info) << "initializing the Intel RealSense Camera Module";
+    VIAM_SDK_LOG(info) << "initializing the Intel RealSense Camera resource";
     // set variables from config
     uint width = 0;
     uint height = 0;
@@ -704,7 +704,7 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
         throw std::invalid_argument("could not find required 'sensors' attribute in the config");
     }
 
-    return {}; // Empty vector means validation passed
+    return {};
 }
 
 int serve(int argc, char** argv) {
@@ -724,4 +724,3 @@ int serve(int argc, char** argv) {
 
 }  // namespace realsense
 }  // namespace viam
-

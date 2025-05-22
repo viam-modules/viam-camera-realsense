@@ -115,7 +115,7 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
         FAIL() << "Expected std::invalid_argument for non-string serial_number, got something else.";
     }
 
-    // Test that a valid serial_number (re-check within this specific test case) passes
+    // Test that a valid serial_number passes
     ::google::protobuf::Value validSerialNumberValue;
     validSerialNumberValue.set_string_value("1234567890");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = validSerialNumberValue;

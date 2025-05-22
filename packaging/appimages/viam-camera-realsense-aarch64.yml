@@ -14,6 +14,7 @@ script:
     mkdir -p $TARGET_APPDIR/usr/lib
     cp /lib/aarch64-linux-gnu/libabsl_* $TARGET_APPDIR/usr/lib/
     cp /lib/aarch64-linux-gnu/libboost_* $TARGET_APPDIR/usr/lib/
+    cp /lib/aarch64-linux-gnu/libicu* $TARGET_APPDIR/usr/lib/
   fi
 
 AppDir:
