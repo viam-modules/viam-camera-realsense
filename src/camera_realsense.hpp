@@ -42,7 +42,7 @@ struct DeviceProperties {
     const uint depthHeight;
     const bool disableDepth;
     std::string serial_number_to_use;
-    AtomicFrameSet& latest_frames_ref;
+    AtomicFrameSet& atomic_frame_set;
     bool shouldRun;
     bool isRunning;
     std::condition_variable cv;
@@ -57,7 +57,7 @@ struct DeviceProperties {
           depthWidth(depthWidth_),
           depthHeight(depthHeight_),
           disableDepth(disableDepth_),
-          latest_frames_ref(frames_ref),
+          atomic_frame_set(frames_ref),
           shouldRun(true),
           isRunning(false) {}
 };

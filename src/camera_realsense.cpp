@@ -648,7 +648,7 @@ void on_device_reconnect(rs2::event_information& info, rs2::pipeline pipeline,
         std::lock_guard<std::mutex> lock(device->mutex);
         device->shouldRun = true;
     }
-    std::thread cameraThread(frameLoop, pipeline, std::ref(ready), device, props.depthScaleMm, std::ref(device->latest_frames_ref));
+    std::thread cameraThread(frameLoop, pipeline, std::ref(ready), device, props.depthScaleMm, std::ref(device->atomic_frame_set));
     VIAM_SDK_LOG(info) << "waiting for camera frame loop thread to be ready...";
     ready.get_future().wait();
     VIAM_SDK_LOG(info) << "camera frame loop ready!";
