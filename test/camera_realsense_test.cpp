@@ -89,18 +89,12 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
     sensorListValue.mutable_list_value()->CopyFrom(sensorList);
     (*testConfig.mutable_attributes()->mutable_fields())["sensors"] = sensorListValue;
 
-    // Test that an empty serial_number string throws an error
+    // Test that an empty serial_number string is valid
     ::google::protobuf::Value emptySerialNumberValue;
     emptySerialNumberValue.set_string_value("");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = emptySerialNumberValue;
-    try {
-        vrs::validate(vsdk::from_proto(testConfig));
-        FAIL() << "Expected std::invalid_argument for empty serial_number";
-    } catch (const std::invalid_argument& e) {
-        EXPECT_EQ(std::string(e.what()), "serial_number cannot be empty");
-    } catch (...) {
-        FAIL() << "Expected std::invalid_argument for empty serial_number, got something else.";
-    }
+    std::vector<std::string> expected_deps_empty_serial; // empty vector expected for successful validation
+    EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected_deps_empty_serial);
 
     // Test that a non-string serial_number throws an error
     ::google::protobuf::Value nonStringSerialNumberValue;

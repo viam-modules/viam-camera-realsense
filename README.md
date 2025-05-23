@@ -15,10 +15,11 @@ Copy and paste the following attributes into your camera's JSON configuration:
 
 ```json
 {
-  "sensors": ["color","depth"],
+  "sensors": ["color", "depth"],
   "width_px": 640,
   "height_px": 480,
-  "little_endian_depth": false
+  "little_endian_depth": false,
+  "serial_number": ""
 }
 ```
 
@@ -34,7 +35,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `little_endian_depth` | bool | Optional | A bool that specifies whether raw depth data should be encoded in a little-endian byte order. By default it is `false`, and encodes the raw depth data in a big-endian byte order. |
-| `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If not provided, the module will use the first RealSense camera it detects. If provided but empty, an error will occur. |
+| `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If this field is omitted or is an empty string, the module will use the first RealSense camera it detects. |
 
 ## Example configuration:
 

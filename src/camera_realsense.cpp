@@ -674,12 +674,9 @@ std::vector<std::string> validate(sdk::ResourceConfig cfg) {
             }
         }
     }
-    if (attrs.count("serial_number") == 1) {
-        if (const std::string* serial_val = attrs["serial_number"].get<std::string>()) {
-            if (serial_val->empty()) {
-                throw std::invalid_argument("serial_number cannot be empty");
-            }
-        } else {
+
+    if (attrs.count("serial_number")) {
+        if (!attrs["serial_number"].get<std::string>()) {
             throw std::invalid_argument("serial_number must be a string");
         }
     }
