@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <viam/api/app/v1/robot.pb.h>
 
+#include <viam/sdk/common/instance.hpp>
 #include <viam/sdk/config/resource.hpp>
 
 namespace vsdk = ::viam::sdk;
@@ -120,6 +121,7 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
 }
 
 int main(int argc, char** argv) {
+    const vsdk::Instance instance;
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
