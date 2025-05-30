@@ -52,7 +52,7 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 RUN mkdir -p /root/opt/src
 
 # install Viam C++ SDK from source frozen at a commit or tag
-ENV PINNED_COMMIT_HASH="releases/v0.12.0"
+ENV PINNED_COMMIT_HASH="releases/v0.13.2"
 RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk && \
     cd viam-cpp-sdk && \
