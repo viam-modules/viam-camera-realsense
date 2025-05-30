@@ -162,7 +162,7 @@ then do `make viam-camera-realsense` to compile the binary, and `make appimage` 
 
 ## Building with Address Sanitizer
 
-When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App. Currently the debug ASAN/LSAN build is only supported on linux/arm64.
+When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App.
 
 
 ## Using within a Frame System
