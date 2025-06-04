@@ -46,8 +46,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     testConfig.set_api("rdk:component:camera");
     // test that the sensors attribute is missing
     try {
-        std::vector<std::string> result =
-            vrs::validate(vsdk::from_proto(testConfig));
+        std::vector<std::string> result = vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch sensors attribute missing";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
@@ -61,8 +60,7 @@ TEST(ResourceConfigTest, InvalidSensorsConfig) {
     sensorListValue.mutable_list_value()->CopyFrom(sensorList);
     (*testConfig.mutable_attributes()->mutable_fields())["sensors"] = sensorListValue;
     try {
-        std::vector<std::string> result =
-            vrs::validate(vsdk::from_proto(testConfig));
+        std::vector<std::string> result = vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument to catch empty sensors list";
     } catch (const std::invalid_argument& e) {
         std::string errorMessage = e.what();
@@ -93,27 +91,31 @@ TEST(ResourceConfigTest, InvalidSerialNumberConfig) {
     ::google::protobuf::Value emptySerialNumberValue;
     emptySerialNumberValue.set_string_value("");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = emptySerialNumberValue;
-    std::vector<std::string> expected_deps_empty_serial; // empty vector expected for successful validation
+    std::vector<std::string>
+        expected_deps_empty_serial;  // empty vector expected for successful validation
     EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected_deps_empty_serial);
 
     // Test that a non-string serial_number throws an error
     ::google::protobuf::Value nonStringSerialNumberValue;
     nonStringSerialNumberValue.set_number_value(12345);
-    (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = nonStringSerialNumberValue;
+    (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] =
+        nonStringSerialNumberValue;
     try {
         vrs::validate(vsdk::from_proto(testConfig));
         FAIL() << "Expected std::invalid_argument for non-string serial_number";
     } catch (const std::invalid_argument& e) {
         EXPECT_EQ(std::string(e.what()), "serial_number must be a string");
     } catch (...) {
-        FAIL() << "Expected std::invalid_argument for non-string serial_number, got something else.";
+        FAIL()
+            << "Expected std::invalid_argument for non-string serial_number, got something else.";
     }
 
     // Test that a valid serial_number passes
     ::google::protobuf::Value validSerialNumberValue;
     validSerialNumberValue.set_string_value("1234567890");
     (*testConfig.mutable_attributes()->mutable_fields())["serial_number"] = validSerialNumberValue;
-    std::vector<std::string> expected_deps_valid_serial; // empty vector expected for successful validation
+    std::vector<std::string>
+        expected_deps_valid_serial;  // empty vector expected for successful validation
     EXPECT_EQ(vrs::validate(vsdk::from_proto(testConfig)), expected_deps_valid_serial);
 }
 

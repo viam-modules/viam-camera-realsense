@@ -1,9 +1,9 @@
 #ifndef ENCODING_HPP
 #define ENCODING_HPP
 
-#include "camera_realsense.hpp"
-
 #include <arpa/inet.h>
+#include <turbojpeg.h>
+
 #include <chrono>
 #include <iostream>
 #include <librealsense2/rs.hpp>
@@ -11,9 +11,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <turbojpeg.h>
 #include <vector>
 
+#include "camera_realsense.hpp"
 #include "third_party/fpng.h"
 #include "third_party/lodepng.h"
 
@@ -266,7 +266,8 @@ std::unique_ptr<viam::sdk::Camera::raw_image> encodeDepthRAWToResponse(const uns
     return response;
 }
 
-std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const rs2::frame& colorFrame) {
+std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points,
+                                              const rs2::frame& colorFrame) {
     std::stringstream header;
     header << "VERSION .7\n";
 
@@ -287,7 +288,8 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
     size_t pointSize = sizeof(float) * fieldsCount;
 
     const rs2::vertex* vertices = points.get_vertices();
-    const rs2::texture_coordinate* texCoords = hasColor ? points.get_texture_coordinates() : nullptr;
+    const rs2::texture_coordinate* texCoords =
+        hasColor ? points.get_texture_coordinates() : nullptr;
     size_t vertexCount = points.size();
     std::vector<unsigned char> dataBytes;
     dataBytes.reserve(vertexCount * pointSize);
@@ -302,10 +304,13 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
             width = video_frame.get_width();
             height = video_frame.get_height();
             if (width <= 0 || height <= 0) {
-                throw std::runtime_error("Error processing point cloud: color frame dimensions must be positive non-zero values.");
+                throw std::runtime_error(
+                    "Error processing point cloud: color frame dimensions must be positive "
+                    "non-zero values.");
             }
         } else {
-            throw std::runtime_error("Error processing point cloud: provided frame is not a video frame.");
+            throw std::runtime_error(
+                "Error processing point cloud: provided frame is not a video frame.");
         }
     }
 
@@ -320,8 +325,8 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
                 int color_index = (v * width + u) * 3;
 
                 // librealsense uses BGR order
-                rgb = ((uint32_t)colorData[color_index] << 16) | 
-                      ((uint32_t)colorData[color_index + 1] << 8) | 
+                rgb = ((uint32_t)colorData[color_index] << 16) |
+                      ((uint32_t)colorData[color_index + 1] << 8) |
                       ((uint32_t)colorData[color_index + 2]);
             }
             const unsigned char* colorBytes = reinterpret_cast<const unsigned char*>(&rgb);
@@ -331,14 +336,17 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
 
     // Post-process subsampling if the data size exceeds the gRPC message size limit
     if (dataBytes.size() > MAX_GRPC_MESSAGE_SIZE) {
-        VIAM_SDK_LOG(info) << "Subsampling point cloud data: original size=" << dataBytes.size() << " bytes";
+        VIAM_SDK_LOG(info) << "Subsampling point cloud data: original size=" << dataBytes.size()
+                           << " bytes";
         std::vector<unsigned char> subsampledData;
         int subsampleRatio = dataBytes.size() / MAX_GRPC_MESSAGE_SIZE + 1;
         for (size_t i = 0; i < dataBytes.size(); i += subsampleRatio * pointSize) {
-            subsampledData.insert(subsampledData.end(), dataBytes.begin() + i, dataBytes.begin() + i + pointSize);
+            subsampledData.insert(subsampledData.end(), dataBytes.begin() + i,
+                                  dataBytes.begin() + i + pointSize);
         }
         dataBytes = std::move(subsampledData);
-        VIAM_SDK_LOG(info) << "Subsampled point cloud data: new size=" << dataBytes.size() << " bytes";
+        VIAM_SDK_LOG(info) << "Subsampled point cloud data: new size=" << dataBytes.size()
+                           << " bytes";
     }
 
     size_t numPoints = dataBytes.size() / pointSize;
@@ -357,4 +365,4 @@ std::vector<unsigned char> rsPointsToPCDBytes(const rs2::points& points, const r
 }
 }  // namespace
 
-#endif // ENCODING_HPP
+#endif  // ENCODING_HPP
