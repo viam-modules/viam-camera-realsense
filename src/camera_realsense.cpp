@@ -42,6 +42,8 @@ static std::map<std::string, std::weak_ptr<DeviceProperties>> registered_devices
 
 // Global flag to signal that the module is shutting down to prevent callback
 // invocation during cleanup
+// NOTE: Nick S: This is an imcomplete solution. We don't confirm that we terminate all threads
+// before shutting down. We should add that.
 static std::atomic<bool> module_shutting_down{false};
 
 // Helper function to deregister device from global map
