@@ -49,37 +49,6 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
     apt update && \
     apt -y install nvidia-cuda-dev nvidia-cuda-toolkit
 
-RUN mkdir -p /root/opt/src
-
-# install Viam C++ SDK from source frozen at a commit or tag
-ENV PINNED_COMMIT_HASH="releases/v0.12.0"
-RUN cd /root/opt/src && \
-    git clone https://github.com/viamrobotics/viam-cpp-sdk && \
-    cd viam-cpp-sdk && \
-    git checkout ${PINNED_COMMIT_HASH} && \
-    mkdir build && \
-    cd build && \
-    cmake  \
-    -DVIAMCPPSDK_BUILD_TESTS=OFF -DVIAMCPPSDK_BUILD_EXAMPLES=OFF \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON \
-    -DCMAKE_INSTALL_PREFIX=/usr/local \
-    .. -G Ninja  && \
-    ninja all -j 4 && \
-    ninja install -j 4 && \
-    rm -rf /root/opt/src/viam-cpp-sdk
-
-# install librealsense from source
-RUN cd /root/opt/src && \
-    git clone https://github.com/IntelRealSense/librealsense.git && \
-    cd librealsense && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DBUILD_WITH_CUDA=true -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
-    make -j 4 && \
-    make install -j 4 && \
-    rm -rf /root/opt/src/librealsense
-
 # install appimage-builder
 RUN apt install -y \
     binutils \
@@ -108,3 +77,35 @@ RUN apt install -y libturbojpeg-dev
 
 # install GTest
 RUN apt install -y libgtest-dev
+
+# make workspace for building librealsense and viam-cpp-sdk
+RUN mkdir -p /root/opt/src
+
+# install librealsense from source
+RUN cd /root/opt/src && \
+    git clone https://github.com/IntelRealSense/librealsense.git && \
+    cd librealsense && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DBUILD_WITH_CUDA=true -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
+    make -j 4 && \
+    make install -j 4 && \
+    rm -rf /root/opt/src/librealsense
+
+# install Viam C++ SDK from source frozen at a commit or tag
+ENV PINNED_COMMIT_HASH="7f03834ca3be1b6964da37c865d9bd7439a9590f"
+RUN cd /root/opt/src && \
+    git clone https://github.com/viamrobotics/viam-cpp-sdk.git && \
+    cd viam-cpp-sdk && \
+    git checkout ${PINNED_COMMIT_HASH} && \
+    mkdir build && \
+    cd build && \
+    cmake  \
+    -DVIAMCPPSDK_BUILD_TESTS=OFF -DVIAMCPPSDK_BUILD_EXAMPLES=OFF \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DVIAMCPPSDK_USE_DYNAMIC_PROTOS=ON -DVIAMCPPSDK_OFFLINE_PROTO_GENERATION=ON \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    .. -G Ninja  && \
+    ninja all -j 4 && \
+    ninja install -j 4 && \
+    rm -rf /root/opt/src/viam-cpp-sdk
