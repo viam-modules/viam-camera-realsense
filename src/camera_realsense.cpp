@@ -943,16 +943,15 @@ void on_device_reconnect(rs2::event_information &info, std::shared_ptr<DevicePro
     //
     // we should also not be detaching the camea thread. We should be making it a
     // member of the camera object and joining the thread in the destructor.
-    // Overall the threadding mnodel in this module is worng but we don't have time
-    // to fix it a this time... hance the hack.
-   std::thread cameraThread
-          frameLoop, std::ref(ready), device, props.depthScaleMm,
-          std::ref(device->atomic_frame_set), module_level_debug.load());
-   VIAM_SDK_LOG(info) << "[on_device_reconnect] waiting for camera frame loop "
-                         "thread to be ready...";
-   ready.get_future().wait();
-   VIAM_SDK_LOG(info) << "[on_device_reconnect] camera frame loop ready!";
-   cameraThread.detach();
+    // Overall the threadding mnodel in this module is worng but we don't have
+    // time to fix it a this time... hance the hack.
+    std::thread cameraThread(frameLoop, std::ref(ready), device, props.depthScaleMm,
+                             std::ref(device->atomic_frame_set), module_level_debug.load());
+    VIAM_SDK_LOG(info) << "[on_device_reconnect] waiting for camera frame loop "
+                          "thread to be ready...";
+    ready.get_future().wait();
+    VIAM_SDK_LOG(info) << "[on_device_reconnect] camera frame loop ready!";
+    cameraThread.detach();
 };
 
 // validate will validate the ResourceConfig. If there is an error, it will
