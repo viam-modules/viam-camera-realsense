@@ -1,3 +1,6 @@
+#pragma once
+#ifndef VERSION_HELPERS_HPP
+#define VERSION_HELPERS_HPP
 #include <cstdint>
 #include <iosfwd>
 #include <iostream>
@@ -164,3 +167,4 @@ std::ostream &operator<<(std::ostream &os, version const &v) {
 
 }  // namespace realsense
 }  // namespace viam
+#endif  // VERSION_HELPERS_HPP
