@@ -16,7 +16,6 @@
 #include <viam/sdk/components/component.hpp>
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
-#include <viam/sdk/resource/reconfigurable.hpp>
 #include <viam/sdk/rpc/server.hpp>
 
 namespace viam {
@@ -107,7 +106,7 @@ int serve(int argc, char **argv);
 void global_device_changed_handler(rs2::event_information &info);
 
 // The camera module class and its methods
-class CameraRealSense : public sdk::Camera, public sdk::Reconfigurable {
+class CameraRealSense : public sdk::Camera {
    private:
     std::shared_ptr<DeviceProperties> device_;
     RealSenseProperties props_;
@@ -118,7 +117,6 @@ class CameraRealSense : public sdk::Camera, public sdk::Reconfigurable {
    public:
     explicit CameraRealSense(sdk::Dependencies deps, sdk::ResourceConfig cfg);
     ~CameraRealSense();
-    void reconfigure(const sdk::Dependencies &deps, const sdk::ResourceConfig &cfg) override;
     sdk::Camera::raw_image get_image(std::string mime_type, const sdk::ProtoStruct &extra) override;
     sdk::Camera::properties get_properties() override;
     sdk::Camera::image_collection get_images() override;

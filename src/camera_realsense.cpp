@@ -265,33 +265,6 @@ CameraRealSense::~CameraRealSense() {
     }
 }
 
-void CameraRealSense::reconfigure(const sdk::Dependencies &deps, const sdk::ResourceConfig &cfg) {
-    if (debug_enabled) {
-        VIAM_SDK_LOG(info) << "[reconfigure] start";
-    }
-    try {
-        // clean up old registry entry before reinitializing
-        std::lock_guard<std::mutex> lock(g_realsense_module_lock);
-        deregister_device(this->device_->active_serial_number);
-        RealSenseProperties props;
-        auto start = std::chrono::high_resolution_clock::now();
-        // TODO: we should probably protect props_ as well from concurrent
-        // reconfigures
-        this->props_ = initialize(cfg);
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        if (debug_enabled) {
-            VIAM_SDK_LOG(info) << "reconfigure initialize() took " << duration.count() << "ms";
-        }
-    } catch (const std::exception &e) {
-        VIAM_SDK_LOG(error) << "failed to reconfigure realsense: " << e.what();
-        throw;
-    }
-    if (debug_enabled) {
-        VIAM_SDK_LOG(info) << "[reconfigure] end";
-    }
-}
-
 sdk::Camera::raw_image CameraRealSense::get_image(std::string mime_type,
                                                   const sdk::ProtoStruct &extra) {
     if (debug_enabled) {
