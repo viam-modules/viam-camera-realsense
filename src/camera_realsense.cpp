@@ -15,6 +15,7 @@
 #include <viam/sdk/module/service.hpp>
 #include <viam/sdk/registry/registry.hpp>
 #include <viam/sdk/rpc/server.hpp>
+#include <viam/sdk/spatialmath/geometry.hpp>
 
 #include "encoding.hpp"
 #include "version_helpers.hpp"
@@ -481,8 +482,7 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
 }
 
 std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::ProtoStruct &extra) {
-    VIAM_SDK_LOG(error) << "get_geometries not implemented";
-    return std::vector<sdk::GeometryConfig>{};
+    return {sdk::GeometryConfig(sdk::pose{10.35, 0, 0}, sdk::box({90, 90, 40}), "box")};
 }
 
 // Loop functions
