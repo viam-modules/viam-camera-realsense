@@ -482,7 +482,8 @@ sdk::Camera::point_cloud CameraRealSense::get_point_cloud(std::string mime_type,
 }
 
 std::vector<sdk::GeometryConfig> CameraRealSense::get_geometries(const sdk::ProtoStruct &extra) {
-    return {sdk::GeometryConfig(sdk::pose{10.35, 0, 0}, sdk::box({90, 90, 40}), "box")};
+    VIAM_SDK_LOG(info) << "the geometries are being gotten";
+    return {sdk::GeometryConfig(sdk::pose{-17.5, 8.3, 0}, sdk::box({90, 25, 25}), "box")};
 }
 
 // Loop functions
