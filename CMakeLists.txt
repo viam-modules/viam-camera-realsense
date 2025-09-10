@@ -8,11 +8,8 @@ project(viam-camera-realsense
 
 include(cmake/simd_flags.cmake)
 
-# Define an option for enabling build with AddressSanitizer
-option(ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
-if(ENABLE_SANITIZER)
-    message(STATUS "Building with AddressSanitizer enabled")
-endif()
+option(VIAM_REALSENSE_ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
+option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" ON)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -41,7 +38,8 @@ target_link_libraries(viamrealsense
 add_executable(viam-camera-realsense src/module/main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 
-if(ENABLE_SANITIZER)
+if(VIAM_REALSENSE_ENABLE_SANITIZER)
+    message(STATUS "Building with AddressSanitizer enabled")
     target_compile_options(viamrealsense PUBLIC
         -fsanitize=address
         -fsanitize-address-use-after-scope
@@ -64,6 +62,8 @@ if (NOT MSVC)
     )
 endif()
 
-enable_testing()
-add_subdirectory(test)
+if (VIAM_REALSENSE_ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()
 
