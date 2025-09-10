@@ -842,7 +842,7 @@ private:
         .printDeviceInfo =
             [](const auto &dev) { device::printDeviceInfo(dev); },
         .createDevice =
-            [](std::string const &serial, std::shared_ptr<auto> dev_ptr,
+            [](std::string const &serial, std::shared_ptr<rs2::device> dev_ptr,
                std::unordered_set<std::string> const &supported_models,
                realsense::RsResourceConfig const &config) {
               return device::createDevice<realsense::RsResourceConfig>(
