@@ -11,19 +11,25 @@ option(ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
 if(ENABLE_SANITIZER)
     message(STATUS "Building with AddressSanitizer enabled")
 endif()
-option(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
-# construct the library
+
 add_library(viamrealsense src/module/encoding.cpp)
-# Make include paths explicit
-target_include_directories(viamrealsense PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/module
+target_include_directories(viamrealsense
+    PUBLIC src/module
 )
-target_link_libraries(viamrealsense PUBLIC viam-cpp-sdk::viamsdk realsense2::realsense2 PRIVATE turbojpeg ${CMAKE_DL_LIBS})
+
+target_link_libraries(viamrealsense
+    PUBLIC
+        viam-cpp-sdk::viamsdk
+        realsense2::realsense2
+    PRIVATE
+        turbojpeg
+        ${CMAKE_DL_LIBS}
+)
 
 # Conditionally apply SIMD flags based on the processor architecture for fpng acceleration
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
