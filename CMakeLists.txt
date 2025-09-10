@@ -66,4 +66,3 @@ if (VIAM_REALSENSE_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
-
