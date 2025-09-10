@@ -1,4 +1,5 @@
 #include "encoding.hpp"
+
 #include <turbojpeg.h>
 
 namespace realsense {
