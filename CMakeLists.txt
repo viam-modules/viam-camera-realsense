@@ -5,7 +5,6 @@ project(viam-camera-realsense
     HOMEPAGE_URL https://github.com/viam-modules/viam-camera-realsense
     LANGUAGES CXX
 )
-set(CMAKE_CXX_STANDARD 17)
 
 # Define an option for enabling build with AddressSanitizer
 option(ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
@@ -19,9 +18,9 @@ find_package(Threads REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 # construct the library
-add_library(viamrealsense src/module/encoding.cpp) 
+add_library(viamrealsense src/module/encoding.cpp)
 # Make include paths explicit
-target_include_directories(viamrealsense PRIVATE 
+target_include_directories(viamrealsense PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/module
 )
 target_link_libraries(viamrealsense PUBLIC viam-cpp-sdk::viamsdk realsense2::realsense2 PRIVATE turbojpeg ${CMAKE_DL_LIBS})
@@ -78,10 +77,10 @@ endif()
 target_compile_features(viamrealsense PUBLIC
     cxx_std_17
 )
-target_compile_options(viamrealsense PRIVATE 
-    -O2 
-    -Wredundant-move 
-    -Wpessimizing-move 
+target_compile_options(viamrealsense PRIVATE
+    -O2
+    -Wredundant-move
+    -Wpessimizing-move
 )
 
 enable_testing()
