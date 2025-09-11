@@ -325,7 +325,8 @@ public:
     }
     return viam::sdk::Camera::raw_image{}; // should never reach here
   }
-  viam::sdk::Camera::image_collection get_images() override {
+
+  viam::sdk::Camera::image_collection get_images(std::vector<std::string>, const viam::sdk::ProtoStruct&) override {
     try {
       if (not latest_frameset_) {
         VIAM_SDK_LOG(error) << "[get_images] no frameset available";
