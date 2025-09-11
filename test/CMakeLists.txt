@@ -10,7 +10,7 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 # Helper library target for linking to the individual test binaries
-add_library(unit_test_common INTERFACE)
+add_library(viamrealsense_test_common INTERFACE)
 
 target_link_libraries(viamrealsense_test_common
     INTERFACE
