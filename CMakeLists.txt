@@ -13,8 +13,12 @@ option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" ON)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
 find_package(realsense2 REQUIRED)
+
 find_package(viam-cpp-sdk REQUIRED)
+
+find_package(JPEG)
 
 add_library(viamrealsense src/module/encoding.cpp)
 
@@ -31,7 +35,7 @@ target_link_libraries(viamrealsense
         viam-cpp-sdk::viamsdk
         realsense2::realsense2
     PRIVATE
-        turbojpeg
+        libjpeg-turbo::turbojpeg-static
         ${CMAKE_DL_LIBS}
 )
 

@@ -15,9 +15,9 @@ add_library(viamrealsense_test_common INTERFACE)
 target_link_libraries(viamrealsense_test_common
     INTERFACE
         viamrealsense
-        gtest
-        gtest_main # provides main()
-        gmock
+        GTest::gtest
+        GTest::gtest_main # provides main()
+        GTest::gmock
         viam-cpp-sdk::viamsdk
 )
 
