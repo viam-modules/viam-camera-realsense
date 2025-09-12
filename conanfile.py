@@ -37,3 +37,6 @@ class ViamRealsense(ConanFile):
         cmake.configure()
         cmake.build()
 
+    def package(self):
+        CMake(self).install()
+

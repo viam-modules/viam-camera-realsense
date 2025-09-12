@@ -11,6 +11,20 @@ include(cmake/simd_flags.cmake)
 option(VIAM_REALSENSE_ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
 option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" ON)
 
+
+# Here we set the rpath to accomodate one and only one supported deployment
+# case, a directory containing
+# ├── bin
+# │   └── orbbec-module
+# ├── lib
+#     └── <runtime dependencies>
+if (APPLE)
+    list(PREPEND CMAKE_INSTALL_RPATH "@loader_path/../lib")
+else()
+    list(PREPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+endif()
+
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -65,6 +79,33 @@ if (NOT MSVC)
             -Wpessimizing-move
     )
 endif()
+
+if (LINUX)
+    set(_pre_exclude_regex
+	    ".*ld-linux.*\\.so.*"
+	    ".*libc\\.so.*"
+	    ".*libdl\\.so.*"
+	    ".*libgcc.*\\.so.*"
+	    ".*libm\\.so.*"
+	    ".*libpthread\\.so.*"
+    )
+endif()
+
+if (APPLE)
+    # For reasons unclear to me the install command below doesn't work without this
+    set(_framework_dest_arg "FRAMEWORK" "DESTINATION" "lib")
+endif()
+
+install(
+    TARGETS viam-camera-realsense
+    #[[
+    RUNTIME_DEPENDENCIES
+		PRE_EXCLUDE_REGEXES ${_pre_exclude_regex}
+    RUNTIME
+    LIBRARY
+    ${_framework_dest_arg}
+    ]]
+)
 
 if (VIAM_REALSENSE_ENABLE_TESTS)
     enable_testing()
