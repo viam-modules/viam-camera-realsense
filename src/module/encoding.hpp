@@ -2,7 +2,6 @@
 #include <viam/sdk/components/camera.hpp>
 
 #include <librealsense2/rs.hpp>
-#include <turbojpeg.h>
 
 #include <cstdint>
 #include <vector>
