@@ -23,13 +23,13 @@ else
     # It's not yet installed, so let's get it!
     echo "Installing clang-format as a linter..."
     if [[ "$(uname)" == "Linux" ]]; then
-        sudo apt install -y clang-format-19
+        sudo apt update && sudo apt install -y clang-format-19
     elif [[ "$(uname)" == "Darwin" ]]; then
         brew install clang-format
     else
         echo "WARNING: installing the linter is not yet supported outside of Linux and Mac."
     fi
-    
+
     # Re-check after installation
     if command -v clang-format-19 &> /dev/null; then
         CLANG_FORMAT=clang-format-19
