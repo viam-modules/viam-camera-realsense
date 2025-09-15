@@ -10,6 +10,7 @@ include(cmake/simd_flags.cmake)
 
 option(VIAM_REALSENSE_ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
 option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" ON)
+<<<<<<< HEAD
 
 
 # Here we set the rpath to accomodate one and only one supported deployment
@@ -24,16 +25,25 @@ else()
     list(PREPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 endif()
 
+=======
+>>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 find_package(realsense2 REQUIRED)
 
+<<<<<<< HEAD
 find_package(libjpeg-turbo REQUIRED)
 
 find_package(viam-cpp-sdk REQUIRED)
 
+=======
+find_package(viam-cpp-sdk REQUIRED)
+
+find_package(libjpeg-turbo CONFIG REQUIRED)
+
+>>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 add_library(viamrealsense src/module/encoding.cpp)
 
 target_include_directories(viamrealsense
@@ -80,6 +90,7 @@ if (NOT MSVC)
     )
 endif()
 
+<<<<<<< HEAD
 if (LINUX)
     set(_pre_exclude_regex
 	    ".*ld-linux.*\\.so.*"
@@ -107,6 +118,8 @@ install(
     ]]
 )
 
+=======
+>>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 if (VIAM_REALSENSE_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(test)
