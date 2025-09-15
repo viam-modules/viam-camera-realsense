@@ -18,7 +18,7 @@ find_package(realsense2 REQUIRED)
 
 find_package(viam-cpp-sdk REQUIRED)
 
-find_package(JPEG)
+find_package(libjpeg-turbo CONFIG REQUIRED)
 
 add_library(viamrealsense src/module/encoding.cpp)
 

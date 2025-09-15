@@ -3,7 +3,9 @@ include(FetchContent)
 FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-  FIND_PACKAGE_ARGS NAMES GTest
+  # If we add libgmock-dev to the docker files it will be possible to use find_package here
+  # instead of always downloading and building from source
+  # FIND_PACKAGE_ARGS NAMES GTest
 )
 FetchContent_MakeAvailable(googletest)
 
