@@ -1,0 +1,21 @@
+{
+  "module_id": "viam:realsense",
+  "visibility": "public",
+  "url": "https://github.com/viam-modules/viam-camera-realsense",
+  "description": "C++ camera module for the RealSense",
+  "models": [
+    {
+      "api": "rdk:component:camera",
+      "model": "viam:camera:realsense",
+      "markdown_link" : "README.md#configure-your-realsense-camera",
+      "short_description" : "Intel RealSense driver return images, depth maps and pointclouds"
+    },
+    {
+      "api": "rdk:service:discovery",
+      "markdown_link": "README.md#model-viamrealsensediscovery",
+      "model": "viam:realsense:discovery",
+      "short_description": "A discovery service to find connected RealSense cameras"
+    }
+  ],
+  "entrypoint": "bin/viam-camera-realsense"
+}
