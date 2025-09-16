@@ -30,7 +30,7 @@ install(
         meta.json-no-appimage
     RENAME
         meta.json
-    DESTINATION ${CMAKE_INSTALL_PREFIX}
+    DESTINATION .
 )
 
 set(CPACK_PACKAGE_NAME "viam-realsense")
