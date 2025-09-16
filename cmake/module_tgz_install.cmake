@@ -18,7 +18,7 @@ install(
     TARGETS
         viam-camera-realsense
     RUNTIME_DEPENDENCIES
-        PRE_EXCLUDE_REGEX ${_pre_exclude_regex}
+        PRE_EXCLUDE_REGEXES ${_pre_exclude_regex}
     RUNTIME
     LIBRARY
     ${_framework_dest_arg}
