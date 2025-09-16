@@ -27,6 +27,7 @@ install(
 install(
     FILES
         meta.json-no-appimage
+    RENAME
+        meta.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}
-    RENAME meta.json
 )
