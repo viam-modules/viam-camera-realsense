@@ -1,11 +1,12 @@
 if (LINUX)
    set(_pre_exclude_regex
-   	    ".*ld-linux.*\\.so.*"
-   	    ".*libc\\.so.*"
-   	    ".*libdl\\.so.*"
-   	    ".*libgcc.*\\.so.*"
-   	    ".*libm\\.so.*"
-   	    ".*libpthread\\.so.*"
+        ".*ld-linux.*\\.so.*"
+        ".*libc\\.so.*"
+        ".*libdl\\.so.*"
+        ".*libgcc.*\\.so.*"
+        ".*libm\\.so.*"
+        ".*libpthread\\.so.*"
+        ".*libssl\\.so.*"
    )
 endif()
 
@@ -31,3 +32,8 @@ install(
         meta.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}
 )
+
+set(CPACK_PACKAGE_NAME "viam-realsense")
+set(CPACK_PACKAGE_FILE_NAME "module")
+set(CPACK_GENERATOR "TGZ")
+include(CPack)
