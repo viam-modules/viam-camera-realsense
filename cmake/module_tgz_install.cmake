@@ -36,4 +36,5 @@ install(
 set(CPACK_PACKAGE_NAME "viam-realsense")
 set(CPACK_PACKAGE_FILE_NAME "module")
 set(CPACK_GENERATOR "TGZ")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
 include(CPack)
