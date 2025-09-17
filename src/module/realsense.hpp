@@ -23,8 +23,11 @@ static constexpr std::uint64_t maxFrameAgeMs =
     1e3; // time until a frame is considered stale, in miliseconds (equal to 1
 static constexpr size_t MAX_GRPC_MESSAGE_SIZE =
     33554432; // 32MB gRPC message size limit
-const std::string kPcdMimeType = "pointcloud/pcd";
 const std::string service_name = "viam_realsense";
+
+const std::string kColorSourceName = "color";
+const std::string kDepthSourceName = "depth";
+const std::string kPcdMimeType = "pointcloud/pcd";
 
 template <typename SynchronizedContextT> class Realsense;
 
@@ -325,8 +328,28 @@ public:
     }
     return viam::sdk::Camera::raw_image{}; // should never reach here
   }
-  viam::sdk::Camera::image_collection get_images() override {
+  viam::sdk::Camera::image_collection
+  get_images(std::vector<std::string> filter_source_names,
+             const viam::sdk::ProtoStruct &extra) override {
     try {
+
+      bool should_process_color = false;
+      bool should_process_depth = false;
+
+      if (filter_source_names.empty()) {
+        should_process_color = true;
+        should_process_depth = true;
+      } else {
+        for (const auto &name : filter_source_names) {
+          if (name == kColorSourceName) {
+            should_process_color = true;
+          }
+          if (name == kDepthSourceName) {
+            should_process_depth = true;
+          }
+        }
+      }
+
       if (not latest_frameset_) {
         VIAM_SDK_LOG(error) << "[get_images] no frameset available";
         throw std::runtime_error("no frameset available");
@@ -339,7 +362,7 @@ public:
 
       viam::sdk::Camera::image_collection response;
       for (auto const &sensor : sensors) {
-        if (sensor == "color") {
+        if (sensor == "color" and should_process_color) {
           auto color = fs.get_color_frame();
           response.images.emplace_back(
               encoding::encodeVideoFrameToResponse(color));
@@ -350,7 +373,7 @@ public:
           response.metadata.captured_at = viam::sdk::time_pt{
               std::chrono::duration_cast<std::chrono::nanoseconds>(
                   latestTimestamp)};
-        } else if (sensor == "depth") {
+        } else if (sensor == "depth" and should_process_depth) {
           auto depth = fs.get_depth_frame();
           response.images.emplace_back(
               encoding::encodeDepthFrameToResponse(depth));
@@ -369,7 +392,8 @@ public:
       // if both color and depth are requested, use the older timestamp of the
       // two
       if (utils::contains("color", sensors) and
-          utils::contains("depth", sensors)) {
+          utils::contains("depth", sensors) and should_process_color and
+          should_process_depth) {
         auto color = fs.get_color_frame();
         auto depth = fs.get_depth_frame();
         double colorTS = color.get_timestamp();

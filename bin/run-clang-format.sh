@@ -15,6 +15,8 @@
 # limitations under the License.
 
 # Set up the linter
+# Make this resilient to if we cannot install it
+CLANG_FORMAT=""
 if command -v clang-format-19 &> /dev/null; then
     CLANG_FORMAT=clang-format-19
 elif command -v clang-format &> /dev/null; then
@@ -36,8 +38,7 @@ else
     elif command -v clang-format &> /dev/null; then
         CLANG_FORMAT=clang-format
     else
-        echo "ERROR: clang-format installation failed"
-        exit 1
+        echo "ERROR: clang-format installation failed, not running the linter."
     fi
 fi
 
@@ -51,16 +52,18 @@ ensure_final_newline() {
     fi
 }
 
-# Find and format files
-find ./src -type f \( -name \*.cpp -o -name \*.hpp \) | while read -r file; do
-    "$CLANG_FORMAT" -i --style=file "$@" "$file"
-    ensure_final_newline "$file"
-done
-
-# Also check test files if they exist
-if [[ -d "./test" ]]; then
-    find ./test -type f \( -name \*.cpp -o -name \*.hpp \) | while read -r file; do
+if [[ -n "$CLANG_FORMAT" ]]; then
+    # Find and format files
+    find ./src -type f \( -name \*.cpp -o -name \*.hpp \) | while read -r file; do
         "$CLANG_FORMAT" -i --style=file "$@" "$file"
         ensure_final_newline "$file"
     done
+
+    # Also check test files if they exist
+    if [[ -d "./test" ]]; then
+        find ./test -type f \( -name \*.cpp -o -name \*.hpp \) | while read -r file; do
+            "$CLANG_FORMAT" -i --style=file "$@" "$file"
+            ensure_final_newline "$file"
+        done
+    fi
 fi
