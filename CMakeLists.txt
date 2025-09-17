@@ -10,40 +10,26 @@ include(cmake/simd_flags.cmake)
 
 option(VIAM_REALSENSE_ENABLE_SANITIZER "Enable AddressSanitizer" OFF)
 option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" ON)
-<<<<<<< HEAD
+option(VIAM_REALSENSE_DISABLE_APPIMAGE "Deploy without AppImage" OFF)
 
+if (VIAM_REALSENSE_DISABLE_APPIMAGE)
+    if (APPLE)
+        list(PREPEND CMAKE_INSTALL_RPATH "@loader_path/../lib")
+    else()
+        list(PREPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+    endif()
 
-# Here we set the rpath to accomodate one and only one supported deployment
-# case, a directory containing
-# ├── bin
-# │   └── orbbec-module
-# ├── lib
-#     └── <runtime dependencies>
-if (APPLE)
-    list(PREPEND CMAKE_INSTALL_RPATH "@loader_path/../lib")
-else()
-    list(PREPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 endif()
-
-=======
->>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 find_package(realsense2 REQUIRED)
 
-<<<<<<< HEAD
-find_package(libjpeg-turbo REQUIRED)
-
-find_package(viam-cpp-sdk REQUIRED)
-
-=======
 find_package(viam-cpp-sdk REQUIRED)
 
 find_package(libjpeg-turbo CONFIG REQUIRED)
 
->>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 add_library(viamrealsense src/module/encoding.cpp)
 
 target_include_directories(viamrealsense
@@ -65,6 +51,20 @@ target_link_libraries(viamrealsense
 
 add_executable(viam-camera-realsense src/module/main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
+
+install(
+    TARGETS
+        viamrealsense
+)
+
+if (VIAM_REALSENSE_DISABLE_APPIMAGE)
+    include(cmake/module_tgz_install.cmake)
+else()
+    install(
+        TARGETS
+            viam-camera-realsense
+    )
+endif()
 
 if(VIAM_REALSENSE_ENABLE_SANITIZER)
     message(STATUS "Building with AddressSanitizer enabled")
@@ -90,36 +90,6 @@ if (NOT MSVC)
     )
 endif()
 
-<<<<<<< HEAD
-if (LINUX)
-    set(_pre_exclude_regex
-	    ".*ld-linux.*\\.so.*"
-	    ".*libc\\.so.*"
-	    ".*libdl\\.so.*"
-	    ".*libgcc.*\\.so.*"
-	    ".*libm\\.so.*"
-	    ".*libpthread\\.so.*"
-    )
-endif()
-
-if (APPLE)
-    # For reasons unclear to me the install command below doesn't work without this
-    set(_framework_dest_arg "FRAMEWORK" "DESTINATION" "lib")
-endif()
-
-install(
-    TARGETS viam-camera-realsense
-    #[[
-    RUNTIME_DEPENDENCIES
-		PRE_EXCLUDE_REGEXES ${_pre_exclude_regex}
-    RUNTIME
-    LIBRARY
-    ${_framework_dest_arg}
-    ]]
-)
-
-=======
->>>>>>> eaba8c27b3d51a6af835214d73c1f948a5b9d162
 if (VIAM_REALSENSE_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(test)

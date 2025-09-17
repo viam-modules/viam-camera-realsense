@@ -82,7 +82,7 @@ RUN apt install -y libgtest-dev
 RUN mkdir -p /root/opt/src
 
 # install librealsense from source
-ENV REALSENSE_VERSION="v2.55.1"
+ENV REALSENSE_VERSION="v2.56.5"
 RUN cd /root/opt/src && \
     git clone https://github.com/IntelRealSense/librealsense.git && \
     cd librealsense && \
@@ -95,7 +95,7 @@ RUN cd /root/opt/src && \
     rm -rf /root/opt/src/librealsense
 
 # install Viam C++ SDK from source frozen at a commit or tag
-ENV VIAM_CPP_SDK_TAG="releases/v0.15.0"
+ENV VIAM_CPP_SDK_TAG="releases/v0.19.0"
 RUN cd /root/opt/src && \
     git clone https://github.com/viamrobotics/viam-cpp-sdk.git && \
     cd viam-cpp-sdk && \

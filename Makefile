@@ -7,7 +7,10 @@ build: lint
 	mkdir -p build
 
 build/build.ninja: build CMakeLists.txt
-	cd build && cmake -G Ninja -DVIAM_REALSENSE_ENABLE_SANITIZER=$(SANITIZE) -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+	cd build && \
+	cmake -G Ninja \
+	$(if $(DISABLE_APPIMAGE),-DVIAM_REALSENSE_DISABLE_APPIMAGE=ON -DVIAM_REALSENSE_ENABLE_TESTS=OFF) \
+	-DVIAM_REALSENSE_ENABLE_SANITIZER=$(SANITIZE) -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 
 SANITIZE ?= OFF
 viam-camera-realsense: src/* build/build.ninja
@@ -60,11 +63,15 @@ docker-amd64-ci:
 TAG_VERSION?=latest
 # Define a function for building AppImages
 define BUILD_APPIMAGE
-    export TAG_NAME=$(TAG_VERSION); \
-    cd packaging/appimages && \
-    mkdir -p deploy && \
-    rm -f deploy/$(1)* && \
-    appimage-builder --recipe $(1)-$(2).yml
+	ifeq ($(DISABLE_APPIMAGE),1)
+    	export TAG_NAME=$(TAG_VERSION); \
+    	cd packaging/appimages && \
+    	mkdir -p deploy && \
+    	rm -f deploy/$(1)* && \
+    	appimage-builder --recipe $(1)-$(2).yml
+	else
+		cd build && ninja package
+	endif
 endef
 
 # Targets for building AppImages
@@ -72,10 +79,14 @@ appimage-arm64: export OUTPUT_NAME = viam-camera-realsense
 appimage-arm64: export ARCH = aarch64
 appimage-arm64: viam-camera-realsense
 	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+ifeq ($(DISABLE_APPIMAGE), 0)
 	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
+endif
 
 appimage-amd64: export OUTPUT_NAME = viam-camera-realsense
 appimage-amd64: export ARCH = x86_64
 appimage-amd64: viam-camera-realsense
 	$(call BUILD_APPIMAGE,$(OUTPUT_NAME),$(ARCH))
+ifeq ($(DISABLE_APPIMAGE), 0)
 	cp ./packaging/appimages/$(OUTPUT_NAME)-*-$(ARCH).AppImage ./packaging/appimages/deploy/
+endif
