@@ -7,6 +7,7 @@ if (LINUX)
         ".*libm\\.so.*"
         ".*libpthread\\.so.*"
         ".*libssl\\.so.*"
+        ".*libz\\.so.*"
    )
 endif()
 
