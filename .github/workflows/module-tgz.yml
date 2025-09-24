@@ -1,0 +1,46 @@
+name: Build module.tar.gz and upload artifact
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on:
+  workflow_dispatch:
+
+jobs:
+  module:
+    name: Intel RealSense module.tar.gz
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: buildjet-8vcpu-ubuntu-2204-arm
+            container:
+              image: ghcr.io/viam-modules/viam-camera-realsense:arm64
+              options: --platform linux/arm64
+            artifact-name: module-arm64
+            platform: linux/arm64
+          - os: ubuntu-latest
+            container:
+              image: ghcr.io/viam-modules/viam-camera-realsense:amd64
+              options: --platform linux/amd64
+            artifact-name: module-amd64
+            platform: linux/amd64
+
+    container: ${{ matrix.container }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake .. -G Ninja -DVIAM_REALSENSE_ENABLE_TESTS=OFF -DVIAM_REALSENSE_DISABLE_APPIMAGE=ON
+          ninja package
+
+      - name: Upload module artifact
+        uses: actions/upload-module-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: build/module.tar.gz
