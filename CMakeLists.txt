@@ -66,12 +66,6 @@ if (VIAM_REALSENSE_DISABLE_APPIMAGE)
             meta.json
         DESTINATION .
     )
-
-    set(CPACK_PACKAGE_NAME "viam-realsense")
-    set(CPACK_PACKAGE_FILE_NAME "module")
-    set(CPACK_GENERATOR "TGZ")
-    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
-    include(CPack)
 endif()
 
 if(VIAM_REALSENSE_ENABLE_SANITIZER)
