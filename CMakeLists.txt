@@ -55,15 +55,23 @@ target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 install(
     TARGETS
         viamrealsense
+        viam-camera-realsense
 )
 
 if (VIAM_REALSENSE_DISABLE_APPIMAGE)
-    include(cmake/module_tgz_install.cmake)
-else()
     install(
-        TARGETS
-            viam-camera-realsense
+        FILES
+            meta.json-no-appimage
+        RENAME
+            meta.json
+        DESTINATION .
     )
+
+    set(CPACK_PACKAGE_NAME "viam-realsense")
+    set(CPACK_PACKAGE_FILE_NAME "module")
+    set(CPACK_GENERATOR "TGZ")
+    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
+    include(CPack)
 endif()
 
 if(VIAM_REALSENSE_ENABLE_SANITIZER)
