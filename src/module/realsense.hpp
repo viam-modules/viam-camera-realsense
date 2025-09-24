@@ -431,7 +431,7 @@ public:
         VIAM_SDK_LOG(error) << "[get_point_cloud] no frameset available";
         throw std::runtime_error("no frameset available");
       }
-      VIAM_SDK_LOG(info) << "[get_point_cloud] start";
+      VIAM_SDK_LOG(debug) << "[get_point_cloud] start";
       auto fs = latest_frameset_->get();
 
       double nowMs = time::getNowMs();
@@ -486,7 +486,7 @@ public:
                                  std::to_string(MAX_GRPC_MESSAGE_SIZE));
       }
 
-      VIAM_SDK_LOG(info) << "[get_point_cloud] end";
+      VIAM_SDK_LOG(debug) << "[get_point_cloud] end";
       return viam::sdk::Camera::point_cloud{kPcdMimeType, data};
     } catch (const std::exception &e) {
       VIAM_SDK_LOG(error) << "[get_point_cloud] error: " << e.what();

@@ -55,14 +55,16 @@ target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 install(
     TARGETS
         viamrealsense
+        viam-camera-realsense
 )
 
 if (VIAM_REALSENSE_DISABLE_APPIMAGE)
-    include(cmake/module_tgz_install.cmake)
-else()
     install(
-        TARGETS
-            viam-camera-realsense
+        FILES
+            meta.json-no-appimage
+        RENAME
+            meta.json
+        DESTINATION .
     )
 endif()
 
