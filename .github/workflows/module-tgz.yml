@@ -71,7 +71,7 @@ jobs:
           conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -v v
 
       - name: Upload module artifact
-        uses: actions/upload-module-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
           path: module.tar.gz
