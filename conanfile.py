@@ -48,6 +48,8 @@ class ViamRealsense(ConanFile):
 
     def package(self):
         CMake(self).install()
+
+        # Use CPack to build the module.tar.gz and manually copy it to the package folder
         CMake(self).build(target='package')
         copy(self, pattern="module.tar.gz", src=self.build_folder, dst=self.package_folder)
 
