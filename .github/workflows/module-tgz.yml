@@ -51,26 +51,25 @@ jobs:
 
       - name: Get librealsense
         run: |
+          . ./venv/bin/activate
           git clone https://github.com/lia-viam/conan-center-index.git
           cd conan-center-index
           git checkout realsense-2.55.1
-          pwd
-          ls
-          . ./venv/bin/activate
           conan create recipes/librealsense/all/conanfile.py --version=2.56.5 --build=missing
 
       - name: Get Viam SDK
         run: |
+          . ./venv/bin/activate
           git clone https://github.com/viamrobotics/viam-cpp-sdk.git
           cd viam-cpp-sdk
           git checkout releases/v0.19.0
-          . ./venv/bin/activate
           conan create . -o "&:shared=False" --build=missing -s compiler.cppstd=17
 
       - name: Build
         run: |
+          . ./venv/bin/activate
           conan create . --build=missing -o "viam-cpp-sdk/*:shared=False"
-          conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -v v
+          conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -o "viam-cpp-sdk/*:shared=False" -v v
 
       - name: Upload module artifact
         uses: actions/upload-artifact@v4
