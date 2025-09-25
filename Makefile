@@ -63,7 +63,7 @@ docker-amd64-ci:
 TAG_VERSION?=latest
 # Define a function for building AppImages
 define BUILD_APPIMAGE
-	ifeq ($(DISABLE_APPIMAGE),1)
+	ifeq ($(DISABLE_APPIMAGE),0)
     	export TAG_NAME=$(TAG_VERSION); \
     	cd packaging/appimages && \
     	mkdir -p deploy && \
