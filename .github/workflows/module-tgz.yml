@@ -5,6 +5,11 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        default: main
+        description: realsense module branch to run on
 
 jobs:
   module:
@@ -33,14 +38,38 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
+      - name: Setup python and conan
+        run: |
+          apt install -y python3-venv
+          mkdir venv
+          python3 -m venv ./venv
+          . ./venv/bin/activate
+          pip install conan
+          conan profile detect
+
+      - name: Get librealsense
+        run: |
+          git clone https://github.com/lia-viam/conan-center-index.git
+          cd conan-center-index
+          git checkout realsense-2.55.1
+          . ./venv/bin/activate
+          conan create recipes/librealsense/all/conanfile.py --version=2.56.5 --build=missing
+
+      - name: Get Viam SDK
+        run: |
+          git clone https://github.com/viamrobotics/viam-cpp-sdk.git
+          cd viam-cpp-sdk
+          git checkout releases/v0.19.0
+          . ./venv/bin/activate
+          conan create . -o "&:shared=False" --build=missing -s compiler.cppstd=17
+
       - name: Build
         run: |
-          mkdir build && cd build
-          cmake .. -G Ninja -DVIAM_REALSENSE_ENABLE_TESTS=OFF -DVIAM_REALSENSE_DISABLE_APPIMAGE=ON
-          ninja package
+          conan create . --build=missing -o "viam-cpp-sdk/*:shared=False"
+          conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -v v
 
       - name: Upload module artifact
         uses: actions/upload-module-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: build/module.tar.gz
+          path: module.tar.gz
