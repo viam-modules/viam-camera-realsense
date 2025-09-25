@@ -5,6 +5,11 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        default: main
+        description: realsense module branch to run on
 
 jobs:
   module:
@@ -32,6 +37,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Build
         run: |
