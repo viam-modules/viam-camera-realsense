@@ -90,7 +90,7 @@ jobs:
 
           echo '
           [replace_requires]
-          openssl/*: openssl/system' > ~/.conan2/profiles/default
+          openssl/*: openssl/system' >> ~/.conan2/profiles/default
 
           conan install -r conancenter --update --tool-requires=b2/5.3.1 --build=b2/5.3.1
 
