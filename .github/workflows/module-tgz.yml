@@ -41,6 +41,7 @@ jobs:
 
       - name: Setup python and conan
         run: |
+          ldd --version
           apt install -y python3-venv
           mkdir venv
           python3 -m venv ./venv
