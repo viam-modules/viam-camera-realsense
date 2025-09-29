@@ -20,11 +20,11 @@ jobs:
         include:
           - os: ubuntu-22.04-arm
             container:
-              image: debian:bullseye
+              image: ubuntu:22.04
             artifact-name: module-arm64
           - os: ubuntu-22.04
             container:
-              image: debian:bullseye
+              image: ubuntu:22.04
             artifact-name: module-amd64
 
     container: ${{ matrix.container }}
@@ -45,48 +45,40 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cat /etc/*-release
+          ldd --version
+          uname -a
+
           apt-get update
           apt-get -y dist-upgrade
           DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install \
+              autoconf \
+              automake \
               build-essential \
               ca-certificates \
-              cmake \
               curl \
               doxygen \
               g++ \
               gdb \
-              git \
               gnupg \
               gpg \
               less \
-              libssl-dev \
-              libudev-dev \
               ninja-build \
-              pkg-config \
+              python3 \
+              python3-pip \
               software-properties-common \
               sudo \
               wget \
-              zlib1g-dev
 
-      - name: Update CMake for bullseye
-        run: |
-          sudo apt-get install -y software-properties-common
-          apt-add-repository -y 'deb https://archive.debian.org/debian bullseye-backports main'
+          sudo wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+          sudo echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
 
           apt-get update
-          apt-get -y install cmake
+          apt-get -y install cmake=3.25.2-0kitware1ubuntu22.04.1 cmake-data=3.25.2-0kitware1ubuntu22.04.1
 
-          apt-get -y --no-install-recommends install -t bullseye-backports cmake
 
       - name: Setup python and conan
         run: |
-          cat /etc/*-release
-          ldd --version
-          uname -a
-          apt install -y python3-venv
-          mkdir venv
-          python3 -m venv ./venv
-          . ./venv/bin/activate
           pip install conan
           conan profile detect
 
@@ -94,11 +86,8 @@ jobs:
           [replace_requires]
           openssl/*: openssl/system' >> ~/.conan2/profiles/default
 
-          conan install -r conancenter --update --tool-requires=b2/5.3.1 --build=b2/5.3.1
-
       - name: Get librealsense
         run: |
-          . ./venv/bin/activate
           git clone https://github.com/lia-viam/conan-center-index.git
           cd conan-center-index
           git checkout realsense-2.55.1
@@ -106,7 +95,6 @@ jobs:
 
       - name: Get Viam SDK
         run: |
-          . ./venv/bin/activate
           git clone https://github.com/viamrobotics/viam-cpp-sdk.git
           cd viam-cpp-sdk
           git checkout releases/v0.19.0
@@ -114,7 +102,6 @@ jobs:
 
       - name: Build
         run: |
-          . ./venv/bin/activate
           conan create . --build=missing -o "viam-cpp-sdk/*:shared=False"
           conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -o "viam-cpp-sdk/*:shared=False" -v v
 
