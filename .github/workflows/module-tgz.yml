@@ -59,6 +59,7 @@ jobs:
               curl \
               doxygen \
               g++ \
+              git \
               gdb \
               gnupg \
               gpg \
