@@ -87,7 +87,7 @@ jobs:
 
           echo '
           [replace_requires]
-          openssl/*: openssl/system' >> ~/.conan2/profiles/default
+          openssl/*: openssl/*@system' >> ~/.conan2/profiles/default
 
       - name: Get librealsense
         run: |
