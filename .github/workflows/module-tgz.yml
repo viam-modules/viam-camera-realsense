@@ -86,10 +86,6 @@ jobs:
           pip install conan
           conan profile detect
 
-          echo '
-          [replace_requires]
-          openssl/*: openssl/*@system' >> ~/.conan2/profiles/default
-
       - name: Get librealsense
         run: |
           git clone https://github.com/lia-viam/conan-center-index.git
