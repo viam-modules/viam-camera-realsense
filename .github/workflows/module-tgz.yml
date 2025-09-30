@@ -22,10 +22,12 @@ jobs:
             container:
               image: ubuntu:22.04
             artifact-name: module-arm64
+            profile-name: arm64-profile
           - os: ubuntu-22.04
             container:
               image: ubuntu:22.04
             artifact-name: module-amd64
+            profile-name: amd64-profile
 
     container: ${{ matrix.container }}
 
@@ -84,7 +86,8 @@ jobs:
       - name: Setup python and conan
         run: |
           pip install conan
-          conan profile detect
+          cp etc/conan/${{ matrix.profile-name }} ~/.conan2/profiles/default
+          conan profile show
 
       - name: Get librealsense
         run: |
