@@ -17,5 +17,5 @@
       "short_description": "A discovery service to find connected RealSense cameras"
     }
   ],
-  "entrypoint": "viam-camera-realsense.AppImage"
+  "entrypoint": "bin/viam-camera-realsense"
 }

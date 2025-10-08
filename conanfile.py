@@ -36,7 +36,6 @@ class ViamRealsense(ConanFile):
     def generate(self):
         tc = CMakeToolchain(self)
         tc.cache_variables["VIAM_REALSENSE_ENABLE_TESTS"] = False
-        tc.cache_variables["VIAM_REALSENSE_DISABLE_APPIMAGE"] = True
         tc.generate()
 
         CMakeDeps(self).generate()

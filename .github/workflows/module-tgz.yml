@@ -1,4 +1,4 @@
-name: Build module.tar.gz and upload artifact
+name: Build module.tar.gz and upload to registry
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,6 +47,9 @@ jobs:
       - name: Set checkout ref (dispatch)
         if: github.event_name == 'workflow_dispatch'
         run: echo "CHECKOUT_REF=${{ inputs.ref }}" >> $GITHUB_ENV
+
+      - name: Test var set
+        run: echo $CHECKOUT_REF
 
       - name: Check out code
         uses: actions/checkout@v3
