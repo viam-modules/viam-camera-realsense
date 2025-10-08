@@ -4,12 +4,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       ref:
         type: string
         default: main
         description: realsense module branch to run on
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   module:
@@ -23,19 +29,29 @@ jobs:
               image: ubuntu:22.04
             artifact-name: module-arm64
             profile-name: arm64-profile
+            platform: linux/arm64
           - os: ubuntu-22.04
             container:
               image: ubuntu:22.04
             artifact-name: module-amd64
             profile-name: amd64-profile
+            platform: linux/amd64
 
     container: ${{ matrix.container }}
 
     steps:
+      - name: Set checkout ref (release)
+        if: github.event_name == 'release'
+        run: echo "CHECKOUT_REF=${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: Set checkout ref (dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "CHECKOUT_REF=${{ inputs.ref }}" >> $GITHUB_ENV
+
       - name: Check out code
         uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ env.CHECKOUT_REF }}
 
       - name: Restore cached libraries
         uses: actions/cache@v3
@@ -100,7 +116,7 @@ jobs:
         run: |
           git clone https://github.com/viamrobotics/viam-cpp-sdk.git
           cd viam-cpp-sdk
-          git checkout releases/v0.19.0
+          git checkout releases/v0.20.1
           conan create . -o "&:shared=False" --build=missing -s compiler.cppstd=17
 
       - name: Build
@@ -113,3 +129,12 @@ jobs:
         with:
           name: ${{ matrix.artifact-name }}
           path: module.tar.gz
+
+      - name: Upload module to registry
+        if: github.event_name == 'release'
+        uses: viamrobotics/upload-module@main
+        with:
+          platform: ${{ matrix.platform }}
+          version: ${{ github.ref_name }}
+          key-id: ${{ secrets.viam_key_id}}
+          key-value: ${{ secrets.viam_key_value }}
