@@ -105,6 +105,7 @@ jobs:
       - name: Setup python and conan
         run: |
           pip install conan
+          mkdir -p ~/.conan2/profiles
           cp etc/conan/${{ matrix.profile-name }} ~/.conan2/profiles/default
           conan profile show
 
