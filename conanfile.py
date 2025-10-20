@@ -18,7 +18,7 @@ class ViamRealsense(ConanFile):
     package_type = "application"
     settings = "os", "compiler", "build_type", "arch"
 
-    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json-no-appimage"
+    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json"
 
     version = "0.0.1"
 
