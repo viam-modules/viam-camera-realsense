@@ -90,16 +90,9 @@ For more information, see [Control Machines](https://docs.viam.com/fleet/control
 
 ### Locally install the module
 
-If you are using a Linux machine, and do not want to use the Viam registry, you can download the module AppImage from our servers directly to your machine:
+If you are using a Linux machine, and do not want to use the Viam registry, you can [download the module code from the registry](https://app.viam.com/module/viam/realsense) and use it directly on your machine.
 
-```
-sudo curl -o /usr/local/bin/viam-camera-realsense http://packages.viam.com/apps/camera-servers/viam-camera-realsense-latest-aarch64.AppImage
-sudo chmod a+rx /usr/local/bin/viam-camera-realsense
-```
-
-If you need the AppImage associated with a specific tag, replace `latest` in the URL with the tag version, i.e. `0.0.X`.
-
-Then, follow the instructions to [add a local module](https://docs.viam.com/registry/configure/#add-a-local-module) to add the local instance of the `realsense` module to your machine.
+Follow the instructions to [add a local module](https://docs.viam.com/operate/modules/support-hardware/#test-your-module-locally) just as you would for testing.
 Provide an **Executable path** of `/usr/local/bin/viam-camera-realsense` when adding the module.
 
 Or, if you aren't using the Viam app to manage your machine's configuration, modify your machine's JSON file as follows to add the `realsense` module to your machine:
@@ -153,10 +146,10 @@ Use the commands
 docker pull ghcr.io/viam-modules/viam-camera-realsense:arm64
 git clone https://github.com/viam-modules/viam-camera-realsense/
 cd viam-camera-realsense/
-canon -arch arm64 make appimage-arm64
+canon -arch arm64 make build/build.ninja
 ```
 
-This will use the Docker container to compile a binary for the `aarch64` architecture. If you want to compile for `x86_64`/`amd64` architecture, change `arm64` to `amd64` in the above commands. The AppImage will be put in the `packaging/appimages/deploy` directory.
+This will use the Docker container to compile a binary for the `aarch64` architecture. If you want to compile for `x86_64`/`amd64` architecture, change `arm64` to `amd64` in the above commands.
 
 If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
 
@@ -168,12 +161,11 @@ If you would like to try to gather all of the dependencies yourself and not use 
 - [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
   - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
 
-then do `make viam-camera-realsense` to compile the binary, and `make appimage` to create the AppImage.
+then do `make viam-camera-realsense` to compile the binary.
 
 ## Building with Address Sanitizer
 
-When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean appimage-arm64 SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App.
-
+When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App.
 
 ## Using within a Frame System
 
