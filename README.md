@@ -153,6 +153,14 @@ This will create a CMake build tree which can be built with CMake or directly by
 to the `cmake` call to configure the build, for example `-G Ninja` to use `ninja` as the build system, or `-DVIAM_REALSENSE_ENABLE_SANITIZER=1` to
 build the module with ASAN/LSAN enabled to test for memory leaks.
 
+The workflow above is suitable for local development on the module, where you want to make changes or contributions. If you want to generate a
+`module.tar.gz` deployment for use as a local module in Viam App, you can do
+
+```
+conan create . --build=missing -o:a "viam-cpp-sdk/*:shared=False"
+conan install --requires=viam-camera-realsense/0.0.1 --deployer-package "&" -o:a "viam-cpp-sdk/*:shared=False"
+```
+
 > [!NOTE]
 > Running `conan install` above may generate an error related to `libudev`. You can fix this by installing `libudev` with your system
 package manager, or follow the instructions in the error message to tell `conan` how to resolve this dependency.
