@@ -140,19 +140,24 @@ The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on t
 
 ## Building the module
 
-You can also build it yourself using Docker and [Viam canon](https://github.com/viamrobotics/canon).
-Use the commands
+You can also build the module yourself from source using Conan. See the [SDK Docs](https://github.com/viamrobotics/viam-cpp-sdk/blob/main/BUILDING.md#building-with-conan)
+for instructions on initial Conan setup and configuration. Then you can do
 
 ```
-docker pull ghcr.io/viam-modules/viam-camera-realsense:arm64
-git clone https://github.com/viam-modules/viam-camera-realsense/
-cd viam-camera-realsense/
-canon -arch arm64 make viam-camera-realsense
+conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan
+conan install .  -b missing -o:a "viam-cpp-sdk/*:shared=False"
+cmake . --preset=conan-release
 ```
 
-This will use the Docker container to compile a binary for the `aarch64` architecture. If you want to compile for `x86_64`/`amd64` architecture, change `arm64` to `amd64` in the above commands.
+This will create a CMake build tree which can be built with CMake or directly by running `make` for example. You can pass arguments
+to the `cmake` call to configure the build, for example `-G Ninja` to use `ninja` as the build system, or `-DVIAM_REALSENSE_ENABLE_SANITIZER=1` to
+build the module with ASAN/LSAN enabled to test for memory leaks.
 
-If you would like to try to gather all of the dependencies yourself and not use Docker, you will need:
+> [!NOTE]
+> Running `conan install` above may generate an error related to `libudev`. You can fix this by installing `libudev` with your system
+package manager, or follow the instructions in the error message to tell `conan` how to resolve this dependency.
+
+If you would like to try to gather all of the dependencies yourself, you will need:
 
 - [librealsense](https://github.com/IntelRealSense/librealsense)
   - `git checkout` and install from source.
@@ -162,11 +167,7 @@ If you would like to try to gather all of the dependencies yourself and not use 
 - [Viam C++ SDK](https://github.com/viamrobotics/viam-cpp-sdk/)
   - specifically `libviamsdk`, `libviamapi`, and `libviam_rust_utils`
 
-then do `make viam-camera-realsense` to compile the binary.
-
-## Building with Address Sanitizer
-
-When developing, you also have the option to build the module with ASAN/LSAN enabled to test for memory leaks. You can do so by running a build command such as `canon -arch arm64 make clean viam-camera-realsense SANITIZE=ON` with the `SANITIZE` flag `=ON`. ASAN/LSAN logs will then be included as error logs in your robot logs on the Viam App.
+then use CMake to generate a build.
 
 ## Using within a Frame System
 
