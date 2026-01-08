@@ -3,6 +3,7 @@
 #include "encoding.hpp"
 #include "time.hpp"
 #include "utils.hpp"
+#include <chrono>
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
 #include <viam/sdk/resource/reconfigurable.hpp>
@@ -425,7 +426,7 @@ public:
         // use the older of the two timestamps
         std::uint64_t timestamp = std::min(depthTS, colorTS);
 
-        std::chrono::microseconds latestTimestamp(timestamp);
+        std::chrono::milliseconds latestTimestamp(timestamp);
         response.metadata.captured_at = viam::sdk::time_pt{
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                 latestTimestamp)};
