@@ -3,7 +3,6 @@
 #include "encoding.hpp"
 #include "time.hpp"
 #include "utils.hpp"
-#include <chrono>
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
 #include <viam/sdk/resource/reconfigurable.hpp>
