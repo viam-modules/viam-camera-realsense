@@ -695,7 +695,8 @@ public:
         throw std::invalid_argument("serial_number must be a string");
       }
 
-      // Empty serial number is allowed and treated as not provided.
+      VIAM_SDK_LOG(info) << "[validate] serial_number is empty, "
+                            "first available device will be used";
     }
 
     if (attrs.count("width_px")) {
