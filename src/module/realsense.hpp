@@ -695,15 +695,7 @@ public:
         throw std::invalid_argument("serial_number must be a string");
       }
 
-      VIAM_SDK_LOG(info)
-          << "[validate] Validating that serial_number is not empty";
-      // We already stablished this is a string, so it's safe to call this
-      std::string const serial =
-          attrs["serial_number"].get_unchecked<std::string>();
-      if (serial.empty()) {
-        VIAM_SDK_LOG(error) << "[validate] serial_number is empty";
-        throw std::invalid_argument("serial_number must be a non-empty string");
-      }
+      // Empty serial number is allowed and treated as not provided.
     }
 
     if (attrs.count("width_px")) {

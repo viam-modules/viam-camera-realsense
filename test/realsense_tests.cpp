@@ -335,16 +335,19 @@ TEST_F(RealsenseTest, ValidateWithInvalidConfig_NoSerialNumber) {
       std::invalid_argument);
 }
 
-TEST_F(RealsenseTest, ValidateWithInvalidConfig_EmptySerialNumber) {
+TEST_F(RealsenseTest, ValidateWithEmptySerialNumber) {
   auto empty_serial_attributes = ProtoStruct{};
   empty_serial_attributes["serial_number"] = "";
-  ResourceConfig invalid_config(
+  ProtoList sensors = {"color", "depth"};
+  empty_serial_attributes["sensors"] = sensors;
+  ResourceConfig valid_config(
       "rdk:component:camera", "", test_name_, empty_serial_attributes, "",
       Model("viam", "camera", "realsense"), LinkConfig{}, log_level::info);
 
-  EXPECT_THROW(
-      { Realsense<SimpleMockContext>::validate(invalid_config); },
-      std::invalid_argument);
+  EXPECT_NO_THROW({
+    auto result = Realsense<SimpleMockContext>::validate(valid_config);
+    EXPECT_TRUE(result.empty());
+  });
 }
 
 TEST_F(RealsenseTest, DoCommandReturnsEmptyStruct) {
