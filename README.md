@@ -80,8 +80,24 @@ The following methods of the Viam camera API are supported:
 
 - [`GetPointCloud`](https://docs.viam.com/components/camera/#getpointcloud): returns depth data and can return color data depending on the provided image
 - [`GetImage`](https://docs.viam.com/components/camera/#getimage): returns color data
-- [`GetImages`](https://docs.viam.com/components/camera/#getimages): returns both depth and color data, possible to filter by image source
+- [`GetImages`](https://docs.viam.com/components/camera/#getimages): returns image data from configured sensors, filterable via source names (see below)
 - [`GetProperties`](https://docs.viam.com/components/camera/#getproperties): returns intrinsic properties of a camera
+
+#### `GetImages` source names
+
+`GetImages` accepts an optional `filter_source_names` parameter to select which image sources to return. The valid source names are:
+
+| Source name | Description |
+| ----------- | ----------- |
+| `color` | RGB color image, encoded as JPEG |
+| `depth` | Depth map, encoded as raw depth bytes (big-endian by default, little-endian if `little_endian_depth` is `true`) |
+
+A source is only returned if it is **both** listed in the `sensors` attribute of the camera's configuration **and** included in `filter_source_names` (or `filter_source_names` is empty). For example:
+
+- `sensors: ["color", "depth"]` with empty `filter_source_names` returns both `color` and `depth`.
+- `sensors: ["color", "depth"]` with `filter_source_names: ["depth"]` returns only `depth`.
+- `sensors: ["color"]` with empty `filter_source_names` returns only `color`, since `depth` is not configured.
+- `sensors: ["color"]` with `filter_source_names: ["depth"]` returns nothing, since `depth` is not in `sensors`.
 
 ### CONTROL tab of app.viam.com
 
