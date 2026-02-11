@@ -34,12 +34,7 @@ jobs:
         run: |
           make setup
           test -f ./venv/bin/activate && . ./venv/bin/activate && conan profile show
-
-      - name: Install Conan dependencies
-        if: runner.os == 'macOS'
-        run: |
-          make conan-install-test
-
+      
       - name: Lint
         run: |
           make lint
@@ -48,6 +43,11 @@ jobs:
             git diff
             exit 1
           fi
+
+      - name: Install Conan dependencies
+        if: runner.os == 'macOS'
+        run: |
+          make conan-install-test
 
       - name: Run the tests
         run: make test-native
