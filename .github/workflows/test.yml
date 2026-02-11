@@ -39,7 +39,7 @@ jobs:
         run: |
           make lint
           if ! git diff --quiet; then
-            echo "lint make target produced changes. Please run 'make lint' locally and commit the results."
+            echo -e "\033[31mError: lint make target produced changes. Please run 'make lint' locally and commit the results.\033[0m"
             git diff
             exit 1
           fi
