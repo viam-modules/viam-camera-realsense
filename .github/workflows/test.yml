@@ -40,5 +40,14 @@ jobs:
         run: |
           make conan-install-test
 
+      - name: Lint
+        run: |
+          make lint
+          if ! git diff --quiet; then
+            echo "lint make target produced changes. Please run 'make lint' locally and commit the results."
+            git diff
+            exit 1
+          fi
+
       - name: Run the tests
         run: make test-native
