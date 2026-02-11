@@ -335,7 +335,8 @@ public:
       } else {
         throw std::invalid_argument(
             "unknown main sensor: " +
-            sensors::sensor_type_to_string(config_->getMainSensor(), this->logger_));
+            sensors::sensor_type_to_string(config_->getMainSensor(),
+                                           this->logger_));
       }
 
     } catch (const std::exception &e) {
@@ -408,8 +409,9 @@ public:
               std::chrono::duration_cast<std::chrono::nanoseconds>(
                   latestTimestamp)};
         } else {
-          throw std::invalid_argument("unknown sensor: " +
-                                      sensors::sensor_type_to_string(sensor, this->logger_));
+          throw std::invalid_argument(
+              "unknown sensor: " +
+              sensors::sensor_type_to_string(sensor, this->logger_));
         }
       }
 
@@ -915,8 +917,8 @@ private:
     auto sensors_list = attrs["sensors"].get_unchecked<viam::sdk::ProtoList>();
     std::vector<sensors::SensorType> sensors;
     for (const auto &sensor : sensors_list) {
-      auto sensor_type =
-          sensors::string_to_sensor_type(sensor.get_unchecked<std::string>(), this->logger_);
+      auto sensor_type = sensors::string_to_sensor_type(
+          sensor.get_unchecked<std::string>(), this->logger_);
       if (sensor_type == sensors::SensorType::unknown) {
         throw std::runtime_error("Invalid sensor type: " +
                                  sensor.get_unchecked<std::string>());

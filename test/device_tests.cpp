@@ -44,7 +44,8 @@ class MockDevice : public rs2::device {
 public:
   MOCK_METHOD(bool, supports, (rs2_camera_info), (const));
   MOCK_METHOD(const char *, get_info, (rs2_camera_info), (const));
-  // Note: query_sensors() not mocked - only SimpleDevice has it for template tests
+  // Note: query_sensors() not mocked - only SimpleDevice has it for template
+  // tests
 };
 
 // MockSensor: GMock mock for EXPECT_CALL tests with option support
@@ -53,7 +54,8 @@ public:
   MOCK_METHOD(bool, supports, (rs2_option), (const));
   MOCK_METHOD(void, set_option, (rs2_option, float));
 
-  // Template method for sensor type checking (used by enableGlobalTimestamp, etc.)
+  // Template method for sensor type checking (used by enableGlobalTimestamp,
+  // etc.)
   template <typename T> bool is() const {
     return std::is_same<T, rs2::color_sensor>::value ? is_color_ : is_depth_;
   }
@@ -81,8 +83,10 @@ public:
 class SimpleVideoStreamProfile {
 public:
   SimpleVideoStreamProfile() = default;
-  SimpleVideoStreamProfile(rs2_format format, int width, int height, int fps, int stream_index)
-      : format_(format), width_(width), height_(height), fps_(fps), stream_index_(stream_index) {}
+  SimpleVideoStreamProfile(rs2_format format, int width, int height, int fps,
+                           int stream_index)
+      : format_(format), width_(width), height_(height), fps_(fps),
+        stream_index_(stream_index) {}
 
   rs2_format format() const { return format_; }
   int width() const { return width_; }
@@ -118,7 +122,8 @@ public:
   MOCK_METHOD(void, set_option, (rs2_option, float));
 };
 
-// SimpleSensor: Copyable wrapper for template function tests (wraps shared_ptr to GMock)
+// SimpleSensor: Copyable wrapper for template function tests (wraps shared_ptr
+// to GMock)
 class SimpleSensor {
 public:
   SimpleSensor() : impl_(std::make_shared<SimpleSensorImpl>()) {}
@@ -132,9 +137,7 @@ public:
     return std::is_same<T, rs2::color_sensor>::value ? is_color_ : is_depth_;
   }
 
-  bool supports(rs2_option option) const {
-    return impl_->supports(option);
-  }
+  bool supports(rs2_option option) const { return impl_->supports(option); }
 
   void set_option(rs2_option option, float value) {
     impl_->set_option(option, value);
@@ -144,14 +147,12 @@ public:
     return stream_profiles_;
   }
 
-  void set_stream_profiles(const std::vector<SimpleStreamProfile>& profiles) {
+  void set_stream_profiles(const std::vector<SimpleStreamProfile> &profiles) {
     stream_profiles_ = profiles;
   }
 
   // Access to the GMock implementation for setting expectations
-  std::shared_ptr<SimpleSensorImpl> mock() const {
-    return impl_;
-  }
+  std::shared_ptr<SimpleSensorImpl> mock() const { return impl_; }
 
 private:
   bool is_color_ = false;
@@ -163,11 +164,9 @@ private:
 // SimpleDevice: Device wrapper for template function tests
 class SimpleDevice {
 public:
-  std::vector<SimpleSensor> query_sensors() const {
-    return sensors_;
-  }
+  std::vector<SimpleSensor> query_sensors() const { return sensors_; }
 
-  void set_sensors(const std::vector<SimpleSensor>& sensors) {
+  void set_sensors(const std::vector<SimpleSensor> &sensors) {
     sensors_ = sensors;
   }
 
@@ -182,7 +181,8 @@ public:
   MOCK_METHOD(void, enable_device, (const std::string &));
 };
 
-// SimpleConfig: Non-GMock config for value-based tests (used in template functions)
+// SimpleConfig: Non-GMock config for value-based tests (used in template
+// functions)
 class SimpleConfig {
 public:
   void enable_stream(rs2_stream stream, int stream_index, int width, int height,
@@ -192,12 +192,14 @@ public:
     }
   }
 
-  void set_enable_stream_func(std::function<void(rs2_stream, int, int, int, rs2_format, int)> func) {
+  void set_enable_stream_func(
+      std::function<void(rs2_stream, int, int, int, rs2_format, int)> func) {
     enable_stream_func_ = func;
   }
 
 private:
-  std::function<void(rs2_stream, int, int, int, rs2_format, int)> enable_stream_func_;
+  std::function<void(rs2_stream, int, int, int, rs2_format, int)>
+      enable_stream_func_;
 };
 
 class MockPipeline {
@@ -400,7 +402,7 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
 
   // Verify device info is in the logs
   bool found_device_info = false;
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("DeviceInfo") != std::string::npos ||
         log.message.find("Intel RealSense D435") != std::string::npos ||
         log.message.find("123456789") != std::string::npos) {
@@ -453,7 +455,7 @@ TEST_F(DeviceTest,
 
   // Verify the log contains resolution/fps info
   bool found_profile_info = false;
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("640") != std::string::npos &&
         log.message.find("480") != std::string::npos &&
         log.message.find("30") != std::string::npos) {
@@ -558,7 +560,7 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
   bool found_stopping = false;
   bool found_destroyed = false;
 
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("destroying") != std::string::npos &&
         log.message.find("test123") != std::string::npos) {
       found_destroying = true;
@@ -572,7 +574,8 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
   }
 
   EXPECT_TRUE(found_destroying) << "Should log 'destroying device'";
-  EXPECT_FALSE(found_stopping) << "Should NOT log 'stopping pipe' when device not started";
+  EXPECT_FALSE(found_stopping)
+      << "Should NOT log 'stopping pipe' when device not started";
   EXPECT_TRUE(found_destroyed) << "Should log 'device destroyed'";
 }
 
@@ -626,14 +629,15 @@ TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
 
   // Verify no errors
   auto error_logs = log_capture.get_error_logs();
-  EXPECT_EQ(error_logs.size(), 0) << "Should not log errors for valid started device";
+  EXPECT_EQ(error_logs.size(), 0)
+      << "Should not log errors for valid started device";
 
   // Verify expected INFO logs (destroying, stopping pipe, clearing, destroyed)
   bool found_destroying = false;
   bool found_stopping = false;
   bool found_destroyed = false;
 
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("destroying") != std::string::npos &&
         log.message.find("test123") != std::string::npos) {
       found_destroying = true;
@@ -647,7 +651,8 @@ TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
   }
 
   EXPECT_TRUE(found_destroying) << "Should log 'destroying device'";
-  EXPECT_TRUE(found_stopping) << "Should log 'stopping pipe' when device was started";
+  EXPECT_TRUE(found_stopping)
+      << "Should log 'stopping pipe' when device was started";
   EXPECT_TRUE(found_destroyed) << "Should log 'device destroyed'";
 }
 
@@ -674,18 +679,20 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SupportedSensor_EnablesOption) {
 
   // Verify the log contains success message
   bool found_enabled_msg = false;
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("Enabled Global Timestamp") != std::string::npos &&
         log.message.find("color") != std::string::npos) {
       found_enabled_msg = true;
       break;
     }
   }
-  EXPECT_TRUE(found_enabled_msg) << "Should log 'Enabled Global Timestamp for sensor: color'";
+  EXPECT_TRUE(found_enabled_msg)
+      << "Should log 'Enabled Global Timestamp for sensor: color'";
 
   // Verify no errors
   auto error_logs = log_capture.get_error_logs();
-  EXPECT_EQ(error_logs.size(), 0) << "Should not log errors for successful operation";
+  EXPECT_EQ(error_logs.size(), 0)
+      << "Should not log errors for successful operation";
 }
 
 TEST_F(DeviceTest, EnableGlobalTimestamp_UnsupportedSensor_DoesNothing) {
@@ -729,8 +736,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
   ASSERT_EQ(error_logs.size(), 1) << "Should log error when set_option fails";
   EXPECT_THAT(error_logs[0].message,
               ::testing::HasSubstr("Failed to enable Global Timestamp"));
-  EXPECT_THAT(error_logs[0].message,
-              ::testing::HasSubstr("Hardware error"));
+  EXPECT_THAT(error_logs[0].message, ::testing::HasSubstr("Hardware error"));
 }
 
 // Test disableAutoExposurePriority function
@@ -756,18 +762,21 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_ColorSensor_DisablesOption) {
 
   // Verify the log contains success message
   bool found_disabled_msg = false;
-  for (const auto& log : all_logs) {
-    if (log.message.find("Disabled Auto-Exposure Priority") != std::string::npos &&
+  for (const auto &log : all_logs) {
+    if (log.message.find("Disabled Auto-Exposure Priority") !=
+            std::string::npos &&
         log.message.find("color sensor") != std::string::npos) {
       found_disabled_msg = true;
       break;
     }
   }
-  EXPECT_TRUE(found_disabled_msg) << "Should log 'Disabled Auto-Exposure Priority for color sensor'";
+  EXPECT_TRUE(found_disabled_msg)
+      << "Should log 'Disabled Auto-Exposure Priority for color sensor'";
 
   // Verify no errors
   auto error_logs = log_capture.get_error_logs();
-  EXPECT_EQ(error_logs.size(), 0) << "Should not log errors for successful operation";
+  EXPECT_EQ(error_logs.size(), 0)
+      << "Should not log errors for successful operation";
 }
 
 TEST_F(DeviceTest, DisableAutoExposurePriority_DepthSensor_DoesNothing) {
@@ -807,7 +816,8 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
 
   // Verify warning log (not error - this is a non-critical failure)
   auto warning_logs = log_capture.get_warning_logs();
-  ASSERT_EQ(warning_logs.size(), 1) << "Should log warning when set_option fails";
+  ASSERT_EQ(warning_logs.size(), 1)
+      << "Should log warning when set_option fails";
   EXPECT_THAT(warning_logs[0].message,
               ::testing::HasSubstr("Failed to disable Auto-Exposure Priority"));
   EXPECT_THAT(warning_logs[0].message,
@@ -819,7 +829,8 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_LogsError) {
   viam::sdk::LogSource logger;
 
   MockSensor mock_sensor;
-  mock_sensor.set_sensor_type(false, false); // Unknown sensor (neither color nor depth)
+  mock_sensor.set_sensor_type(
+      false, false); // Unknown sensor (neither color nor depth)
 
   // Execute - should log error for unknown sensor type
   disableAutoExposurePriority(mock_sensor, logger);
@@ -830,7 +841,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_LogsError) {
 
   // Check that at least one error mentions the failure
   bool found_error = false;
-  for (const auto& log : error_logs) {
+  for (const auto &log : error_logs) {
     if (log.message.find("Failed to get sensor type") != std::string::npos ||
         log.message.find("Invalid sensor type") != std::string::npos) {
       found_error = true;
@@ -840,7 +851,8 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_LogsError) {
   EXPECT_TRUE(found_error) << "Should log error for unknown sensor type";
 }
 
-TEST_F(DeviceTest, CreateSingleSensorConfig_ActualCall_OnlyEnablesGlobalTimestamp) {
+TEST_F(DeviceTest,
+       CreateSingleSensorConfig_ActualCall_OnlyEnablesGlobalTimestamp) {
   test_utils::LogCaptureFixture log_capture;
   viam::sdk::LogSource logger;
 
@@ -862,49 +874,46 @@ TEST_F(DeviceTest, CreateSingleSensorConfig_ActualCall_OnlyEnablesGlobalTimestam
   EXPECT_CALL(*color_sensor.mock(), supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
       .Times(1)
       .WillOnce(Return(true));
-  EXPECT_CALL(*color_sensor.mock(), set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+  EXPECT_CALL(*color_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
       .Times(1);
 
   // Verify disableAutoExposurePriority is NOT called in single-sensor mode
   EXPECT_CALL(*color_sensor.mock(), supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
       .Times(0);
-  EXPECT_CALL(*color_sensor.mock(), set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, _))
+  EXPECT_CALL(*color_sensor.mock(),
+              set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, _))
       .Times(0);
 
   mock_device->set_sensors({color_sensor});
 
   // Create test config
   RsResourceConfig viam_config(
-      "test_serial",
-      "test_camera",
-      {realsense::sensors::SensorType::color},
-      std::optional<int>{640},
-      std::optional<int>{480}
-  );
+      "test_serial", "test_camera", {realsense::sensors::SensorType::color},
+      std::optional<int>{640}, std::optional<int>{480});
 
   // ACTUALLY CALL createSingleSensorConfig!
-  auto result = createSingleSensorConfig<
-      SimpleDevice,
-      SimpleConfig,
-      rs2::color_sensor,
-      SimpleVideoStreamProfile,
-      RsResourceConfig
-  >(mock_device, viam_config, logger);
+  auto result =
+      createSingleSensorConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                               SimpleVideoStreamProfile, RsResourceConfig>(
+          mock_device, viam_config, logger);
 
   // Verify the function was called successfully
-  EXPECT_NE(result, nullptr) << "createSingleSensorConfig should return a config";
+  EXPECT_NE(result, nullptr)
+      << "createSingleSensorConfig should return a config";
 
   // Verify logs show enableGlobalTimestamp was called
   auto all_logs = log_capture.get_records();
   bool found_global_timestamp_log = false;
   bool found_creating_config_log = false;
 
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("Enabled Global Timestamp") != std::string::npos &&
         log.message.find("color") != std::string::npos) {
       found_global_timestamp_log = true;
     }
-    if (log.message.find("Creating config for single sensor") != std::string::npos) {
+    if (log.message.find("Creating config for single sensor") !=
+        std::string::npos) {
       found_creating_config_log = true;
     }
   }
@@ -915,7 +924,8 @@ TEST_F(DeviceTest, CreateSingleSensorConfig_ActualCall_OnlyEnablesGlobalTimestam
       << "Should log that config is being created";
 }
 
-TEST_F(DeviceTest, CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAutoExp) {
+TEST_F(DeviceTest,
+       CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAutoExp) {
   test_utils::LogCaptureFixture log_capture;
   viam::sdk::LogSource logger;
 
@@ -951,12 +961,14 @@ TEST_F(DeviceTest, CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAut
   EXPECT_CALL(*color_sensor.mock(), supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
       .Times(1)
       .WillOnce(Return(true));
-  EXPECT_CALL(*color_sensor.mock(), set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+  EXPECT_CALL(*color_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
       .Times(1);
   EXPECT_CALL(*color_sensor.mock(), supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
       .Times(1)
       .WillOnce(Return(true));
-  EXPECT_CALL(*color_sensor.mock(), set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, 0.0f))
+  EXPECT_CALL(*color_sensor.mock(),
+              set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, 0.0f))
       .Times(1);
 
   // Set expectations for depth sensor:
@@ -965,33 +977,30 @@ TEST_F(DeviceTest, CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAut
   EXPECT_CALL(*depth_sensor.mock(), supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
       .Times(1)
       .WillOnce(Return(true));
-  EXPECT_CALL(*depth_sensor.mock(), set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+  EXPECT_CALL(*depth_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
       .Times(1);
   EXPECT_CALL(*depth_sensor.mock(), supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
       .Times(0);
-  EXPECT_CALL(*depth_sensor.mock(), set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, _))
+  EXPECT_CALL(*depth_sensor.mock(),
+              set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, _))
       .Times(0);
 
   mock_device->set_sensors({color_sensor, depth_sensor});
 
   // Create test config for both sensors
-  RsResourceConfig viam_config(
-      "test_serial",
-      "test_camera",
-      {realsense::sensors::SensorType::color, realsense::sensors::SensorType::depth},
-      std::optional<int>{640},
-      std::optional<int>{480}
-  );
+  RsResourceConfig viam_config("test_serial", "test_camera",
+                               {realsense::sensors::SensorType::color,
+                                realsense::sensors::SensorType::depth},
+                               std::optional<int>{640},
+                               std::optional<int>{480});
 
   // ACTUALLY CALL createSwD2CAlignConfig!
-  auto result = createSwD2CAlignConfig<
-      SimpleDevice,
-      SimpleConfig,
-      rs2::color_sensor,
-      rs2::depth_sensor,
-      SimpleVideoStreamProfile,
-      RsResourceConfig
-  >(mock_device, viam_config, logger);
+  auto result =
+      createSwD2CAlignConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                             rs2::depth_sensor, SimpleVideoStreamProfile,
+                             RsResourceConfig>(mock_device, viam_config,
+                                               logger);
 
   // Verify the function was called successfully
   EXPECT_NE(result, nullptr) << "createSwD2CAlignConfig should return a config";
@@ -1005,7 +1014,7 @@ TEST_F(DeviceTest, CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAut
   bool found_disable_auto_exp_log = false;
   bool found_matching_profiles_log = false;
 
-  for (const auto& log : all_logs) {
+  for (const auto &log : all_logs) {
     if (log.message.find("Enabled Global Timestamp") != std::string::npos) {
       if (log.message.find("color") != std::string::npos) {
         found_color_global_log = true;
@@ -1014,10 +1023,12 @@ TEST_F(DeviceTest, CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAut
         found_depth_global_log = true;
       }
     }
-    if (log.message.find("Disabled Auto-Exposure Priority") != std::string::npos) {
+    if (log.message.find("Disabled Auto-Exposure Priority") !=
+        std::string::npos) {
       found_disable_auto_exp_log = true;
     }
-    if (log.message.find("Found matching color and depth stream profiles") != std::string::npos) {
+    if (log.message.find("Found matching color and depth stream profiles") !=
+        std::string::npos) {
       found_matching_profiles_log = true;
     }
   }
