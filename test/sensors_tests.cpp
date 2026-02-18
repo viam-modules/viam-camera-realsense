@@ -2,24 +2,38 @@
 #include "log_capture.hpp"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <viam/sdk/components/camera.hpp>
+#include <viam/sdk/resource/resource.hpp>
 
 namespace realsense {
 namespace sensors {
 
+// MockResource for testing
+class MockResource : public viam::sdk::Resource {
+public:
+  MockResource() : viam::sdk::Resource("test_resource") {}
+  viam::sdk::API api() const override {
+    return viam::sdk::API::get<viam::sdk::Camera>();
+  }
+  // Expose the logger for testing
+  viam::sdk::LogSource& get_logger() { return logger_; }
+};
+
 TEST(SensorsTest, SensorTypeToString) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Valid cases should not log errors
-  EXPECT_EQ(sensor_type_to_string(SensorType::depth, logger), "depth");
-  EXPECT_EQ(sensor_type_to_string(SensorType::color, logger), "color");
+  EXPECT_EQ(sensor_type_to_string(SensorType::depth, mock_resource.get_logger()), "depth");
+  EXPECT_EQ(sensor_type_to_string(SensorType::color, mock_resource.get_logger()), "color");
 
   auto logs_before = log_capture.get_error_logs();
   EXPECT_EQ(logs_before.size(), 0);
 
   // Invalid case should log error
   log_capture.clear();
-  EXPECT_EQ(sensor_type_to_string(SensorType::unknown, logger), "unknown");
+  EXPECT_EQ(sensor_type_to_string(SensorType::unknown, mock_resource.get_logger()),
+            "unknown");
 
   auto error_logs = log_capture.get_error_logs();
   ASSERT_EQ(error_logs.size(), 1);
@@ -29,16 +43,16 @@ TEST(SensorsTest, SensorTypeToString) {
 
 TEST(SensorsTest, StringToSensorType) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Valid cases
-  EXPECT_EQ(string_to_sensor_type("depth", logger), SensorType::depth);
-  EXPECT_EQ(string_to_sensor_type("color", logger), SensorType::color);
+  EXPECT_EQ(string_to_sensor_type("depth", mock_resource.get_logger()), SensorType::depth);
+  EXPECT_EQ(string_to_sensor_type("color", mock_resource.get_logger()), SensorType::color);
   EXPECT_EQ(log_capture.get_error_logs().size(), 0);
 
   // Invalid case should log error
   log_capture.clear();
-  EXPECT_EQ(string_to_sensor_type("foo", logger), SensorType::unknown);
+  EXPECT_EQ(string_to_sensor_type("foo", mock_resource.get_logger()), SensorType::unknown);
 
   auto error_logs = log_capture.get_error_logs();
   ASSERT_EQ(error_logs.size(), 1);
@@ -65,20 +79,21 @@ struct MockUnknownSensor {
 
 TEST(SensorsTest, GetSensorType) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockDepthSensor depth_sensor;
-  EXPECT_EQ(get_sensor_type(depth_sensor, logger), SensorType::depth);
+  EXPECT_EQ(get_sensor_type(depth_sensor, mock_resource.get_logger()), SensorType::depth);
   EXPECT_EQ(log_capture.get_error_logs().size(), 0);
 
   MockColorSensor color_sensor;
   log_capture.clear();
-  EXPECT_EQ(get_sensor_type(color_sensor, logger), SensorType::color);
+  EXPECT_EQ(get_sensor_type(color_sensor, mock_resource.get_logger()), SensorType::color);
   EXPECT_EQ(log_capture.get_error_logs().size(), 0);
 
   MockUnknownSensor unknown_sensor;
   log_capture.clear();
-  EXPECT_EQ(get_sensor_type(unknown_sensor, logger), SensorType::unknown);
+  EXPECT_EQ(get_sensor_type(unknown_sensor, mock_resource.get_logger()),
+            SensorType::unknown);
 
   auto error_logs = log_capture.get_error_logs();
   ASSERT_EQ(error_logs.size(), 1);

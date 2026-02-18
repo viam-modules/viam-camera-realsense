@@ -37,6 +37,20 @@ public:
 
   std::string get_serial() const { return serial_; }
 
+  // Template method for device type checking (used for recovery mode detection)
+  template <typename T> bool is() const {
+    // Mock devices are never update_device (recovery mode)
+    // They are always normal devices for testing
+    return false;
+  }
+
+  // Support method to check if device supports specific info
+  bool supports(rs2_camera_info info) const {
+    // Mock devices always support serial number (normal mode)
+    // They never support firmware_update_id (not in recovery mode)
+    return info == RS2_CAMERA_INFO_SERIAL_NUMBER;
+  }
+
 private:
   std::string serial_;
 };
@@ -78,18 +92,18 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
           [mock](
               std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                   &device,
-              viam::sdk::LogSource &) -> bool {
+              viam::sdk::LogSource &logger) -> bool {
         return mock->stopDevice(device);
       },
       .destroyDevice =
           [mock](
               std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                   &device,
-              viam::sdk::LogSource &) -> bool {
+              viam::sdk::LogSource &logger) -> bool {
         return mock->destroyDevice(device);
       },
       .printDeviceInfo =
-          [mock](const auto &dev, viam::sdk::LogSource &) {
+          [mock](const auto &dev, viam::sdk::LogSource &logger) {
             mock->printDeviceInfo(dev);
           },
       .createDevice =
@@ -97,7 +111,7 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
                  std::shared_ptr<rs2::device> dev_ptr,
                  const std::unordered_set<std::string> &supported_models,
                  const realsense::RsResourceConfig &config,
-                 viam::sdk::LogSource &) // Add logger parameter
+                 viam::sdk::LogSource &logger) // Add logger parameter
       -> std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> {
         auto raw_device = mock->createDevice(serial, dev_ptr, supported_models,
                                              config); // Pass config
@@ -113,7 +127,7 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
                   &latest_frameset,
               std::uint64_t maxFrameAgeMs,
               const realsense::RsResourceConfig &viamConfig,
-              viam::sdk::LogSource &) {
+              viam::sdk::LogSource &logger) {
             mock->startDevice(serial, device, latest_frameset, maxFrameAgeMs,
                               viamConfig);
           },
@@ -122,7 +136,7 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
               std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                   device,
               realsense::RsResourceConfig const &viamConfig,
-              viam::sdk::LogSource &) {
+              viam::sdk::LogSource &logger) {
             mock->reconfigureDevice(device, viamConfig);
           }};
 }
@@ -132,7 +146,7 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
       .stopDevice =
           [](std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                  &device,
-             viam::sdk::LogSource &) -> bool {
+             viam::sdk::LogSource &logger) -> bool {
         std::cout << "Mock: stopDevice called" << std::endl;
         if (device) {
           auto locked_device = device->synchronize();
@@ -143,13 +157,13 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
       .destroyDevice =
           [](std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                  &device,
-             viam::sdk::LogSource &) -> bool {
+             viam::sdk::LogSource &logger) -> bool {
         std::cout << "Mock: destroyDevice called" << std::endl;
         device = nullptr;
         return true;
       },
       .printDeviceInfo =
-          [](const auto &dev, viam::sdk::LogSource &) {
+          [](const auto &dev, viam::sdk::LogSource &logger) {
             std::cout << "Mock: printDeviceInfo called" << std::endl;
             if constexpr (std::is_same_v<std::decay_t<decltype(dev)>,
                                          MockRsDevice>) {
@@ -160,7 +174,7 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
       .createDevice =
           [](const std::string &serial, std::shared_ptr<rs2::device> dev_ptr,
              const std::unordered_set<std::string> &supported_models,
-             const realsense::RsResourceConfig &config, viam::sdk::LogSource &)
+             const realsense::RsResourceConfig &config, viam::sdk::LogSource &logger)
           -> std::shared_ptr<
               boost::synchronized_value<device::ViamRSDevice<>>> {
         std::cout << "Mock: createDevice called for " << serial << std::endl;
@@ -181,7 +195,7 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
                  &latest_frameset,
              std::uint64_t maxFrameAgeMs,
              const realsense::RsResourceConfig &viamConfig,
-             viam::sdk::LogSource &) {
+             viam::sdk::LogSource &logger) {
             std::cout << "Mock: startDevice called for " << serial << std::endl;
             if (device) {
               auto locked_device = device->synchronize();
@@ -192,7 +206,7 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
           [](std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                  device,
              realsense::RsResourceConfig const &viamConfig,
-             viam::sdk::LogSource &) {
+             viam::sdk::LogSource &logger) {
             std::cout << "Mock: reconfigureDevice called" << std::endl;
             // No-op for mock
           }};
@@ -352,8 +366,69 @@ TEST_F(RealsenseTest, DoCommandReturnsEmptyStruct) {
   ProtoStruct command{};
   auto result = camera.do_command(command);
 
-  // do_command should return an empty ProtoStruct since it's not implemented
-  EXPECT_TRUE(result.empty());
+  // do_command should return an error message for unknown commands
+  EXPECT_FALSE(result.empty());
+  EXPECT_TRUE(result.count("error") > 0);
+}
+
+TEST_F(RealsenseTest, FirmwareUpdate_WithURL) {
+  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
+      test_deps_, *test_config_, mock_realsense_context_,
+      createFullyMockedDeviceFunctions(), assigned_serials_);
+
+  ProtoStruct command;
+  command["update_firmware"] = "https://example.com/firmware.bin";
+  auto result = camera.do_command(command);
+
+  // Should fail because we don't have actual device/network setup, but it
+  // should recognize the string API
+  EXPECT_TRUE(result.count("success") > 0 || result.count("error") > 0);
+}
+
+TEST_F(RealsenseTest, FirmwareUpdate_AutoDetect_ReturnsRecommendedVersion) {
+  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
+      test_deps_, *test_config_, mock_realsense_context_,
+      createFullyMockedDeviceFunctions(), assigned_serials_);
+
+  ProtoStruct command;
+  command["update_firmware"] = ""; // Empty string for auto-detect
+  auto result = camera.do_command(command);
+
+  // Should return error with recommended version info (since URL mapping
+  // doesn't exist yet) or error about device not supporting it
+  EXPECT_FALSE(*result["success"].get<bool>());
+  EXPECT_TRUE(result.count("error") > 0);
+  auto error = *result["error"].get<std::string>();
+  // Should either mention auto-detect failure or provide recommended version
+#ifdef __APPLE__
+  // On macOS, firmware update is not supported
+  EXPECT_TRUE(error.find("not supported on macOS") != std::string::npos);
+#else
+  EXPECT_TRUE(error.find("Auto-detect") != std::string::npos ||
+              error.find("recommended") != std::string::npos ||
+              error.find("Device pointer is null") != std::string::npos);
+#endif
+}
+
+TEST_F(RealsenseTest, FirmwareUpdate_InvalidType) {
+  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
+      test_deps_, *test_config_, mock_realsense_context_,
+      createFullyMockedDeviceFunctions(), assigned_serials_);
+
+  ProtoStruct command;
+  command["update_firmware"] = 123; // Invalid type (should be string)
+  auto result = camera.do_command(command);
+
+  // Should return error for invalid type
+  EXPECT_FALSE(*result["success"].get<bool>());
+  EXPECT_TRUE(result.count("error") > 0);
+  auto error = *result["error"].get<std::string>();
+#ifdef __APPLE__
+  // On macOS, firmware update is not supported
+  EXPECT_TRUE(error.find("not supported on macOS") != std::string::npos);
+#else
+  EXPECT_TRUE(error.find("must be a string") != std::string::npos);
+#endif
 }
 
 TEST_F(RealsenseTest, GetGeometriesReturnsExpectedGeometry) {

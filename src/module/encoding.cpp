@@ -1,10 +1,7 @@
 #include "encoding.hpp"
 
 #include <turbojpeg.h>
-#include <viam/sdk/log/logging.hpp>
-
-// Helper macro to use resource logging with explicit logger
-#define VIAM_DEVICE_LOG(logger, level) VIAM_SDK_LOG_IMPL(logger, level)
+#include <viam/sdk/resource/resource.hpp>
 
 namespace realsense {
 namespace encoding {
@@ -188,7 +185,7 @@ encodeRGBPointsToPCD(std::pair<rs2::points, rs2::video_frame> &&data,
                      viam::sdk::LogSource &logger) {
   auto pcdPoints = getPCDPoints(std::move(data));
   if (pcdPoints.empty()) {
-    VIAM_DEVICE_LOG(logger, error)
+    VIAM_SDK_LOG_IMPL(logger, error)
         << "[encodeRGBPointsToPCD] No valid points found";
     return {};
   }
@@ -225,7 +222,7 @@ encodeRGBPointsToPCD(std::pair<rs2::points, rs2::video_frame> &&data,
   size_t dataSize = pcdPoints.size() * sizeof(PointXYZRGB);
   pcdBytes.insert(pcdBytes.end(), dataPtr, dataPtr + dataSize);
 
-  VIAM_DEVICE_LOG(logger, debug)
+  VIAM_SDK_LOG_IMPL(logger, debug)
       << "[encodeRGBPointsToPCD] Converted " << pcdPoints.size()
       << " points to PCD format, encoded in " << pcdBytes.size() << " bytes";
   return pcdBytes;

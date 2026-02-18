@@ -56,31 +56,47 @@ public:
               << "[discover_resources] Successfully accessed device at index "
               << i;
 
+          std::string device_identifier;
+          bool is_recovery_mode = false;
+
+          // Try to get serial number first (normal mode)
           if (dev.supports(RS2_CAMERA_INFO_SERIAL_NUMBER)) {
-
-            std::string serial_number =
-                dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-
-            viam::sdk::ProtoStruct attributes;
-            attributes["serial_number"] = serial_number;
-
-            viam::sdk::ProtoList sensors;
-            sensors.push_back("color");
-            sensors.push_back("depth");
-            attributes["sensors"] = sensors;
-
-            std::ostringstream name;
-            name << "realsense-" << serial_number;
-
-            viam::sdk::ResourceConfig config(
-                "camera", std::move(name.str()), "viam", attributes,
-                "rdk:component:camera", realsense::Realsense<ContextT>::model,
-                viam::sdk::LinkConfig{}, viam::sdk::log_level::info);
-            configs.push_back(config);
-          } else {
-            VIAM_SDK_LOG(warn) << "[discover_resources] Device at index " << i
-                               << " does not support serial number";
+            device_identifier = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
           }
+          // If no serial number, check if it's a recovery/DFU mode device
+          else if (dev.supports(RS2_CAMERA_INFO_FIRMWARE_UPDATE_ID)) {
+            device_identifier =
+                dev.get_info(RS2_CAMERA_INFO_FIRMWARE_UPDATE_ID);
+            is_recovery_mode = true;
+            VIAM_SDK_LOG(warn) << "[discover_resources] Device at index " << i
+                               << " is in recovery/DFU mode with update ID: "
+                               << device_identifier;
+          } else {
+            VIAM_SDK_LOG(warn)
+                << "[discover_resources] Device at index " << i
+                << " does not support serial number or firmware update ID";
+            continue;
+          }
+
+          viam::sdk::ProtoStruct attributes;
+          attributes["serial_number"] = device_identifier;
+
+          viam::sdk::ProtoList sensors;
+          sensors.push_back("color");
+          sensors.push_back("depth");
+          attributes["sensors"] = sensors;
+
+          std::ostringstream name;
+          name << "realsense-" << device_identifier;
+          if (is_recovery_mode) {
+            name << "-recovery";
+          }
+
+          viam::sdk::ResourceConfig config(
+              "camera", std::move(name.str()), "viam", attributes,
+              "rdk:component:camera", realsense::Realsense<ContextT>::model,
+              viam::sdk::LinkConfig{}, viam::sdk::log_level::info);
+          configs.push_back(config);
         } catch (const std::exception &e) {
           VIAM_SDK_LOG(error)
               << "[discover_resources] Failed to access device at index " << i

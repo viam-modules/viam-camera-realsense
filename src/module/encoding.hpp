@@ -1,6 +1,6 @@
 #pragma once
 #include <viam/sdk/components/camera.hpp>
-#include <viam/sdk/log/logging.hpp>
+#include <viam/sdk/resource/resource.hpp>
 
 #include <librealsense2/rs.hpp>
 

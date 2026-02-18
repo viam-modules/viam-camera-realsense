@@ -104,6 +104,160 @@ A source is only returned if it is **both** listed in the `sensors` attribute of
 You can view the data your camera streams live on the **CONTROL** tab of the Viam app.
 For more information, see [Control Machines](https://docs.viam.com/fleet/control/).
 
+### Firmware Update
+
+The RealSense module supports updating camera firmware through the `do_command` API. This allows you to:
+- Install bug fixes and performance improvements
+- Ensure consistent firmware versions across multiple devices
+- Recover from firmware issues
+
+> [!NOTE]
+> Firmware update is currently supported on **Linux only**. macOS support is not yet available.
+
+> [!WARNING]
+> **DO NOT DISCONNECT THE CAMERA DURING A FIRMWARE UPDATE!** Interrupting the update process can brick your device.
+
+#### Usage
+
+Use the `do_command` method with the following command structure:
+
+**Option 1: Auto-detect recommended firmware (recommended)**
+```json
+{
+  "firmware_update": ""
+}
+```
+
+Setting `firmware_update` to an empty string will automatically detect your camera's current firmware version and install the recommended update if available.
+
+**Option 2: Specify firmware URL**
+```json
+{
+  "firmware_update": "https://example.com/firmware.zip"
+}
+```
+
+You can specify a direct URL to a firmware `.zip` file containing the firmware binary.
+
+#### Supported Auto-detect Versions
+
+The following firmware versions are supported for auto-detect mode:
+
+| Version | Device Series | URL |
+|---------|---------------|-----|
+| 5.17.0.10 | D400 Series | [Download](https://realsenseai.com/wp-content/uploads/2025/07/d400_series_production_fw_5_17_0_10.zip) |
+
+#### Example using Python SDK
+
+```python
+from viam.components.camera import Camera
+
+# Get the camera component
+camera = Camera.from_robot(robot, "myRealSense")
+
+# Option 1: Auto-detect and install recommended firmware
+result = await camera.do_command({"firmware_update": ""})
+
+# Option 2: Install specific firmware from URL
+result = await camera.do_command({
+    "firmware_update": "https://realsenseai.com/wp-content/uploads/2025/07/d400_series_production_fw_5_17_0_10.zip"
+})
+```
+
+#### Important Notes
+
+- **⚠️ DO NOT DISCONNECT**: Never disconnect the camera during a firmware update. This can permanently damage the device.
+- **Firmware format**: Only `.zip` files containing firmware binaries are supported.
+- **Single camera updates**: Only update one camera at a time. If you have multiple RealSense cameras, perform updates sequentially.
+- **Update process**: The camera will enter DFU (Device Firmware Update) mode during the update. This is normal and may take several minutes to complete.
+- **Camera unavailable during update**: The camera will not be available for streaming during the firmware update process.
+- **Recovery mode support**: The Discovery service automatically detects cameras in recovery/DFU mode and creates them as separate camera components with a `-recovery` suffix. To update a recovery device, you must provide an explicit firmware URL (auto-detect is not supported for recovery devices).
+- **One-time operation**: The firmware update is a one-time operation. Once complete, the camera will automatically reboot with the new firmware.
+
+#### Update Process
+
+1. Check your current firmware version by viewing the module logs on startup
+2. **Ensure the camera is securely connected** and will not be disconnected during the update
+3. Call `do_command` with the `firmware_update` parameter
+4. Monitor the module logs to track update progress
+5. Wait for the update to complete (typically 2-5 minutes)
+6. The camera will automatically reboot and be ready to use with the new firmware
+
+#### Troubleshooting Firmware Updates
+
+##### Camera Stuck in Recovery/DFU Mode
+
+If a firmware update is interrupted (power loss, disconnection, etc.), your camera may be stuck in recovery/DFU mode. You'll see these symptoms:
+
+- Discovery service discovers a camera named `realsense-XXXXXXXXX-recovery` (with `-recovery` suffix)
+  - **Note**: The number (`XXXXXXXXX`) is the **firmware update ID**, not the camera's serial number
+  - This is a temporary identifier used while the camera is in recovery mode
+- That camera cannot stream images
+- Module logs show: `Device at index X is in recovery/DFU mode with update ID: XXXXXXXXX`
+
+**To recover the camera:**
+
+1. Use Discovery service to find the recovery device
+2. Add the recovery device to your robot configuration
+3. Simply run the firmware update command again on the recovery device, but this time with an explicit firmware URL:
+   ```json
+   {
+     "firmware_update": "https://example.com/firmware.zip"
+   }
+   ```
+4. Wait for the update to complete (100% progress)
+5. The original camera will reboot and return to normal operation
+6. The recovery device will no longer be found and should be removed.
+
+> [!NOTE]
+> Auto-detect mode (`"firmware_update": ""`) does not work for recovery devices. You must provide an explicit firmware URL.
+
+##### Update Progress Stops or Hangs
+
+If the firmware update progress stops for more than 2 minutes:
+
+1. **DO NOT disconnect the camera** - wait at least 5 minutes
+2. Check the module logs for error messages
+3. If the module crashes during update or the update process is abruptly interrupted for any other reason:
+   - The camera will remain in recovery mode
+   - Follow the steps in the "Camera Stuck in Recovery/DFU Mode" section
+
+##### "Access failed" or "Device may be in an invalid state"
+
+These errors typically occur when:
+- The camera is transitioning between modes (normal ↔ DFU)
+- Multiple processes are trying to access the camera
+- The camera needs time to enumerate after plugging in
+
+**Solution:**
+1. Wait 10-15 seconds for the camera to fully enumerate
+2. Ensure only the Viam module is accessing the camera (close RealSense Viewer, other apps)
+3. Try unplugging the camera for 5 seconds, then plug it back in
+4. Restart the Viam module if issues persist
+
+##### Network/Download Issues
+
+Firmware downloads require internet connectivity. If downloads fail:
+
+- Verify your machine can access the internet
+- Check firewall settings allow HTTPS traffic
+- Try downloading the firmware manually first to test connectivity:
+  ```bash
+  curl -O https://realsenseai.com/wp-content/uploads/2025/07/d400_series_production_fw_5_17_0_10.zip
+  ```
+
+##### Manual Recovery Using Intel Tools
+
+If automatic recovery fails, you can manually recover using Intel's tools, more info [here](https://github.com/realsenseai/librealsense/tree/master/tools/fw-update)
+
+##### General Troubleshooting Tips
+
+- **USB Quality**: Use a high-quality USB 3.0 cable directly to a USB 3.0 port (avoid hubs)
+- **Power Supply**: Ensure adequate power supply, especially on Raspberry Pi
+- **One at a time**: Only update one camera at a time if you have multiple devices
+- **Check logs**: Module logs provide detailed progress and error information
+- **Verify device name**: A camera in recovery mode will appear with a `-recovery` suffix in its name
+
 ### Locally install the module
 
 If you are using a Linux machine, and do not want to use the Viam registry, you can [download the module code from the registry](https://app.viam.com/module/viam/realsense) and use it directly on your machine.

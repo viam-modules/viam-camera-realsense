@@ -2,7 +2,9 @@
 #include <gtest/gtest.h>
 
 #include <viam/sdk/common/instance.hpp>
+#include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/log/logging.hpp>
+#include <viam/sdk/resource/resource.hpp>
 
 #include "device.hpp"
 #include "log_capture.hpp"
@@ -68,6 +70,17 @@ public:
 private:
   bool is_color_ = false;
   bool is_depth_ = false;
+};
+
+// MockResource: Minimal Resource implementation for testing
+class MockResource : public viam::sdk::Resource {
+public:
+  MockResource() : viam::sdk::Resource("test_resource") {}
+  viam::sdk::API api() const override {
+    return viam::sdk::API::get<viam::sdk::Camera>();
+  }
+  // Expose the logger for testing
+  viam::sdk::LogSource& get_logger() { return logger_; }
 };
 
 // MockVideoStreamProfile: GMock-based mock for profile comparison tests
@@ -309,7 +322,7 @@ TEST_F(DeviceTest, GetCameraModel_InvalidNameFormat_ReturnsNullopt) {
 // Test printDeviceInfo function
 TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Setup expectations for supported info types
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_NAME))
@@ -390,7 +403,7 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
       .WillOnce(Return("IP Address Info"));
 
   // Execute - should not throw and should log device info
-  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, mock_resource.get_logger()));
 
   // Verify logs were produced
   auto all_logs = log_capture.get_records();
@@ -428,7 +441,7 @@ TEST_F(DeviceTest, SensorTypeTraits_DepthSensor_CorrectValues) {
 TEST_F(DeviceTest,
        CheckIfMatchingColorDepthProfiles_MatchingProfiles_ReturnsTrue) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockVideoStreamProfile color_profile;
   MockVideoStreamProfile depth_profile;
@@ -443,8 +456,8 @@ TEST_F(DeviceTest,
   EXPECT_CALL(depth_profile, fps()).WillRepeatedly(Return(30));
 
   // Execute
-  bool result =
-      checkIfMatchingColorDepthProfiles(color_profile, depth_profile, logger);
+  bool result = checkIfMatchingColorDepthProfiles(color_profile, depth_profile,
+                                                  mock_resource.get_logger());
 
   // Verify function result
   EXPECT_TRUE(result);
@@ -469,7 +482,7 @@ TEST_F(DeviceTest,
 TEST_F(DeviceTest,
        CheckIfMatchingColorDepthProfiles_DifferentResolution_ReturnsFalse) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockVideoStreamProfile color_profile;
   MockVideoStreamProfile depth_profile;
@@ -484,8 +497,8 @@ TEST_F(DeviceTest,
   EXPECT_CALL(depth_profile, fps()).WillRepeatedly(Return(30));
 
   // Execute
-  bool result =
-      checkIfMatchingColorDepthProfiles(color_profile, depth_profile, logger);
+  bool result = checkIfMatchingColorDepthProfiles(color_profile, depth_profile,
+                                                  mock_resource.get_logger());
 
   // Verify function result
   EXPECT_FALSE(result);
@@ -524,7 +537,7 @@ TEST_F(DeviceTest, ViamRSDevice_SetValues_StateUpdated) {
 // Test destroyDevice function
 TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Create a test device
   auto device = std::make_shared<boost::synchronized_value<ViamRSDevice<>>>();
@@ -540,7 +553,7 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
   }
 
   // Execute
-  bool result = destroyDevice(device, logger);
+  bool result = destroyDevice(device, mock_resource.get_logger());
 
   // Verify function result
   EXPECT_TRUE(result);
@@ -581,12 +594,12 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
 
 TEST_F(DeviceTest, DestroyDevice_NullDevice_ReturnsFalse) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   std::shared_ptr<boost::synchronized_value<ViamRSDevice<>>> device = nullptr;
 
   // Execute
-  bool result = destroyDevice(device, logger);
+  bool result = destroyDevice(device, mock_resource.get_logger());
 
   // Verify function result
   EXPECT_FALSE(result);
@@ -600,7 +613,7 @@ TEST_F(DeviceTest, DestroyDevice_NullDevice_ReturnsFalse) {
 
 TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Create a test device that's started
   auto device = std::make_shared<boost::synchronized_value<
@@ -617,7 +630,7 @@ TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
   }
 
   // Execute
-  bool result = destroyDevice(device, logger);
+  bool result = destroyDevice(device, mock_resource.get_logger());
 
   // Verify function result
   EXPECT_TRUE(result);
@@ -659,7 +672,7 @@ TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
 // Test enableGlobalTimestamp function
 TEST_F(DeviceTest, EnableGlobalTimestamp_SupportedSensor_EnablesOption) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(true, false); // Color sensor
@@ -671,7 +684,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SupportedSensor_EnablesOption) {
       .Times(1);
 
   // Execute
-  enableGlobalTimestamp(mock_sensor, logger);
+  enableGlobalTimestamp(mock_sensor, mock_resource.get_logger());
 
   // Verify info log
   auto all_logs = log_capture.get_records();
@@ -697,7 +710,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SupportedSensor_EnablesOption) {
 
 TEST_F(DeviceTest, EnableGlobalTimestamp_UnsupportedSensor_DoesNothing) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(false, true); // Depth sensor
@@ -708,7 +721,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_UnsupportedSensor_DoesNothing) {
   EXPECT_CALL(mock_sensor, set_option(_, _)).Times(0); // Should not be called
 
   // Execute
-  enableGlobalTimestamp(mock_sensor, logger);
+  enableGlobalTimestamp(mock_sensor, mock_resource.get_logger());
 
   // Verify no logs (function returns early if not supported)
   auto all_logs = log_capture.get_records();
@@ -717,7 +730,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_UnsupportedSensor_DoesNothing) {
 
 TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(true, false); // Color sensor
@@ -729,7 +742,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
       .WillOnce(::testing::Throw(std::runtime_error("Hardware error")));
 
   // Execute
-  enableGlobalTimestamp(mock_sensor, logger);
+  enableGlobalTimestamp(mock_sensor, mock_resource.get_logger());
 
   // Verify error log
   auto error_logs = log_capture.get_error_logs();
@@ -742,7 +755,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
 // Test disableAutoExposurePriority function
 TEST_F(DeviceTest, DisableAutoExposurePriority_ColorSensor_DisablesOption) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(true, false); // Color sensor
@@ -754,7 +767,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_ColorSensor_DisablesOption) {
       .Times(1);
 
   // Execute
-  disableAutoExposurePriority(mock_sensor, logger);
+  disableAutoExposurePriority(mock_sensor, mock_resource.get_logger());
 
   // Verify info log
   auto all_logs = log_capture.get_records();
@@ -781,7 +794,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_ColorSensor_DisablesOption) {
 
 TEST_F(DeviceTest, DisableAutoExposurePriority_DepthSensor_DoesNothing) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(false, true); // Depth sensor
@@ -791,7 +804,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_DepthSensor_DoesNothing) {
   EXPECT_CALL(mock_sensor, set_option(_, _)).Times(0);
 
   // Execute
-  disableAutoExposurePriority(mock_sensor, logger);
+  disableAutoExposurePriority(mock_sensor, mock_resource.get_logger());
 
   // Verify no logs (function returns early for non-color sensors)
   auto all_logs = log_capture.get_records();
@@ -800,7 +813,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_DepthSensor_DoesNothing) {
 
 TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(true, false); // Color sensor
@@ -812,7 +825,7 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
       .WillOnce(::testing::Throw(std::runtime_error("Option not supported")));
 
   // Execute
-  disableAutoExposurePriority(mock_sensor, logger);
+  disableAutoExposurePriority(mock_sensor, mock_resource.get_logger());
 
   // Verify warning log (not error - this is a non-critical failure)
   auto warning_logs = log_capture.get_warning_logs();
@@ -824,37 +837,34 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
               ::testing::HasSubstr("Option not supported"));
 }
 
-TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_LogsError) {
+TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_DoesNothing) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   MockSensor mock_sensor;
   mock_sensor.set_sensor_type(
       false, false); // Unknown sensor (neither color nor depth)
 
-  // Execute - should log error for unknown sensor type
-  disableAutoExposurePriority(mock_sensor, logger);
+  // Setup expectations - should not call set_option for unknown sensor
+  EXPECT_CALL(mock_sensor, supports(_)).Times(0);
+  EXPECT_CALL(mock_sensor, set_option(_, _)).Times(0);
 
-  // Verify error log for unknown sensor
+  // Execute - should catch and log error for unknown sensor type
+  disableAutoExposurePriority(mock_sensor, mock_resource.get_logger());
+
+  // Verify error logs (function logs error for unknown sensor type)
   auto error_logs = log_capture.get_error_logs();
-  ASSERT_GE(error_logs.size(), 1) << "Should log error for unknown sensor type";
-
-  // Check that at least one error mentions the failure
-  bool found_error = false;
-  for (const auto &log : error_logs) {
-    if (log.message.find("Failed to get sensor type") != std::string::npos ||
-        log.message.find("Invalid sensor type") != std::string::npos) {
-      found_error = true;
-      break;
-    }
-  }
-  EXPECT_TRUE(found_error) << "Should log error for unknown sensor type";
+  EXPECT_EQ(error_logs.size(), 2) << "Should log errors for unknown sensor type";
+  EXPECT_THAT(error_logs[0].message,
+              ::testing::HasSubstr("Invalid sensor type"));
+  EXPECT_THAT(error_logs[1].message,
+              ::testing::HasSubstr("Failed to get sensor type"));
 }
 
 TEST_F(DeviceTest,
        CreateSingleSensorConfig_ActualCall_OnlyEnablesGlobalTimestamp) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Create mock device with a color sensor
   auto mock_device = std::make_shared<SimpleDevice>();
@@ -896,7 +906,7 @@ TEST_F(DeviceTest,
   auto result =
       createSingleSensorConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
                                SimpleVideoStreamProfile, RsResourceConfig>(
-          mock_device, viam_config, logger);
+          mock_device, viam_config, mock_resource.get_logger());
 
   // Verify the function was called successfully
   EXPECT_NE(result, nullptr)
@@ -927,7 +937,7 @@ TEST_F(DeviceTest,
 TEST_F(DeviceTest,
        CreateSwD2CAlignConfig_ActualCall_EnablesGlobalAndDisablesAutoExp) {
   test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
+  MockResource mock_resource;
 
   // Create mock device with both color and depth sensors
   auto mock_device = std::make_shared<SimpleDevice>();
@@ -1000,7 +1010,7 @@ TEST_F(DeviceTest,
       createSwD2CAlignConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
                              rs2::depth_sensor, SimpleVideoStreamProfile,
                              RsResourceConfig>(mock_device, viam_config,
-                                               logger);
+                                               mock_resource.get_logger());
 
   // Verify the function was called successfully
   EXPECT_NE(result, nullptr) << "createSwD2CAlignConfig should return a config";
