@@ -641,8 +641,8 @@ public:
       }
       auto fillResp = [this](viam::sdk::Camera::properties &p,
                              rs2_intrinsics const &props,
-                             const rs2::stream_profile& stream,
-                             const rs2::stream_profile& ref_stream) {
+                             const rs2::stream_profile &stream,
+                             const rs2::stream_profile &ref_stream) {
         p.supports_pcd = true;
         p.intrinsic_parameters.width_px = props.width;
         p.intrinsic_parameters.height_px = props.height;
@@ -652,7 +652,8 @@ public:
         p.intrinsic_parameters.center_y_px = props.ppy;
 
         // Calculate extrinsics from stream to reference stream
-        auto extrinsics = realsense::extrinsics::get_extrinsics(stream, ref_stream);
+        auto extrinsics =
+            realsense::extrinsics::get_extrinsics(stream, ref_stream);
         p.extrinsic_parameters = extrinsics;
         /*
        Disabling distortion parameters for now, when this is reenabled, we need
@@ -711,8 +712,10 @@ public:
         }
 
         auto profile = my_dev->pipe->get_active_profile();
-        auto depth_stream = profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
-        auto color_stream = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
+        auto depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
+                                .as<rs2::video_stream_profile>();
+        auto color_stream = profile.get_stream(RS2_STREAM_COLOR)
+                                .as<rs2::video_stream_profile>();
 
         if (config_->getMainSensor() == sensors::SensorType::color) {
           if (not color_stream) {
