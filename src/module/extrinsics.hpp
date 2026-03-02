@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include <viam/sdk/common/linear_algebra.hpp>
 #include <viam/sdk/spatialmath/orientation.hpp>
 #include <viam/sdk/spatialmath/orientation_types.hpp>
@@ -13,8 +15,52 @@ namespace extrinsics {
 /// relative to a reference frame (another sensor).
 struct ExtrinsicParameters {
   viam::sdk::Vector3 translation;
-  viam::sdk::Orientation orientation;
+  viam::sdk::orientation_vector_degrees orientation;
 };
+
+/// @brief Convert quaternion to axis-angle representation
+/// (orientation_vector_degrees)
+/// @param q The quaternion
+/// @return orientation_vector_degrees (axis x,y,z and angle theta in degrees)
+inline viam::sdk::orientation_vector_degrees
+quaternion_to_axis_angle(const viam::sdk::quaternion &q) {
+  viam::sdk::orientation_vector_degrees result;
+
+  // Handle identity quaternion (no rotation)
+  if (std::abs(q.w - 1.0) < 1e-6) {
+    result.x = 0.0;
+    result.y = 0.0;
+    result.z = 1.0;
+    result.theta = 0.0;
+    return result;
+  }
+
+  // Normalize quaternion
+  double norm = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+  double qw = q.w / norm;
+  double qx = q.x / norm;
+  double qy = q.y / norm;
+  double qz = q.z / norm;
+
+  // Convert to axis-angle
+  double angle_rad = 2.0 * std::acos(qw);
+  double sin_half_angle = std::sqrt(1.0 - qw * qw);
+
+  if (sin_half_angle < 1e-6) {
+    // Angle is close to 0, axis doesn't matter
+    result.x = 0.0;
+    result.y = 0.0;
+    result.z = 1.0;
+    result.theta = 0.0;
+  } else {
+    result.x = qx / sin_half_angle;
+    result.y = qy / sin_half_angle;
+    result.z = qz / sin_half_angle;
+    result.theta = angle_rad * 180.0 / M_PI; // Convert to degrees
+  }
+
+  return result;
+}
 
 /// @brief Convert a 3x3 rotation matrix to a quaternion
 /// @param rotation 3x3 rotation matrix stored in row-major order
@@ -78,9 +124,9 @@ get_extrinsics(const rs2::stream_profile &from_stream,
       .set_y(rs_extrinsics.translation[1] * 1000.0)
       .set_z(rs_extrinsics.translation[2] * 1000.0);
 
-  // Convert rotation matrix to quaternion
-  extrinsics.orientation =
-      rotation_matrix_to_quaternion(rs_extrinsics.rotation);
+  // Convert rotation matrix to quaternion, then to axis-angle
+  auto quat = rotation_matrix_to_quaternion(rs_extrinsics.rotation);
+  extrinsics.orientation = quaternion_to_axis_angle(quat);
 
   return extrinsics;
 }
