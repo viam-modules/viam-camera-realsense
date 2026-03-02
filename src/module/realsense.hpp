@@ -654,7 +654,8 @@ public:
         // Calculate extrinsics from stream to reference stream
         auto extrinsics =
             realsense::extrinsics::get_extrinsics(stream, ref_stream);
-        p.extrinsic_parameters = extrinsics;
+        p.extrinsic_parameters.translation = extrinsics.translation;
+        p.extrinsic_parameters.orientation = extrinsics.orientation;
         /*
        Disabling distortion parameters for now, when this is reenabled, we need
        to make sure that get_properties works well through the SDK. A way to do

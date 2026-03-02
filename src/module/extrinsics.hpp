@@ -12,9 +12,7 @@ namespace extrinsics {
 /// @brief Extrinsic parameters define the position of the camera
 /// relative to a reference frame (another sensor).
 struct ExtrinsicParameters {
-  /// @brief The translation from the reference frame to the camera.
   viam::sdk::Vector3 translation;
-  /// @brief The orientation from the reference frame to the camera.
   viam::sdk::Orientation orientation;
 };
 
@@ -75,10 +73,10 @@ get_extrinsics(const rs2::stream_profile &from_stream,
 
   ExtrinsicParameters extrinsics;
 
-  // Set translation
-  extrinsics.translation.set_x(rs_extrinsics.translation[0])
-      .set_y(rs_extrinsics.translation[1])
-      .set_z(rs_extrinsics.translation[2]);
+  // Set translation (convert from meters to millimeters)
+  extrinsics.translation.set_x(rs_extrinsics.translation[0] * 1000.0)
+      .set_y(rs_extrinsics.translation[1] * 1000.0)
+      .set_z(rs_extrinsics.translation[2] * 1000.0);
 
   // Convert rotation matrix to quaternion
   extrinsics.orientation =

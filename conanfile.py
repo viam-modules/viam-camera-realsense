@@ -36,7 +36,7 @@ class ViamRealsense(ConanFile):
         check_min_cppstd(self, 17)
 
     def requirements(self):
-        self.requires("viam-cpp-sdk/0.30.2")
+        self.requires("viam-cpp-sdk/0.31.0")
         if self.settings.os == "Macos":
             self.requires("librealsense/2.57.6")
         else:
