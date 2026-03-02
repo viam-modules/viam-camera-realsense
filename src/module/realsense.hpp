@@ -2,6 +2,7 @@
 #include "device.hpp"
 #include "download_utils.hpp"
 #include "encoding.hpp"
+#include "extrinsics.hpp"
 #include "firmware_update.hpp"
 #include "sensors.hpp"
 #include "time.hpp"
@@ -404,7 +405,7 @@ public:
       VIAM_RESOURCE_LOG(error) << "[do_command] Unknown command";
       viam::sdk::ProtoStruct response;
       response["error"] =
-          "Unknown command. Supported commands: firmware_update";
+          "Unknown command. Supported commands: update_firmware";
       return response;
 
     } catch (const std::exception &e) {
@@ -639,7 +640,9 @@ public:
         throw std::runtime_error("no device available");
       }
       auto fillResp = [this](viam::sdk::Camera::properties &p,
-                             rs2_intrinsics const &props) {
+                             rs2_intrinsics const &props,
+                             const rs2::stream_profile& stream,
+                             const rs2::stream_profile& ref_stream) {
         p.supports_pcd = true;
         p.intrinsic_parameters.width_px = props.width;
         p.intrinsic_parameters.height_px = props.height;
@@ -647,6 +650,10 @@ public:
         p.intrinsic_parameters.focal_y_px = props.fy;
         p.intrinsic_parameters.center_x_px = props.ppx;
         p.intrinsic_parameters.center_y_px = props.ppy;
+
+        // Calculate extrinsics from stream to reference stream
+        auto extrinsics = realsense::extrinsics::get_extrinsics(stream, ref_stream);
+        p.extrinsic_parameters = extrinsics;
         /*
        Disabling distortion parameters for now, when this is reenabled, we need
        to make sure that get_properties works well through the SDK. A way to do
@@ -703,24 +710,24 @@ public:
           throw std::invalid_argument(buffer.str());
         }
 
+        auto profile = my_dev->pipe->get_active_profile();
+        auto depth_stream = profile.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
+        auto color_stream = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
+
         if (config_->getMainSensor() == sensors::SensorType::color) {
-          auto color_stream = my_dev->pipe->get_active_profile()
-                                  .get_stream(RS2_STREAM_COLOR)
-                                  .as<rs2::video_stream_profile>();
           if (not color_stream) {
             throw std::runtime_error("color stream is not available");
           }
           auto props = color_stream.get_intrinsics();
-          fillResp(response, props);
+          auto ref_stream = depth_stream ? depth_stream : color_stream;
+          fillResp(response, props, color_stream, ref_stream);
         } else if (config_->getMainSensor() == sensors::SensorType::depth) {
-          auto depth_stream = my_dev->pipe->get_active_profile()
-                                  .get_stream(RS2_STREAM_DEPTH)
-                                  .as<rs2::video_stream_profile>();
           if (not depth_stream) {
             throw std::runtime_error("depth stream is not available");
           }
           auto props = depth_stream.get_intrinsics();
-          fillResp(response, props);
+          auto ref_stream = color_stream ? color_stream : depth_stream;
+          fillResp(response, props, depth_stream, ref_stream);
         }
       } // End scope for my_dev lock
 
