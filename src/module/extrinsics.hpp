@@ -2,8 +2,8 @@
 
 #include <cmath>
 
-#include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/common/linear_algebra.hpp>
+#include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/spatialmath/orientation.hpp>
 #include <viam/sdk/spatialmath/orientation_types.hpp>
 
