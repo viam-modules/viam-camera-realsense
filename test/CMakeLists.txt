@@ -33,6 +33,7 @@ endfunction()
 
 viamrealsense_add_gtest(device_tests.cpp)
 viamrealsense_add_gtest(encoding_tests.cpp)
+viamrealsense_add_gtest(extrinsics_test.cpp)
 viamrealsense_add_gtest(realsense_tests.cpp)
 viamrealsense_add_gtest(time_tests.cpp)
 viamrealsense_add_gtest(discovery_tests.cpp)
