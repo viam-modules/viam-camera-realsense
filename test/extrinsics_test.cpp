@@ -99,9 +99,9 @@ TEST(ExtrinsicsTest, RotationMatrixToQuaternion_180DegreesAroundX) {
   // [0  cos(180) -sin(180)] = [0 -1  0]
   // [0  sin(180)  cos(180)]   [0  0 -1]
   float rotation[9] = {
-      1.0f, 0.0f,  0.0f,  // Row 1
-      0.0f, -1.0f, 0.0f,  // Row 2
-      0.0f, 0.0f,  -1.0f  // Row 3
+      1.0f, 0.0f,  0.0f, // Row 1
+      0.0f, -1.0f, 0.0f, // Row 2
+      0.0f, 0.0f,  -1.0f // Row 3
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(rotation);
