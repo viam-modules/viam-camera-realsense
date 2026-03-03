@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/common/linear_algebra.hpp>
 #include <viam/sdk/spatialmath/orientation.hpp>
 #include <viam/sdk/spatialmath/orientation_types.hpp>
@@ -10,13 +11,6 @@
 
 namespace realsense {
 namespace extrinsics {
-
-/// @brief Extrinsic parameters define the position of the camera
-/// relative to a reference frame (another sensor).
-struct ExtrinsicParameters {
-  viam::sdk::Vector3 translation;
-  viam::sdk::orientation_vector_degrees orientation;
-};
 
 /// @brief Convert quaternion to axis-angle representation
 /// (orientation_vector_degrees)
@@ -112,12 +106,12 @@ rotation_matrix_to_quaternion(const float rotation[9]) {
 /// @param to_stream The destination stream profile
 /// @return Extrinsic parameters representing the transformation from
 /// from_stream to to_stream
-inline ExtrinsicParameters
+inline viam::sdk::Camera::extrinsic_parameters
 get_extrinsics(const rs2::stream_profile &from_stream,
                const rs2::stream_profile &to_stream) {
   rs2_extrinsics rs_extrinsics = from_stream.get_extrinsics_to(to_stream);
 
-  ExtrinsicParameters extrinsics;
+  viam::sdk::Camera::extrinsic_parameters extrinsics;
 
   // Set translation (convert from meters to millimeters)
   extrinsics.translation.set_x(rs_extrinsics.translation[0] * 1000.0)
