@@ -57,14 +57,16 @@ quaternion_to_axis_angle(const viam::sdk::quaternion &q) {
 }
 
 /// @brief Convert a 3x3 rotation matrix to a quaternion
-/// @param rotation 3x3 rotation matrix stored in row-major order
+/// @param rotation 3x3 rotation matrix stored in column-major order (as used by
+/// RealSense SDK)
 /// @return quaternion representing the rotation
 inline viam::sdk::quaternion
 rotation_matrix_to_quaternion(const float rotation[9]) {
-  // Rotation matrix is stored as:
-  // [0 1 2]
-  // [3 4 5]
-  // [6 7 8]
+  // Rotation matrix is stored in column-major order:
+  // Matrix:         Array indices:
+  // [R00 R01 R02]   [0  3  6]
+  // [R10 R11 R12] = [1  4  7]
+  // [R20 R21 R22]   [2  5  8]
 
   double trace = rotation[0] + rotation[4] + rotation[8];
   viam::sdk::quaternion q;
@@ -72,29 +74,29 @@ rotation_matrix_to_quaternion(const float rotation[9]) {
   if (trace > 0.0) {
     double s = std::sqrt(trace + 1.0) * 2.0; // s = 4 * qw
     q.w = 0.25 * s;
-    q.x = (rotation[7] - rotation[5]) / s;
-    q.y = (rotation[2] - rotation[6]) / s;
-    q.z = (rotation[3] - rotation[1]) / s;
+    q.x = (rotation[5] - rotation[7]) / s; // (R21 - R12)
+    q.y = (rotation[6] - rotation[2]) / s; // (R02 - R20)
+    q.z = (rotation[1] - rotation[3]) / s; // (R10 - R01)
   } else if ((rotation[0] > rotation[4]) && (rotation[0] > rotation[8])) {
     double s = std::sqrt(1.0 + rotation[0] - rotation[4] - rotation[8]) *
-               2.0; // s = 4 * qx
-    q.w = (rotation[7] - rotation[5]) / s;
+               2.0;                        // s = 4 * qx
+    q.w = (rotation[5] - rotation[7]) / s; // (R21 - R12)
     q.x = 0.25 * s;
-    q.y = (rotation[1] + rotation[3]) / s;
-    q.z = (rotation[2] + rotation[6]) / s;
+    q.y = (rotation[3] + rotation[1]) / s; // (R01 + R10)
+    q.z = (rotation[6] + rotation[2]) / s; // (R02 + R20)
   } else if (rotation[4] > rotation[8]) {
     double s = std::sqrt(1.0 + rotation[4] - rotation[0] - rotation[8]) *
-               2.0; // s = 4 * qy
-    q.w = (rotation[2] - rotation[6]) / s;
-    q.x = (rotation[1] + rotation[3]) / s;
+               2.0;                        // s = 4 * qy
+    q.w = (rotation[6] - rotation[2]) / s; // (R02 - R20)
+    q.x = (rotation[3] + rotation[1]) / s; // (R01 + R10)
     q.y = 0.25 * s;
-    q.z = (rotation[5] + rotation[7]) / s;
+    q.z = (rotation[7] + rotation[5]) / s; // (R12 + R21)
   } else {
     double s = std::sqrt(1.0 + rotation[8] - rotation[0] - rotation[4]) *
-               2.0; // s = 4 * qz
-    q.w = (rotation[3] - rotation[1]) / s;
-    q.x = (rotation[2] + rotation[6]) / s;
-    q.y = (rotation[5] + rotation[7]) / s;
+               2.0;                        // s = 4 * qz
+    q.w = (rotation[1] - rotation[3]) / s; // (R10 - R01)
+    q.x = (rotation[6] + rotation[2]) / s; // (R02 + R20)
+    q.y = (rotation[7] + rotation[5]) / s; // (R12 + R21)
     q.z = 0.25 * s;
   }
 
