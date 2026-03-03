@@ -333,21 +333,21 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
       .WillOnce(Return("0B07"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
-      .WillOnce(Return(true));
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
-      .WillOnce(Return("USB 3.1"));
+      .WillRepeatedly(Return("3.2"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
-      .WillOnce(Return(true));
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
-      .WillOnce(Return("5.12.7.100"));
+      .WillRepeatedly(Return("5.12.7.100"));
 
   EXPECT_CALL(*mock_device_,
               supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
-      .WillOnce(Return(true));
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_,
               get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
-      .WillOnce(Return("5.12.7.100"));
+      .WillRepeatedly(Return("5.12.7.100"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_UPDATE_ID))
       .WillOnce(Return(true));
@@ -370,9 +370,9 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
       .WillOnce(Return("Advanced Mode Info"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_CAMERA_LOCKED))
-      .WillOnce(Return(true));
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_CAMERA_LOCKED))
-      .WillOnce(Return("Camera Locked Info"));
+      .WillRepeatedly(Return("Camera Locked Info"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_ASIC_SERIAL_NUMBER))
       .WillOnce(Return(true));
@@ -411,6 +411,246 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
     }
   }
   EXPECT_TRUE(found_device_info) << "Should log device information";
+}
+
+// Helper: set up mock so all RS2_CAMERA_INFO_* fields return unsupported by
+// default. Tests can then override specific fields.
+// Helper: default all RS2_CAMERA_INFO_* supports() calls to false.
+// Tests override specific fields as needed.
+static void setAllDeviceInfoUnsupported(MockDevice &mock) {
+  EXPECT_CALL(mock, supports(::testing::_))
+      .Times(::testing::AnyNumber())
+      .WillRepeatedly(Return(false));
+}
+
+// Helper: check if any log in a list contains a substring.
+static bool
+anyLogContains(const std::vector<test_utils::CapturedLogRecord> &logs,
+               const std::string &substr) {
+  return std::any_of(logs.begin(), logs.end(),
+                     [&](const test_utils::CapturedLogRecord &r) {
+                       return r.message.find(substr) != std::string::npos;
+                     });
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_USB2Connection_LogsWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("2.1"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  ASSERT_EQ(warn_logs.size(), 1)
+      << "Should log exactly one warning for USB 2.x connection";
+  EXPECT_NE(warn_logs[0].message.find("USB 2.1"), std::string::npos)
+      << "Warning should mention the USB version";
+  EXPECT_NE(warn_logs[0].message.find("USB 3.x is recommended"),
+            std::string::npos)
+      << "Warning should recommend USB 3.x";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_USB3Connection_NoWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("3.2"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0)
+      << "Should not warn when connected via USB 3.x";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_USBDescriptorUnsupported_NoWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+  // USB type descriptor not supported — should not warn
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0)
+      << "Should not warn when USB type descriptor is not supported";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_OutdatedFirmware_LogsWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.15.1.55"));
+
+  EXPECT_CALL(*mock_device_,
+              supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_,
+              get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.17.0.10"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  ASSERT_EQ(warn_logs.size(), 1)
+      << "Should log exactly one warning for outdated firmware";
+  EXPECT_NE(warn_logs[0].message.find("5.15.1.55"), std::string::npos)
+      << "Warning should mention current firmware version";
+  EXPECT_NE(warn_logs[0].message.find("5.17.0.10"), std::string::npos)
+      << "Warning should mention recommended firmware version";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_MatchingFirmware_NoWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.17.0.10"));
+
+  EXPECT_CALL(*mock_device_,
+              supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_,
+              get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.17.0.10"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0)
+      << "Should not warn when firmware matches recommended";
+}
+
+TEST_F(DeviceTest,
+       PrintDeviceInfo_FirmwareVersionOnly_NoRecommended_NoWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  // Only firmware version supported, no recommended version
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.15.1.55"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0)
+      << "Should not warn when recommended firmware version is not available";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_CameraLocked_LogsInfo) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return("YES"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  // Camera locked is info-level (most cameras ship locked by default)
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0) << "Camera locked should not produce a warn";
+
+  auto info_logs = log_capture.get_logs_by_level(viam::sdk::log_level::info);
+  EXPECT_TRUE(anyLogContains(info_logs, "locked"))
+      << "Should log info about camera being locked";
+  EXPECT_TRUE(anyLogContains(info_logs, "Advanced mode"))
+      << "Should mention advanced mode in locked info";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_CameraNotLocked_NoLockedMessage) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return("NO"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto all_logs = log_capture.get_records();
+  EXPECT_FALSE(anyLogContains(all_logs, "Camera is locked"))
+      << "Should not log locked message when camera is not locked";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_MultipleIssues_LogsAllWarnings) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  // USB 2.x
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("2.1"));
+
+  // Outdated firmware
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.15.1.55"));
+  EXPECT_CALL(*mock_device_,
+              supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_,
+              get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION))
+      .WillRepeatedly(Return("5.17.0.10"));
+
+  // Camera locked (info-level, not warn)
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_CAMERA_LOCKED))
+      .WillRepeatedly(Return("YES"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  // Should have exactly 2 warnings (USB + firmware), not 3
+  auto warn_logs = log_capture.get_warning_logs();
+  ASSERT_EQ(warn_logs.size(), 2)
+      << "Should log two warnings: USB 2.x and outdated firmware";
+
+  // Order-independent checks
+  EXPECT_TRUE(anyLogContains(warn_logs, "USB 2.1"))
+      << "Should warn about USB 2.x connection";
+  EXPECT_TRUE(anyLogContains(warn_logs, "5.15.1.55"))
+      << "Should warn about outdated firmware";
+
+  // Camera locked should be in info logs
+  auto info_logs = log_capture.get_logs_by_level(viam::sdk::log_level::info);
+  EXPECT_TRUE(anyLogContains(info_logs, "locked"))
+      << "Should log info about camera being locked";
 }
 
 // Test SensorTypeTraits

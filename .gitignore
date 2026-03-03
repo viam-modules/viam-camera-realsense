@@ -5,3 +5,4 @@ build
 .vscode
 venv
 .venv
+.VIAM_RELOAD_ARCHIVE.tar.gz

@@ -164,6 +164,42 @@ void printDeviceInfo(DeviceT const &dev, viam::sdk::LogSource &logger) {
            << dev.get_info(RS2_CAMERA_INFO_IP_ADDRESS) << std::endl;
     }
     VIAM_DEVICE_LOG(logger, info) << info.str();
+
+    // Warn about USB 2.x connections — depth streaming requires USB 3.x
+    if (dev.supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR)) {
+      std::string usb_type = dev.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
+      if (!usb_type.empty() && usb_type[0] != '3') {
+        VIAM_DEVICE_LOG(logger, warn)
+            << "[printDeviceInfo] Device is connected via USB " << usb_type
+            << ". USB 3.x is recommended for depth streaming. "
+               "Depth frames may be unavailable or unreliable at USB 2.x "
+               "speeds.";
+      }
+    }
+
+    // Warn about outdated firmware
+    if (dev.supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) &&
+        dev.supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION)) {
+      std::string fw = dev.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+      std::string recommended_fw =
+          dev.get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+      if (fw != recommended_fw) {
+        VIAM_DEVICE_LOG(logger, warn)
+            << "[printDeviceInfo] Device firmware (" << fw
+            << ") differs from recommended version (" << recommended_fw
+            << "). Consider updating firmware to avoid stability issues.";
+      }
+    }
+
+    // Note if camera is locked (advanced mode settings cannot be changed)
+    if (dev.supports(RS2_CAMERA_INFO_CAMERA_LOCKED)) {
+      std::string locked = dev.get_info(RS2_CAMERA_INFO_CAMERA_LOCKED);
+      if (locked == "YES") {
+        VIAM_DEVICE_LOG(logger, info)
+            << "[printDeviceInfo] Camera is locked. Advanced mode settings "
+               "cannot be modified.";
+      }
+    }
   } catch (const std::exception &e) {
     VIAM_DEVICE_LOG(logger, error)
         << "[printDeviceInfo] Failed to retrieve device info with error: "
