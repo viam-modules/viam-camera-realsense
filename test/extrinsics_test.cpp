@@ -56,11 +56,15 @@ TEST(ExtrinsicsTest, QuaternionToAxisAngle_180DegreesAroundX) {
 }
 
 TEST(ExtrinsicsTest, RotationMatrixToQuaternion_Identity) {
-  // Identity rotation matrix
+  // Identity rotation matrix in column-major order (as used by RealSense)
+  // Matrix:         Array indices:
+  // [1 0 0]         [0 3 6]
+  // [0 1 0]    =    [1 4 7]
+  // [0 0 1]         [2 5 8]
   float rotation[9] = {
-      1.0f, 0.0f, 0.0f, // Row 1
-      0.0f, 1.0f, 0.0f, // Row 2
-      0.0f, 0.0f, 1.0f  // Row 3
+      1.0f, 0.0f, 0.0f, // Column 1
+      0.0f, 1.0f, 0.0f, // Column 2
+      0.0f, 0.0f, 1.0f  // Column 3
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(rotation);
@@ -74,14 +78,14 @@ TEST(ExtrinsicsTest, RotationMatrixToQuaternion_Identity) {
 }
 
 TEST(ExtrinsicsTest, RotationMatrixToQuaternion_90DegreesAroundZ) {
-  // 90 degree rotation around Z axis
-  // [cos(90) -sin(90) 0]   [0 -1 0]
-  // [sin(90)  cos(90) 0] = [1  0 0]
+  // 90 degree rotation around Z axis in column-major order (as used by
+  // RealSense) [cos(90) -sin(90) 0]   [0 -1 0] [sin(90)  cos(90) 0] = [1  0 0]
   // [0        0       1]   [0  0 1]
+  // Column-major: [R00, R10, R20, R01, R11, R21, R02, R12, R22]
   float rotation[9] = {
-      0.0f, -1.0f, 0.0f, // Row 1
-      1.0f, 0.0f,  0.0f, // Row 2
-      0.0f, 0.0f,  1.0f  // Row 3
+      0.0f,  1.0f, 0.0f, // Column 1: [0, 1, 0]
+      -1.0f, 0.0f, 0.0f, // Column 2: [-1, 0, 0]
+      0.0f,  0.0f, 1.0f  // Column 3: [0, 0, 1]
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(rotation);
@@ -94,14 +98,14 @@ TEST(ExtrinsicsTest, RotationMatrixToQuaternion_90DegreesAroundZ) {
 }
 
 TEST(ExtrinsicsTest, RotationMatrixToQuaternion_180DegreesAroundX) {
-  // 180 degree rotation around X axis
-  // [1  0        0      ]   [1  0  0]
-  // [0  cos(180) -sin(180)] = [0 -1  0]
-  // [0  sin(180)  cos(180)]   [0  0 -1]
+  // 180 degree rotation around X axis in column-major order (as used by
+  // RealSense) [1  0        0      ]   [1  0  0] [0  cos(180) -sin(180)] = [0
+  // -1  0] [0  sin(180)  cos(180)]   [0  0 -1] Column-major: [R00, R10, R20,
+  // R01, R11, R21, R02, R12, R22]
   float rotation[9] = {
-      1.0f, 0.0f,  0.0f, // Row 1
-      0.0f, -1.0f, 0.0f, // Row 2
-      0.0f, 0.0f,  -1.0f // Row 3
+      1.0f, 0.0f,  0.0f, // Column 1: [1, 0, 0]
+      0.0f, -1.0f, 0.0f, // Column 2: [0, -1, 0]
+      0.0f, 0.0f,  -1.0f // Column 3: [0, 0, -1]
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(rotation);
@@ -129,10 +133,11 @@ TEST(ExtrinsicsTest, QuaternionNormalization) {
 
 TEST(ExtrinsicsTest, RoundTripConversion_Identity) {
   // Test: rotation matrix -> quaternion -> axis-angle
+  // Column-major identity matrix
   float identity[9] = {
-      1.0f, 0.0f, 0.0f, // Row 1
-      0.0f, 1.0f, 0.0f, // Row 2
-      0.0f, 0.0f, 1.0f  // Row 3
+      1.0f, 0.0f, 0.0f, // Column 1
+      0.0f, 1.0f, 0.0f, // Column 2
+      0.0f, 0.0f, 1.0f  // Column 3
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(identity);
@@ -143,10 +148,11 @@ TEST(ExtrinsicsTest, RoundTripConversion_Identity) {
 
 TEST(ExtrinsicsTest, RoundTripConversion_90DegreesZ) {
   // Test: rotation matrix -> quaternion -> axis-angle
+  // 90° rotation around Z in column-major format
   float rotation_z_90[9] = {
-      0.0f, -1.0f, 0.0f, // Row 1
-      1.0f, 0.0f,  0.0f, // Row 2
-      0.0f, 0.0f,  1.0f  // Row 3
+      0.0f,  1.0f, 0.0f, // Column 1
+      -1.0f, 0.0f, 0.0f, // Column 2
+      0.0f,  0.0f, 1.0f  // Column 3
   };
 
   auto q = realsense::extrinsics::rotation_matrix_to_quaternion(rotation_z_90);
