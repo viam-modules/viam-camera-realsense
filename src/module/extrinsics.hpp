@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <iostream>
 
 #include <viam/sdk/common/linear_algebra.hpp>
 #include <viam/sdk/components/camera.hpp>
@@ -127,6 +128,41 @@ get_extrinsics(const rs2::stream_profile &from_stream,
   // Get extrinsics from RealSense
   rs2_extrinsics rs_extrinsics = from_stream.get_extrinsics_to(to_stream);
 
+  // DEBUG: Print raw rotation matrix data
+  std::cout << "=== DEBUG: Raw RealSense Extrinsics ===" << std::endl;
+  std::cout << "Translation (m): ["
+            << rs_extrinsics.translation[0] << ", "
+            << rs_extrinsics.translation[1] << ", "
+            << rs_extrinsics.translation[2] << "]" << std::endl;
+  std::cout << "Rotation array (9 elements): [";
+  for (int i = 0; i < 9; i++) {
+    std::cout << rs_extrinsics.rotation[i];
+    if (i < 8) std::cout << ", ";
+  }
+  std::cout << "]" << std::endl;
+
+  // Print as 3x3 matrix if interpreted as row-major
+  std::cout << "As row-major matrix:" << std::endl;
+  for (int row = 0; row < 3; row++) {
+    std::cout << "  [";
+    for (int col = 0; col < 3; col++) {
+      std::cout << rs_extrinsics.rotation[row * 3 + col];
+      if (col < 2) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+  }
+
+  // Print as 3x3 matrix if interpreted as column-major
+  std::cout << "As column-major matrix:" << std::endl;
+  for (int row = 0; row < 3; row++) {
+    std::cout << "  [";
+    for (int col = 0; col < 3; col++) {
+      std::cout << rs_extrinsics.rotation[col * 3 + row];
+      if (col < 2) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+  }
+
   // Set translation (convert from meters to millimeters)
   extrinsics.translation.set_x(rs_extrinsics.translation[0] * 1000.0)
       .set_y(rs_extrinsics.translation[1] * 1000.0)
@@ -134,7 +170,17 @@ get_extrinsics(const rs2::stream_profile &from_stream,
 
   // Convert rotation matrix to quaternion, then to axis-angle
   auto quat = rotation_matrix_to_quaternion(rs_extrinsics.rotation);
+
+  std::cout << "Quaternion: w=" << quat.w << ", x=" << quat.x
+            << ", y=" << quat.y << ", z=" << quat.z << std::endl;
+
   extrinsics.orientation = quaternion_to_axis_angle(quat);
+
+  std::cout << "Orientation vector: x=" << extrinsics.orientation.x
+            << ", y=" << extrinsics.orientation.y
+            << ", z=" << extrinsics.orientation.z
+            << ", theta=" << extrinsics.orientation.theta << "°" << std::endl;
+  std::cout << "=======================================" << std::endl;
 
   return extrinsics;
 }
