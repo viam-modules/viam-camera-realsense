@@ -1,108 +1,13 @@
 #pragma once
 
-#include <cmath>
 #include <iostream>
 
-#include <viam/sdk/common/linear_algebra.hpp>
 #include <viam/sdk/components/camera.hpp>
-#include <viam/sdk/spatialmath/orientation.hpp>
-#include <viam/sdk/spatialmath/orientation_types.hpp>
 
 #include <librealsense2/rs.hpp>
 
 namespace realsense {
 namespace extrinsics {
-
-/// @brief Convert quaternion to axis-angle representation
-/// (orientation_vector_degrees)
-/// @param q The quaternion
-/// @return orientation_vector_degrees (axis x,y,z and angle theta in degrees)
-inline viam::sdk::orientation_vector_degrees
-quaternion_to_axis_angle(const viam::sdk::quaternion &q) {
-  viam::sdk::orientation_vector_degrees result;
-
-  // Handle identity quaternion (no rotation)
-  if (std::abs(q.w - 1.0) < 1e-6) {
-    result.x = 0.0;
-    result.y = 0.0;
-    result.z = 1.0;
-    result.theta = 0.0;
-    return result;
-  }
-
-  // Normalize quaternion
-  double norm = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
-  double qw = q.w / norm;
-  double qx = q.x / norm;
-  double qy = q.y / norm;
-  double qz = q.z / norm;
-
-  // Convert to axis-angle
-  double angle_rad = 2.0 * std::acos(qw);
-  double sin_half_angle = std::sqrt(1.0 - qw * qw);
-
-  if (sin_half_angle < 1e-6) {
-    // Angle is close to 0, axis doesn't matter
-    result.x = 0.0;
-    result.y = 0.0;
-    result.z = 1.0;
-    result.theta = 0.0;
-  } else {
-    result.x = qx / sin_half_angle;
-    result.y = qy / sin_half_angle;
-    result.z = qz / sin_half_angle;
-    result.theta = angle_rad * 180.0 / M_PI; // Convert to degrees
-  }
-
-  return result;
-}
-
-/// @brief Convert a 3x3 rotation matrix to a quaternion
-/// @param rotation 3x3 rotation matrix stored in column-major order (as used by
-/// RealSense SDK)
-/// @return quaternion representing the rotation
-inline viam::sdk::quaternion
-rotation_matrix_to_quaternion(const float rotation[9]) {
-  // Rotation matrix is stored in column-major order:
-  // Matrix:         Array indices:
-  // [R00 R01 R02]   [0  3  6]
-  // [R10 R11 R12] = [1  4  7]
-  // [R20 R21 R22]   [2  5  8]
-
-  double trace = rotation[0] + rotation[4] + rotation[8];
-  viam::sdk::quaternion q;
-
-  if (trace > 0.0) {
-    double s = std::sqrt(trace + 1.0) * 2.0; // s = 4 * qw
-    q.w = 0.25 * s;
-    q.x = (rotation[5] - rotation[7]) / s; // (R21 - R12)
-    q.y = (rotation[6] - rotation[2]) / s; // (R02 - R20)
-    q.z = (rotation[1] - rotation[3]) / s; // (R10 - R01)
-  } else if ((rotation[0] > rotation[4]) && (rotation[0] > rotation[8])) {
-    double s = std::sqrt(1.0 + rotation[0] - rotation[4] - rotation[8]) *
-               2.0;                        // s = 4 * qx
-    q.w = (rotation[5] - rotation[7]) / s; // (R21 - R12)
-    q.x = 0.25 * s;
-    q.y = (rotation[3] + rotation[1]) / s; // (R01 + R10)
-    q.z = (rotation[6] + rotation[2]) / s; // (R02 + R20)
-  } else if (rotation[4] > rotation[8]) {
-    double s = std::sqrt(1.0 + rotation[4] - rotation[0] - rotation[8]) *
-               2.0;                        // s = 4 * qy
-    q.w = (rotation[6] - rotation[2]) / s; // (R02 - R20)
-    q.x = (rotation[3] + rotation[1]) / s; // (R01 + R10)
-    q.y = 0.25 * s;
-    q.z = (rotation[7] + rotation[5]) / s; // (R12 + R21)
-  } else {
-    double s = std::sqrt(1.0 + rotation[8] - rotation[0] - rotation[4]) *
-               2.0;                        // s = 4 * qz
-    q.w = (rotation[1] - rotation[3]) / s; // (R10 - R01)
-    q.x = (rotation[6] + rotation[2]) / s; // (R02 + R20)
-    q.y = (rotation[7] + rotation[5]) / s; // (R12 + R21)
-    q.z = 0.25 * s;
-  }
-
-  return q;
-}
 
 /// @brief Get extrinsic parameters from RealSense stream profiles
 /// @param from_stream The source stream profile
@@ -130,14 +35,14 @@ get_extrinsics(const rs2::stream_profile &from_stream,
 
   // DEBUG: Print raw rotation matrix data
   std::cout << "=== DEBUG: Raw RealSense Extrinsics ===" << std::endl;
-  std::cout << "Translation (m): ["
-            << rs_extrinsics.translation[0] << ", "
+  std::cout << "Translation (m): [" << rs_extrinsics.translation[0] << ", "
             << rs_extrinsics.translation[1] << ", "
             << rs_extrinsics.translation[2] << "]" << std::endl;
   std::cout << "Rotation array (9 elements): [";
   for (int i = 0; i < 9; i++) {
     std::cout << rs_extrinsics.rotation[i];
-    if (i < 8) std::cout << ", ";
+    if (i < 8)
+      std::cout << ", ";
   }
   std::cout << "]" << std::endl;
 
@@ -147,7 +52,8 @@ get_extrinsics(const rs2::stream_profile &from_stream,
     std::cout << "  [";
     for (int col = 0; col < 3; col++) {
       std::cout << rs_extrinsics.rotation[row * 3 + col];
-      if (col < 2) std::cout << ", ";
+      if (col < 2)
+        std::cout << ", ";
     }
     std::cout << "]" << std::endl;
   }
@@ -158,7 +64,8 @@ get_extrinsics(const rs2::stream_profile &from_stream,
     std::cout << "  [";
     for (int col = 0; col < 3; col++) {
       std::cout << rs_extrinsics.rotation[col * 3 + row];
-      if (col < 2) std::cout << ", ";
+      if (col < 2)
+        std::cout << ", ";
     }
     std::cout << "]" << std::endl;
   }
@@ -168,18 +75,18 @@ get_extrinsics(const rs2::stream_profile &from_stream,
       .set_y(rs_extrinsics.translation[1] * 1000.0)
       .set_z(rs_extrinsics.translation[2] * 1000.0);
 
-  // Convert rotation matrix to quaternion, then to axis-angle
-  auto quat = rotation_matrix_to_quaternion(rs_extrinsics.rotation);
+  // Set orientation to identity (no rotation)
+  // The rotation between depth and color cameras is very small (~1 degree)
+  // and can cause numerical issues, so we ignore it
+  extrinsics.orientation.x = 0.0;
+  extrinsics.orientation.y = 0.0;
+  extrinsics.orientation.z = 1.0;
+  extrinsics.orientation.theta = 0.0;
 
-  std::cout << "Quaternion: w=" << quat.w << ", x=" << quat.x
-            << ", y=" << quat.y << ", z=" << quat.z << std::endl;
-
-  extrinsics.orientation = quaternion_to_axis_angle(quat);
-
-  std::cout << "Orientation vector: x=" << extrinsics.orientation.x
-            << ", y=" << extrinsics.orientation.y
-            << ", z=" << extrinsics.orientation.z
-            << ", theta=" << extrinsics.orientation.theta << "°" << std::endl;
+  std::cout << "Translation (mm): [" << extrinsics.translation.x() << ", "
+            << extrinsics.translation.y() << ", " << extrinsics.translation.z()
+            << "]" << std::endl;
+  std::cout << "Orientation: identity (rotation ignored)" << std::endl;
   std::cout << "=======================================" << std::endl;
 
   return extrinsics;
