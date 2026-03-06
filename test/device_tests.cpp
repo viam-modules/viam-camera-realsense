@@ -335,7 +335,7 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
       .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
-      .WillRepeatedly(Return("3.2"));
+      .WillRepeatedly(Return("3.1"));
 
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_FIRMWARE_VERSION))
       .WillRepeatedly(Return(true));
@@ -465,7 +465,7 @@ TEST_F(DeviceTest, PrintDeviceInfo_USB3Connection_NoWarning) {
   EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
       .WillRepeatedly(Return(true));
   EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
-      .WillRepeatedly(Return("3.2"));
+      .WillRepeatedly(Return("3.1"));
 
   EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
 
