@@ -191,13 +191,14 @@ void printDeviceInfo(DeviceT const &dev, viam::sdk::LogSource &logger) {
       }
     }
 
-    // Note if camera is locked (advanced mode settings cannot be changed)
+    // Note if camera is locked (advanced mode presets cannot be changed)
     if (dev.supports(RS2_CAMERA_INFO_CAMERA_LOCKED)) {
       std::string locked = dev.get_info(RS2_CAMERA_INFO_CAMERA_LOCKED);
       if (locked == "YES") {
         VIAM_DEVICE_LOG(logger, info)
-            << "[printDeviceInfo] Camera is locked. Advanced mode settings "
-               "cannot be modified.";
+            << "[printDeviceInfo] Camera is locked. Advanced mode JSON "
+               "presets (depth table tuning, etc.) cannot be modified. "
+               "This does not affect normal operation.";
       }
     }
   } catch (const std::exception &e) {
