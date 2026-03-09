@@ -413,8 +413,6 @@ TEST_F(DeviceTest, PrintDeviceInfo_ValidDevice_LogsInfo) {
   EXPECT_TRUE(found_device_info) << "Should log device information";
 }
 
-// Helper: set up mock so all RS2_CAMERA_INFO_* fields return unsupported by
-// default. Tests can then override specific fields.
 // Helper: default all RS2_CAMERA_INFO_* supports() calls to false.
 // Tests override specific fields as needed.
 static void setAllDeviceInfoUnsupported(MockDevice &mock) {
