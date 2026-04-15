@@ -306,7 +306,8 @@ Support for specific hardware is known for the following devices. The table is n
 
 | Devices               | D415 | D435 | D435i | D455 |
 |-----------------------|------|------|-------|------|
-| RPi 4B Bookworm       |      |  X   |       |      |
+| RPi 4B/5 Trixie       |      |  X   |   X   |      |
+| RPi 4B/5 Bookworm     |      |  X   |   X   |      |
 | RPi 4B Bullseye       |      |  X   |       |      |
 | Orin Nano JetPack 5.1 |      |  X   |   X   |  X   |
 | UP 4000               |      |  X   |       |      |
