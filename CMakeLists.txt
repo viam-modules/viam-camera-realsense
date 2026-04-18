@@ -32,16 +32,7 @@ find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(CURL REQUIRED)
-
-# Conan 2.x always names its toolchain "conan_toolchain.cmake". Use that to
-# distinguish Conan builds (where find_package finds Conan's static libzip)
-# from native builds (where the system cmake config for libzip may be broken).
-if(CMAKE_TOOLCHAIN_FILE MATCHES "conan_toolchain")
-    find_package(libzip REQUIRED)
-else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
-endif()
+find_package(libzip REQUIRED)
 
 add_library(viamrealsense
     src/module/encoding.cpp
@@ -63,7 +54,7 @@ target_link_libraries(viamrealsense
         realsense2::realsense2
         libjpeg-turbo::turbojpeg-static
         CURL::libcurl
-        $<IF:$<TARGET_EXISTS:libzip::zip>,libzip::zip,PkgConfig::LIBZIP>
+        libzip::zip
     PRIVATE
         ${CMAKE_DL_LIBS}
 )

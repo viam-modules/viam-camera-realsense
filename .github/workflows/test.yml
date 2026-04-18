@@ -40,11 +40,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies
-        if: runner.os == 'macOS'
         run: |
           make setup
           test -f ./venv/bin/activate && . ./venv/bin/activate && conan profile show
-      
+
+      - name: Install Conan dependencies
+        run: |
+          make conan-install-test
+
       - name: Lint
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -55,16 +58,18 @@ jobs:
             exit 1
           fi
 
-      - name: Install Conan dependencies
-        if: runner.os == 'macOS'
-        run: |
-          make conan-install-test
-
       - name: Build with coverage (Linux amd64 only)
         if: matrix.coverage == true
         run: |
+          . ./venv/bin/activate
+          GENERATORS="$(pwd)/build-conan/build/Release/generators"
           mkdir -p build-native && cd build-native
-          cmake .. -DVIAM_REALSENSE_ENABLE_TESTS=ON -DVIAM_REALSENSE_ENABLE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Release
+          cmake .. \
+            -DVIAM_REALSENSE_ENABLE_TESTS=ON \
+            -DVIAM_REALSENSE_ENABLE_COVERAGE=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$GENERATORS/conan_toolchain.cmake" \
+            -DCMAKE_PREFIX_PATH="$GENERATORS"
           make -j$(nproc)
 
       - name: Build without coverage (other platforms)
@@ -72,7 +77,9 @@ jobs:
         run: make build-native
 
       - name: Run the tests
-        run: cd build-native && ctest --output-on-failure
+        run: |
+          . ./build-conan/build/Release/generators/conanrun.sh
+          cd build-native && ctest --output-on-failure
 
       - name: Generate coverage report
         if: matrix.coverage == true
