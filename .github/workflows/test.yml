@@ -58,43 +58,23 @@ jobs:
             exit 1
           fi
 
-      - name: Build with coverage (Linux amd64 only)
+      - name: Install lcov (Linux amd64 only)
         if: matrix.coverage == true
-        run: |
-          . ./venv/bin/activate
-          GENERATORS="$(pwd)/build-conan/build/Release/generators"
-          mkdir -p build-native && cd build-native
-          cmake .. \
-            -DVIAM_REALSENSE_ENABLE_TESTS=ON \
-            -DVIAM_REALSENSE_ENABLE_COVERAGE=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="$GENERATORS/conan_toolchain.cmake" \
-            -DCMAKE_PREFIX_PATH="$GENERATORS"
-          make -j$(nproc)
+        run: sudo apt-get update && sudo apt-get install -y lcov
 
-      - name: Build without coverage (other platforms)
+      - name: Build and run tests with coverage (Linux amd64 only)
+        if: matrix.coverage == true
+        run: make test-coverage
+
+      - name: Build and run tests (other platforms)
         if: matrix.coverage != true
-        run: make build-native
-
-      - name: Run the tests
-        run: |
-          . ./build-conan/build/Release/generators/conanrun.sh
-          cd build-native && ctest --output-on-failure
-
-      - name: Generate coverage report
-        if: matrix.coverage == true
-        run: |
-          sudo apt-get update && sudo apt-get install -y lcov
-          cd build-native
-          lcov --capture --directory . --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/test/*' '*/build-native/_deps/*' --output-file coverage.info
-          lcov --list coverage.info
+        run: make test
 
       - name: Upload coverage reports to Codecov
         if: matrix.coverage == true
         uses: codecov/codecov-action@v5
         with:
-          files: ./build-native/coverage.info
+          files: ./build-conan/coverage.info
           flags: unittests
           # Token is optional for public repos, but recommended for reliability
           # If uploads fail, ensure CODECOV_TOKEN is set in repository secrets
