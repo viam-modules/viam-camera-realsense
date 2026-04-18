@@ -32,14 +32,7 @@ find_package(realsense2 REQUIRED)
 find_package(viam-cpp-sdk REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(CURL REQUIRED)
-find_package(PkgConfig REQUIRED)
-
-# Use pkg-config for libzip when available (more reliable with system packages)
-# Fall back to find_package for Conan-provided libzip
-pkg_check_modules(LIBZIP IMPORTED_TARGET libzip)
-if(NOT LIBZIP_FOUND)
-    find_package(libzip REQUIRED)
-endif()
+find_package(libzip REQUIRED)
 
 add_library(viamrealsense
     src/module/encoding.cpp
@@ -61,7 +54,7 @@ target_link_libraries(viamrealsense
         realsense2::realsense2
         libjpeg-turbo::turbojpeg-static
         CURL::libcurl
-        $<IF:$<TARGET_EXISTS:PkgConfig::LIBZIP>,PkgConfig::LIBZIP,libzip::zip>
+        libzip::zip
     PRIVATE
         ${CMAKE_DL_LIBS}
 )
