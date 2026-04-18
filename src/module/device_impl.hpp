@@ -548,11 +548,19 @@ createDevice(std::string const &serial_number, std::shared_ptr<DeviceT> dev,
   VIAM_DEVICE_LOG(logger, info)
       << "[createDevice] Found camera model: " << *camera_model;
   if (supported_camera_models.count(*camera_model) == 0) {
+    std::ostringstream supported;
+    bool first = true;
+    for (auto const &m : supported_camera_models) {
+      if (not first) {
+        supported << ", ";
+      }
+      supported << m;
+      first = false;
+    }
     VIAM_DEVICE_LOG(logger, error)
         << "[createDevice] Failed to register camera serial number: "
-        << serial_number
-        << " since camera model is not D435 or D435i, camera model: "
-        << *camera_model;
+        << serial_number << " since camera model " << *camera_model
+        << " is not in the supported set {" << supported.str() << "}";
     return nullptr;
   } else {
     VIAM_DEVICE_LOG(logger, info)

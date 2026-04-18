@@ -28,7 +28,7 @@
 #include <boost/thread/synchronized_value.hpp>
 namespace realsense {
 static const std::unordered_set<std::string> SUPPORTED_CAMERA_MODELS = {
-    "D435", "D435I"};
+    "D415", "D435", "D435I"};
 static constexpr std::uint64_t MAX_FRAME_AGE_MS =
     1e3; // time until a frame is considered stale, in miliseconds (equal to 1
 static constexpr size_t MAX_GRPC_MESSAGE_SIZE =
@@ -743,11 +743,28 @@ public:
   }
   std::vector<viam::sdk::GeometryConfig>
   get_geometries(const viam::sdk::ProtoStruct &extra) override {
-    // This is the geometry for the D435 and D435i, the only models that we
-    // currently support. See
-    // https://github.com/viam-modules/viam-camera-realsense/pull/75 for
-    // explanation of values. NOTE: If support for additional RealSense camera
-    // models is added, update method accordingly.
+    // Geometries are model-specific. The pose is the offset from the camera
+    // reference origin (depth left imager) to the center of the bounding box,
+    // and the box dimensions match the physical module size in mm. See
+    // https://github.com/viam-modules/viam-camera-realsense/pull/75 for the
+    // derivation of the D435/D435i values.
+    // NOTE: when adding support for additional RealSense camera models,
+    // update this switch accordingly.
+    std::optional<std::string> model;
+    if (device_) {
+      auto my_dev = device_->synchronize();
+      if (my_dev->device) {
+        model = device::getCameraModel(my_dev->device);
+      }
+    }
+    if (model && (*model == "D415")) {
+      // D415 module dimensions per Intel datasheet: 99 x 20 x 23 mm.
+      // The depth left imager sits near the left edge of the front face,
+      // mirroring the D435 layout offset by the difference in module size.
+      return {viam::sdk::GeometryConfig(viam::sdk::pose{-22, 0, -11.5},
+                                        viam::sdk::box({99, 20, 23}), "box")};
+    }
+    // Default: D435 / D435i geometry.
     return {viam::sdk::GeometryConfig(viam::sdk::pose{-17.5, 0, -12.5},
                                       viam::sdk::box({90, 25, 25}), "box")};
   }

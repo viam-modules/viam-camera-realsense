@@ -221,7 +221,7 @@ protected:
   void SetUp() override {
     // Setup common test data
     serial_number_ = "test_device_123456";
-    supported_models_ = {"D435", "D435i", "D455"};
+    supported_models_ = {"D415", "D435", "D435i", "D455"};
 
     // Setup mock device
     mock_device_ = std::make_shared<MockDevice>();
@@ -278,6 +278,21 @@ TEST_F(DeviceTest, GetCameraModel_ValidDevice_ReturnsModel) {
   // Verify
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), "D435");
+}
+
+TEST_F(DeviceTest, GetCameraModel_D415Device_ReturnsD415) {
+  // Setup expectations
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_NAME))
+      .WillOnce(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_NAME))
+      .WillOnce(Return("Intel RealSense D415"));
+
+  // Execute
+  auto result = getCameraModel(mock_device_);
+
+  // Verify
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result.value(), "D415");
 }
 
 TEST_F(DeviceTest, GetCameraModel_UnsupportedDevice_ReturnsNullopt) {

@@ -304,13 +304,14 @@ Or, if you aren't using the Viam app to manage your machine's configuration, mod
 
 Support for specific hardware is known for the following devices. The table is not complete and subject to change.
 
-| Devices               | D435 | D435i | D455 |
-|-----------------------|------|-------|------|
-| RPi 4B Bookworm       |  X   |       |      |
-| RPi 4B Bullseye       |  X   |       |      |
-| Orin Nano JetPack 5.1 |  X   |   X   |  X   |
-| UP 4000               |  X   |       |      |
-| macOS                 |      |  (1)  |      |
+| Devices               | D415 | D435 | D435i | D455 |
+|-----------------------|------|------|-------|------|
+| RPi 4B/5 Trixie       |      |  X   |   X   |      |
+| RPi 4B/5 Bookworm     |      |  X   |   X   |      |
+| RPi 4B Bullseye       |      |  X   |       |      |
+| Orin Nano JetPack 5.1 |      |  X   |   X   |  X   |
+| UP 4000               |      |  X   |       |      |
+| macOS                 |      |      |  (1)  |      |
 
 (1) macOS support is experimental and based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense. May have stability issues. Firmware updates are not supported on macOS.
 
