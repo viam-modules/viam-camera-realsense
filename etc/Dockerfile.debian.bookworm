@@ -79,7 +79,7 @@ RUN apt install -y libgtest-dev
 RUN mkdir -p /root/opt/src
 
 # Install librealsense from source
-ENV REALSENSE_VERSION="v2.56.5"
+ENV REALSENSE_VERSION="v2.57.7"
 RUN cd /root/opt/src && \
     git clone https://github.com/IntelRealSense/librealsense.git && \
     cd librealsense && \
