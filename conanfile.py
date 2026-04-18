@@ -1,15 +1,12 @@
 import os
 import tarfile
 import re
-import json
 from tempfile import TemporaryDirectory
 
 from conan import ConanFile
-from conan.api.output import ConanOutput
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.files import copy, load
-from conan.internal.deploy import _flatten_directory
 
 class ViamRealsense(ConanFile):
     name = "viam-camera-realsense"
@@ -24,7 +21,7 @@ class ViamRealsense(ConanFile):
         "viam-cpp-sdk/*:shared": False
     }
 
-    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*"
+    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*", "*.sh", "99-realsense-libusb.rules", "99-realsense-d4xx-mipi-dfu.rules"
 
     version = "0.0.1"
 
@@ -37,10 +34,7 @@ class ViamRealsense(ConanFile):
 
     def requirements(self):
         self.requires("viam-cpp-sdk/0.31.0")
-        if self.settings.os == "Macos":
-            self.requires("librealsense/2.57.6")
-        else:
-            self.requires("librealsense/2.56.5")
+        self.requires("librealsense/2.57.6")
         self.requires("libjpeg-turbo/[>=2.1.0 <3]")
         self.requires("libcurl/[>=8.0.0 <9]")
         self.requires("libzip/1.11.1")
@@ -75,6 +69,10 @@ class ViamRealsense(ConanFile):
 
             # Copy meta.json to root
             copy(self, "meta.json", src=self.package_folder, dst=tmp_dir)
+
+            # Copy udev rules and install scripts
+            for pat in ["*.sh", "99-realsense-libusb.rules", "99-realsense-d4xx-mipi-dfu.rules"]:
+                copy(self, pat, src=self.package_folder, dst=tmp_dir)
 
             self.output.info("Creating module.tar.gz")
             with tarfile.open(os.path.join(self.deploy_folder, "module.tar.gz"), "w|gz") as tar:
