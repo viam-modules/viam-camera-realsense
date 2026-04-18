@@ -18,7 +18,8 @@ class ViamRealsense(ConanFile):
     options = {"with_tests": [True, False]}
     default_options = {
         "with_tests": False,
-        "viam-cpp-sdk/*:shared": False
+        "viam-cpp-sdk/*:shared": False,
+        "libzip/*:shared": False
     }
 
     exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*", "*.sh", "99-realsense-libusb.rules", "99-realsense-d4xx-mipi-dfu.rules"
@@ -34,7 +35,7 @@ class ViamRealsense(ConanFile):
 
     def requirements(self):
         self.requires("viam-cpp-sdk/0.31.0")
-        self.requires("librealsense/2.57.6")
+        self.requires("librealsense/2.57.7")
         self.requires("libjpeg-turbo/[>=2.1.0 <3]")
         self.requires("libcurl/[>=8.0.0 <9]")
         self.requires("libzip/1.11.1")
