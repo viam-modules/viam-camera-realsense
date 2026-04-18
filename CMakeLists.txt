@@ -33,10 +33,12 @@ find_package(viam-cpp-sdk REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(CURL REQUIRED)
 
-# Prefer Conan-provided libzip (via CMAKE_PREFIX_PATH) over system cmake configs,
-# which may reference missing files on some distros. Fall back to pkg-config.
-find_package(libzip QUIET NO_CMAKE_SYSTEM_PATH)
-if(NOT libzip_FOUND)
+# Conan 2.x always names its toolchain "conan_toolchain.cmake". Use that to
+# distinguish Conan builds (where find_package finds Conan's static libzip)
+# from native builds (where the system cmake config for libzip may be broken).
+if(CMAKE_TOOLCHAIN_FILE MATCHES "conan_toolchain")
+    find_package(libzip REQUIRED)
+else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBZIP REQUIRED IMPORTED_TARGET libzip)
 endif()
