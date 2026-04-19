@@ -24,7 +24,7 @@ class ViamRealsense(ConanFile):
         "viam-cpp-sdk/*:shared": False
     }
 
-    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*", "*.sh", "99-realsense-libusb.rules", "99-realsense-d4xx-mipi-dfu.rules"
+    exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*", "*.sh", "99-realsense-libusb.rules"
 
     version = "0.0.1"
 
@@ -77,7 +77,7 @@ class ViamRealsense(ConanFile):
             copy(self, "meta.json", src=self.package_folder, dst=tmp_dir)
 
             # Copy udev rules and install scripts
-            for pat in ["*.sh", "99-realsense-libusb.rules", "99-realsense-d4xx-mipi-dfu.rules"]:
+            for pat in ["*.sh", "99-realsense-libusb.rules"]:
                 copy(self, pat, src=self.package_folder, dst=tmp_dir)
 
             self.output.info("Creating module.tar.gz")
