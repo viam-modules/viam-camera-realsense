@@ -78,7 +78,7 @@ jobs:
           make module.tar.gz
 
       - name: Upload module artifact
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
