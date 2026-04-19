@@ -1045,7 +1045,7 @@ private:
               << "[handleFirmwareUpdate] No update needed, restarting device";
           device_funcs_.startDevice(device_serial_number, device_,
                                     latest_frameset_, MAX_FRAME_AGE_MS,
-                                    config_, this->logger_);
+                                    config_.get(), this->logger_);
         } else {
           // Firmware was flashed — device will reboot and reconnect on its own.
           device_ = nullptr;
