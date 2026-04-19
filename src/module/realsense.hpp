@@ -1037,18 +1037,29 @@ private:
 
       // Check if firmware update succeeded
       if (update_result.first) {
-        // Success - clear device assignment
-        device_ = nullptr;
-        recovery_device_ptr_ = nullptr;
-        physical_camera_assigned_ = false;
-        is_recovery_mode_ = false;
+        bool no_update_needed = update_result.second.count("no_update_needed");
+        if (no_update_needed) {
+          // No update was performed — device was stopped but not flashed.
+          // Restart it so streaming resumes.
+          VIAM_RESOURCE_LOG(info)
+              << "[handleFirmwareUpdate] No update needed, restarting device";
+          device_funcs_.startDevice(device_serial_number, device_,
+                                    latest_frameset_, MAX_FRAME_AGE_MS,
+                                    config_, this->logger_);
+        } else {
+          // Firmware was flashed — device will reboot and reconnect on its own.
+          device_ = nullptr;
+          recovery_device_ptr_ = nullptr;
+          physical_camera_assigned_ = false;
+          is_recovery_mode_ = false;
 
-        // Remove the device's serial number from the assigned set
-        // This allows the device to be reassigned when it reconnects after
-        // firmware update
-        {
-          auto serials_guard = assigned_serials_->synchronize();
-          serials_guard->erase(device_serial_number);
+          // Remove the device's serial number from the assigned set
+          // This allows the device to be reassigned when it reconnects after
+          // firmware update
+          {
+            auto serials_guard = assigned_serials_->synchronize();
+            serials_guard->erase(device_serial_number);
+          }
         }
 
         response["success"] = true;

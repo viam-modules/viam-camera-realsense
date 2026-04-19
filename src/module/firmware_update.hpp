@@ -291,7 +291,7 @@ updateFirmware(std::shared_ptr<rs2::device> rs_device,
               "\"https://your-firmware-url.zip\"}. Find firmware URLs at: "
               "https://dev.realsenseai.com/docs/firmware-releases-d400";
           VIAM_SDK_LOG_IMPL(logger, info) << "[handleFirmwareUpdate] " << msg;
-          return {true, {{"message", msg}}};
+          return {true, {{"message", msg}, {"no_update_needed", "true"}}};
         }
       }
 
