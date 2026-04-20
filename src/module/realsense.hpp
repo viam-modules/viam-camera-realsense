@@ -182,6 +182,9 @@ struct DeviceFunctions {
       std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
       realsense::RsResourceConfig const &, viam::sdk::LogSource &)>
       reconfigureDevice;
+  std::function<bool(std::shared_ptr<rs2::device>, std::string &current,
+                     std::string &recommended)>
+      getFirmwareVersions;
 };
 
 template <typename SynchronizedContextT>
@@ -1009,14 +1012,10 @@ private:
         if (firmware_url.empty()) {
           auto device_guard = device_->synchronize();
           auto pre_check_device = device_guard->device;
+          std::string current, recommended;
           if (pre_check_device &&
-              pre_check_device->supports(
-                  RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION) &&
-              pre_check_device->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION)) {
-            std::string recommended = pre_check_device->get_info(
-                RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
-            std::string current =
-                pre_check_device->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+              device_funcs_.getFirmwareVersions(pre_check_device, current,
+                                                recommended)) {
             VIAM_RESOURCE_LOG(info)
                 << "[handleFirmwareUpdate] Current firmware: " << current
                 << ", recommended: " << recommended;
@@ -1387,6 +1386,20 @@ private:
                   rs2::device, rs2::config, rs2::color_sensor,
                   rs2::depth_sensor, rs2::video_stream_profile>(
                   device, viamConfig, logger);
+            },
+        .getFirmwareVersions =
+            [](std::shared_ptr<rs2::device> dev, std::string &current,
+               std::string &recommended) -> bool {
+              if (!dev ||
+                  !dev->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ||
+                  !dev->supports(
+                      RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION)) {
+                return false;
+              }
+              current = dev->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+              recommended = dev->get_info(
+                  RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+              return true;
             }};
   };
 };

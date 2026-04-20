@@ -83,6 +83,9 @@ public:
       (std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
        realsense::RsResourceConfig const &),
       ());
+  MOCK_METHOD(bool, getFirmwareVersions,
+              (std::shared_ptr<rs2::device>, std::string &, std::string &),
+              ());
 };
 
 DeviceFunctions
@@ -138,6 +141,11 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
               realsense::RsResourceConfig const &viamConfig,
               viam::sdk::LogSource &) {
             mock->reconfigureDevice(device, viamConfig);
+          },
+      .getFirmwareVersions =
+          [mock](std::shared_ptr<rs2::device> dev, std::string &current,
+                 std::string &recommended) -> bool {
+            return mock->getFirmwareVersions(dev, current, recommended);
           }};
 }
 
@@ -208,7 +216,12 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
              realsense::RsResourceConfig const &viamConfig,
              viam::sdk::LogSource &) {
             std::cout << "Mock: reconfigureDevice called" << std::endl;
-            // No-op for mock
+          },
+      .getFirmwareVersions =
+          [](std::shared_ptr<rs2::device>, std::string &,
+             std::string &) -> bool {
+            // Default: report no version info available
+            return false;
           }};
 }
 
@@ -634,6 +647,82 @@ TEST_F(RealsenseTest, ReconfigureWithNewSerialNumber_StrictOrdering) {
       Model("viam", "camera", "realsense"), LinkConfig{}, log_level::info);
 
   EXPECT_NO_THROW({ camera.reconfigure(test_deps_, new_config); });
+}
+
+TEST_F(RealsenseTest,
+       FirmwareUpdate_AutoDetect_AlreadyCurrent_DoesNotStopDevice) {
+  bool stop_device_called = false;
+
+  auto device_funcs = createFullyMockedDeviceFunctions();
+  device_funcs.stopDevice =
+      [&stop_device_called](
+          std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
+              &device,
+          viam::sdk::LogSource &) -> bool {
+    stop_device_called = true;
+    if (device) {
+      auto locked = device->synchronize();
+      locked->started = false;
+    }
+    return true;
+  };
+  device_funcs.getFirmwareVersions =
+      [](std::shared_ptr<rs2::device>, std::string &current,
+         std::string &recommended) -> bool {
+    current = "5.16.0.1";
+    recommended = "5.16.0.1"; // Same — no update needed
+    return true;
+  };
+
+  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
+      test_deps_, *test_config_, mock_realsense_context_, device_funcs,
+      assigned_serials_);
+
+  ProtoStruct command;
+  command["update_firmware"] = "";
+  auto result = camera.do_command(command);
+
+  EXPECT_FALSE(stop_device_called);
+  EXPECT_TRUE(*result["success"].get<bool>());
+  auto msg = *result["message"].get<std::string>();
+  EXPECT_TRUE(msg.find("already at the recommended version") !=
+              std::string::npos);
+}
+
+TEST_F(RealsenseTest, FirmwareUpdate_AutoDetect_Outdated_StopsDevice) {
+  bool stop_device_called = false;
+
+  auto device_funcs = createFullyMockedDeviceFunctions();
+  device_funcs.stopDevice =
+      [&stop_device_called](
+          std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
+              &device,
+          viam::sdk::LogSource &) -> bool {
+    stop_device_called = true;
+    if (device) {
+      auto locked = device->synchronize();
+      locked->started = false;
+    }
+    return true;
+  };
+  device_funcs.getFirmwareVersions =
+      [](std::shared_ptr<rs2::device>, std::string &current,
+         std::string &recommended) -> bool {
+    current = "5.15.0.0";
+    recommended = "5.16.0.1"; // Different — update needed
+    return true;
+  };
+
+  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
+      test_deps_, *test_config_, mock_realsense_context_, device_funcs,
+      assigned_serials_);
+
+  ProtoStruct command;
+  command["update_firmware"] = "";
+  auto result = camera.do_command(command);
+
+  EXPECT_TRUE(stop_device_called);
+  EXPECT_FALSE(*result["success"].get<bool>());
 }
 
 int main(int argc, char **argv) {
