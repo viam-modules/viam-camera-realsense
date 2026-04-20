@@ -682,11 +682,18 @@ TEST_F(RealsenseTest,
   command["update_firmware"] = "";
   auto result = camera.do_command(command);
 
+#ifdef __APPLE__
+  EXPECT_FALSE(*result["success"].get<bool>());
+  auto error = *result["error"].get<std::string>();
+  EXPECT_TRUE(error.find("not supported on macOS") != std::string::npos);
+#else
   EXPECT_FALSE(stop_device_called);
   EXPECT_TRUE(*result["success"].get<bool>());
-  auto msg = *result["message"].get<std::string>();
-  EXPECT_TRUE(msg.find("already at the recommended version") !=
+  auto msg_opt = result["message"].get<std::string>();
+  ASSERT_TRUE(msg_opt.has_value());
+  EXPECT_TRUE(msg_opt->find("already at the recommended version") !=
               std::string::npos);
+#endif
 }
 
 TEST_F(RealsenseTest, FirmwareUpdate_AutoDetect_Outdated_StopsDevice) {
@@ -721,8 +728,14 @@ TEST_F(RealsenseTest, FirmwareUpdate_AutoDetect_Outdated_StopsDevice) {
   command["update_firmware"] = "";
   auto result = camera.do_command(command);
 
+#ifdef __APPLE__
+  EXPECT_FALSE(*result["success"].get<bool>());
+  auto error = *result["error"].get<std::string>();
+  EXPECT_TRUE(error.find("not supported on macOS") != std::string::npos);
+#else
   EXPECT_TRUE(stop_device_called);
   EXPECT_FALSE(*result["success"].get<bool>());
+#endif
 }
 
 int main(int argc, char **argv) {
