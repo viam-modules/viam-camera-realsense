@@ -970,8 +970,8 @@ private:
         auto device_guard = device_->synchronize();
         auto pre_check_device = device_guard->device;
         std::string current, recommended;
-        if (pre_check_device && device_funcs_.getFirmwareVersions(
-                                    pre_check_device, current, recommended)) {
+        if (device_funcs_.getFirmwareVersions(pre_check_device, current,
+                                              recommended)) {
           VIAM_RESOURCE_LOG(info)
               << "[handleFirmwareUpdate] Current firmware: " << current
               << ", recommended: " << recommended;
