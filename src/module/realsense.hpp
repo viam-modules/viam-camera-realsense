@@ -963,6 +963,37 @@ private:
 
     try {
 
+      // If not in recovery mode and no firmware URL was provided, check whether
+      // the device already runs the recommended version before touching any
+      // state — no callback clearing, no stream disruption needed.
+      if (!is_recovery_mode_.get() && firmware_url.empty() && device_) {
+        auto device_guard = device_->synchronize();
+        auto pre_check_device = device_guard->device;
+        std::string current, recommended;
+        if (pre_check_device &&
+            device_funcs_.getFirmwareVersions(pre_check_device, current,
+                                              recommended)) {
+          VIAM_RESOURCE_LOG(info)
+              << "[handleFirmwareUpdate] Current firmware: " << current
+              << ", recommended: " << recommended;
+          if (current == recommended) {
+            std::string msg =
+                std::string(
+                    "Firmware is already at the recommended version (") +
+                current +
+                "). No update needed. To force an update to a specific "
+                "version, specify the firmware URL directly using: "
+                "{\"update_firmware\": \"https://your-firmware-url.zip\"}. "
+                "Find firmware URLs at: "
+                "https://dev.realsenseai.com/docs/firmware-releases-d400";
+            VIAM_RESOURCE_LOG(info) << "[handleFirmwareUpdate] " << msg;
+            response["success"] = true;
+            response["message"] = msg;
+            return response;
+          }
+        }
+      }
+
       // Temporarily clear the device change callback to prevent interference
       // It will be automatically restored when this scope exits
       realsense_ctx_->clearDevicesChangedCallback();
@@ -1005,36 +1036,6 @@ private:
           VIAM_RESOURCE_LOG(error) << "[handleFirmwareUpdate] Firmware update "
                                       "failed: No device available";
           return response;
-        }
-
-        // If no firmware URL was provided, check whether the device already
-        // runs the recommended version before stopping the stream
-        if (firmware_url.empty()) {
-          auto device_guard = device_->synchronize();
-          auto pre_check_device = device_guard->device;
-          std::string current, recommended;
-          if (pre_check_device &&
-              device_funcs_.getFirmwareVersions(pre_check_device, current,
-                                                recommended)) {
-            VIAM_RESOURCE_LOG(info)
-                << "[handleFirmwareUpdate] Current firmware: " << current
-                << ", recommended: " << recommended;
-            if (current == recommended) {
-              std::string msg =
-                  std::string(
-                      "Firmware is already at the recommended version (") +
-                  current +
-                  "). No update needed. To force an update to a specific "
-                  "version, specify the firmware URL directly using: "
-                  "{\"update_firmware\": \"https://your-firmware-url.zip\"}. "
-                  "Find firmware URLs at: "
-                  "https://dev.realsenseai.com/docs/firmware-releases-d400";
-              VIAM_RESOURCE_LOG(info) << "[handleFirmwareUpdate] " << msg;
-              response["success"] = true;
-              response["message"] = msg;
-              return response;
-            }
-          }
         }
 
         // Stop the device before firmware update
