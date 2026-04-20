@@ -970,9 +970,8 @@ private:
         auto device_guard = device_->synchronize();
         auto pre_check_device = device_guard->device;
         std::string current, recommended;
-        if (pre_check_device &&
-            device_funcs_.getFirmwareVersions(pre_check_device, current,
-                                              recommended)) {
+        if (pre_check_device && device_funcs_.getFirmwareVersions(
+                                    pre_check_device, current, recommended)) {
           VIAM_RESOURCE_LOG(info)
               << "[handleFirmwareUpdate] Current firmware: " << current
               << ", recommended: " << recommended;
@@ -1388,20 +1387,18 @@ private:
                   rs2::depth_sensor, rs2::video_stream_profile>(
                   device, viamConfig, logger);
             },
-        .getFirmwareVersions =
-            [](std::shared_ptr<rs2::device> dev, std::string &current,
-               std::string &recommended) -> bool {
-              if (!dev ||
-                  !dev->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ||
-                  !dev->supports(
-                      RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION)) {
-                return false;
-              }
-              current = dev->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
-              recommended = dev->get_info(
-                  RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
-              return true;
-            }};
+        .getFirmwareVersions = [](std::shared_ptr<rs2::device> dev,
+                                  std::string &current,
+                                  std::string &recommended) -> bool {
+          if (!dev || !dev->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ||
+              !dev->supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION)) {
+            return false;
+          }
+          current = dev->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+          recommended =
+              dev->get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+          return true;
+        }};
   };
 };
 }; // namespace realsense

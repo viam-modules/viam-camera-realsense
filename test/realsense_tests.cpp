@@ -84,8 +84,7 @@ public:
        realsense::RsResourceConfig const &),
       ());
   MOCK_METHOD(bool, getFirmwareVersions,
-              (std::shared_ptr<rs2::device>, std::string &, std::string &),
-              ());
+              (std::shared_ptr<rs2::device>, std::string &, std::string &), ());
 };
 
 DeviceFunctions
@@ -142,11 +141,11 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
               viam::sdk::LogSource &) {
             mock->reconfigureDevice(device, viamConfig);
           },
-      .getFirmwareVersions =
-          [mock](std::shared_ptr<rs2::device> dev, std::string &current,
-                 std::string &recommended) -> bool {
-            return mock->getFirmwareVersions(dev, current, recommended);
-          }};
+      .getFirmwareVersions = [mock](std::shared_ptr<rs2::device> dev,
+                                    std::string &current,
+                                    std::string &recommended) -> bool {
+        return mock->getFirmwareVersions(dev, current, recommended);
+      }};
 }
 
 DeviceFunctions createFullyMockedDeviceFunctions() {
@@ -217,12 +216,11 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
              viam::sdk::LogSource &) {
             std::cout << "Mock: reconfigureDevice called" << std::endl;
           },
-      .getFirmwareVersions =
-          [](std::shared_ptr<rs2::device>, std::string &,
-             std::string &) -> bool {
-            // Default: report no version info available
-            return false;
-          }};
+      .getFirmwareVersions = [](std::shared_ptr<rs2::device>, std::string &,
+                                std::string &) -> bool {
+        // Default: report no version info available
+        return false;
+      }};
 }
 
 class SimpleMockContext {
@@ -666,9 +664,9 @@ TEST_F(RealsenseTest,
     }
     return true;
   };
-  device_funcs.getFirmwareVersions =
-      [](std::shared_ptr<rs2::device>, std::string &current,
-         std::string &recommended) -> bool {
+  device_funcs.getFirmwareVersions = [](std::shared_ptr<rs2::device>,
+                                        std::string &current,
+                                        std::string &recommended) -> bool {
     current = "5.16.0.1";
     recommended = "5.16.0.1"; // Same — no update needed
     return true;
@@ -712,9 +710,9 @@ TEST_F(RealsenseTest, FirmwareUpdate_AutoDetect_Outdated_StopsDevice) {
     }
     return true;
   };
-  device_funcs.getFirmwareVersions =
-      [](std::shared_ptr<rs2::device>, std::string &current,
-         std::string &recommended) -> bool {
+  device_funcs.getFirmwareVersions = [](std::shared_ptr<rs2::device>,
+                                        std::string &current,
+                                        std::string &recommended) -> bool {
     current = "5.15.0.0";
     recommended = "5.16.0.1"; // Different — update needed
     return true;
