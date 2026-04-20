@@ -1004,8 +1004,8 @@ private:
           return response;
         }
 
-        // If no firmware URL was provided, check whether the device already runs
-        // the recommended version before stopping the stream
+        // If no firmware URL was provided, check whether the device already
+        // runs the recommended version before stopping the stream
         if (firmware_url.empty()) {
           auto device_guard = device_->synchronize();
           auto pre_check_device = device_guard->device;
