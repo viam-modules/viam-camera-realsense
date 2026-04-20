@@ -1004,6 +1004,39 @@ private:
           return response;
         }
 
+        // In auto-detect mode, check firmware version before disrupting streaming
+        if (firmware_url.empty()) {
+          auto device_guard = device_->synchronize();
+          auto pre_check_device = device_guard->device;
+          if (pre_check_device &&
+              pre_check_device->supports(
+                  RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION) &&
+              pre_check_device->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION)) {
+            std::string recommended = pre_check_device->get_info(
+                RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+            std::string current =
+                pre_check_device->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+            VIAM_RESOURCE_LOG(info)
+                << "[handleFirmwareUpdate] Current firmware: " << current
+                << ", recommended: " << recommended;
+            if (current == recommended) {
+              std::string msg =
+                  std::string(
+                      "Firmware is already at the recommended version (") +
+                  current +
+                  "). No update needed. To force an update to a specific "
+                  "version, specify the firmware URL directly using: "
+                  "{\"update_firmware\": \"https://your-firmware-url.zip\"}. "
+                  "Find firmware URLs at: "
+                  "https://dev.realsenseai.com/docs/firmware-releases-d400";
+              VIAM_RESOURCE_LOG(info) << "[handleFirmwareUpdate] " << msg;
+              response["success"] = true;
+              response["message"] = msg;
+              return response;
+            }
+          }
+        }
+
         // Stop the device before firmware update
         VIAM_RESOURCE_LOG(info)
             << "[handleFirmwareUpdate] Stopping device before update";
@@ -1037,29 +1070,15 @@ private:
 
       // Check if firmware update succeeded
       if (update_result.first) {
-        bool no_update_needed = update_result.second.count("no_update_needed");
-        if (no_update_needed) {
-          // No update was performed — device was stopped but not flashed.
-          // Restart it so streaming resumes.
-          VIAM_RESOURCE_LOG(info)
-              << "[handleFirmwareUpdate] No update needed, restarting device";
-          device_funcs_.startDevice(device_serial_number, device_,
-                                    latest_frameset_, MAX_FRAME_AGE_MS,
-                                    config_.get(), this->logger_);
-        } else {
-          // Firmware was flashed — device will reboot and reconnect on its own.
-          device_ = nullptr;
-          recovery_device_ptr_ = nullptr;
-          physical_camera_assigned_ = false;
-          is_recovery_mode_ = false;
+        // Firmware was flashed — device will reboot and reconnect on its own.
+        device_ = nullptr;
+        recovery_device_ptr_ = nullptr;
+        physical_camera_assigned_ = false;
+        is_recovery_mode_ = false;
 
-          // Remove the device's serial number from the assigned set
-          // This allows the device to be reassigned when it reconnects after
-          // firmware update
-          {
-            auto serials_guard = assigned_serials_->synchronize();
-            serials_guard->erase(device_serial_number);
-          }
+        {
+          auto serials_guard = assigned_serials_->synchronize();
+          serials_guard->erase(device_serial_number);
         }
 
         response["success"] = true;
