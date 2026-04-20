@@ -687,9 +687,9 @@ TEST_F(RealsenseTest,
 #else
   EXPECT_FALSE(stop_device_called);
   EXPECT_TRUE(*result["success"].get<bool>());
-  auto msg_opt = result["message"].get<std::string>();
-  ASSERT_TRUE(msg_opt.has_value());
-  EXPECT_TRUE(msg_opt->find("already at the recommended version") !=
+  auto msg_ptr = result["message"].get<std::string>();
+  ASSERT_NE(msg_ptr, nullptr);
+  EXPECT_TRUE(msg_ptr->find("already at the recommended version") !=
               std::string::npos);
 #endif
 }
