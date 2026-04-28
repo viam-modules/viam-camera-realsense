@@ -146,12 +146,6 @@ struct RsResourceConfig {
                             std::optional<int> height = std::nullopt)
       : serial_number(serial_number), resource_name(resource_name),
         sensors(sensors), width(width), height(height) {}
-  sensors::SensorType getMainSensor() const {
-    if (sensors.empty()) {
-      throw std::invalid_argument("sensors list is empty");
-    }
-    return sensors[0];
-  }
 };
 
 struct DeviceFunctions {

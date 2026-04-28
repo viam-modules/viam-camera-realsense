@@ -43,7 +43,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
-| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list that contain the strings `color` and/or `depth`. The sensor that comes first in the list is designated the "main sensor", and is the image that gets returned by `get_image` calls and appears in the **CONTROL** tab on the [Viam app](https://app.viam.com). If you would like a list of images from all listed sensors simultaneously, use [`GetImages`](https://docs.viam.com/components/camera/#getimages).  |
+| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list containing the strings `color` and/or `depth`. The sensor listed first is what appears in the **CONTROL** tab on the [Viam app](https://app.viam.com). `get_properties` always returns color intrinsics when color is configured, regardless of order. If you would like a list of images from all listed sensors simultaneously, use [`GetImages`](https://docs.viam.com/components/camera/#getimages). Defaults to `["color", "depth"]` if omitted. |
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If this field is omitted or is an empty string, the module will use the first RealSense camera it detects. |
@@ -86,7 +86,7 @@ The following methods of the Viam camera API are supported:
 
 The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is anchored at the depth left imager** — the same convention used by the bounding-box geometries returned by `get_geometries`.
 
-`get_properties` returns intrinsics for whichever sensor is listed first in `sensors` (color by default) and reports that sensor's offset from the depth left imager via `extrinsic_parameters`:
+`get_properties` returns color intrinsics when color is configured (regardless of sensor order) and reports the color sensor's offset from the depth left imager via `extrinsic_parameters`. When only depth is configured, depth intrinsics are returned with zero extrinsics.
 
 | Field | Contents |
 | ----- | -------- |
