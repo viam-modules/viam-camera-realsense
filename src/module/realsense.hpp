@@ -726,23 +726,19 @@ public:
         } catch (...) {
         }
 
-        if (config_->getMainSensor() == sensors::SensorType::color) {
-          if (not color_stream) {
-            throw std::runtime_error("color stream is not available");
-          }
+        // Always prefer color intrinsics: visual detectors use the color
+        // stream, and extrinsics express the color sensor's offset from the
+        // depth left imager (the camera reference frame). Fall back to depth
+        // intrinsics with identity extrinsics when color is not configured.
+        if (color_stream) {
           auto props = color_stream.get_intrinsics();
-          // Extrinsics are always relative to the depth left imager (the
-          // camera reference frame), matching get_geometries. When depth is
-          // unavailable, fall back to identity (color becomes its own ref).
           auto ref_stream = depth_stream ? depth_stream : color_stream;
           fillResp(response, props, color_stream, ref_stream);
-        } else if (config_->getMainSensor() == sensors::SensorType::depth) {
-          if (not depth_stream) {
-            throw std::runtime_error("depth stream is not available");
-          }
+        } else if (depth_stream) {
           auto props = depth_stream.get_intrinsics();
-          // Depth IS the camera reference frame, so extrinsics are identity.
           fillResp(response, props, depth_stream, depth_stream);
+        } else {
+          throw std::runtime_error("no stream available");
         }
       } // End scope for my_dev lock
 
