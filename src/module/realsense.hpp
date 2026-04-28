@@ -711,16 +711,29 @@ public:
         }
 
         auto profile = my_dev->pipe->get_active_profile();
-        auto depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
-                                .as<rs2::video_stream_profile>();
-        auto color_stream = profile.get_stream(RS2_STREAM_COLOR)
-                                .as<rs2::video_stream_profile>();
+        // Fetch streams defensively: a stream absent from the active profile
+        // (e.g. sensors: ["depth"] has no color stream) throws rather than
+        // returning an invalid profile, so we catch and leave unset.
+        rs2::video_stream_profile depth_stream, color_stream;
+        try {
+          depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
+                             .as<rs2::video_stream_profile>();
+        } catch (...) {
+        }
+        try {
+          color_stream = profile.get_stream(RS2_STREAM_COLOR)
+                             .as<rs2::video_stream_profile>();
+        } catch (...) {
+        }
 
         if (config_->getMainSensor() == sensors::SensorType::color) {
           if (not color_stream) {
             throw std::runtime_error("color stream is not available");
           }
           auto props = color_stream.get_intrinsics();
+          // Extrinsics are always relative to the depth left imager (the
+          // camera reference frame), matching get_geometries. When depth is
+          // unavailable, fall back to identity (color becomes its own ref).
           auto ref_stream = depth_stream ? depth_stream : color_stream;
           fillResp(response, props, color_stream, ref_stream);
         } else if (config_->getMainSensor() == sensors::SensorType::depth) {
@@ -728,8 +741,8 @@ public:
             throw std::runtime_error("depth stream is not available");
           }
           auto props = depth_stream.get_intrinsics();
-          auto ref_stream = color_stream ? color_stream : depth_stream;
-          fillResp(response, props, depth_stream, ref_stream);
+          // Depth IS the camera reference frame, so extrinsics are identity.
+          fillResp(response, props, depth_stream, depth_stream);
         }
       } // End scope for my_dev lock
 

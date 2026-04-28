@@ -82,6 +82,36 @@ The following methods of the Viam camera API are supported:
 - [`GetImages`](https://docs.viam.com/components/camera/#getimages): returns image data from configured sensors, filterable via source names (see below)
 - [`GetProperties`](https://docs.viam.com/components/camera/#getproperties): returns intrinsic properties of a camera
 
+#### Frame origin and `extrinsic_parameters`
+
+The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is anchored at the depth left imager** — the same convention used by the bounding-box geometries returned by `get_geometries`.
+
+`get_properties` returns intrinsics for whichever sensor is listed first in `sensors` (color by default) and reports that sensor's offset from the depth left imager via `extrinsic_parameters`:
+
+| Field | Contents |
+| ----- | -------- |
+| `intrinsic_parameters` | `fx`, `fy`, `ppx`, `ppy` for the primary sensor stream. |
+| `extrinsic_parameters.translation` | Position of the primary sensor's optical center in the camera reference frame (depth left imager), in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i when color is primary. |
+| `extrinsic_parameters.orientation` | Identity — the sub-degree rotation between depth and color is treated as zero. |
+
+If you derive a pose from color-stream intrinsics (e.g. an AprilTag detector or any PnP solver), the resulting pose is in the **color sensor frame**. To express it in the camera reference frame — which is what Viam composes against other components and the world frame — add `extrinsic_parameters.translation`:
+
+```python
+props = await camera.get_properties()
+ox = props.extrinsic_parameters.translation.x  # mm
+oy = props.extrinsic_parameters.translation.y  # mm
+oz = props.extrinsic_parameters.translation.z  # mm
+
+# pose_t is the detector's translation output in meters, in the color frame.
+pose_in_camera_frame_mm = (
+    pose_t[0] * 1000 + ox,
+    pose_t[1] * 1000 + oy,
+    pose_t[2] * 1000 + oz,
+)
+```
+
+Skipping this step produces a offset in X equal to the color-to-depth baseline (roughly 15 mm on D435/D435i), visible as soon as the camera frame is composed against the world frame or other components.
+
 #### `GetImages` source names
 
 `GetImages` accepts an optional `filter_source_names` parameter to select which image sources to return. The valid source names are:
