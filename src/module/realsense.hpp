@@ -146,6 +146,12 @@ struct RsResourceConfig {
                             std::optional<int> height = std::nullopt)
       : serial_number(serial_number), resource_name(resource_name),
         sensors(sensors), width(width), height(height) {}
+  sensors::SensorType getMainSensor() const {
+    if (sensors.empty()) {
+      throw std::invalid_argument("sensors list is empty");
+    }
+    return sensors[0];
+  }
 };
 
 struct DeviceFunctions {
@@ -720,19 +726,20 @@ public:
         } catch (...) {
         }
 
-        // Always prefer color intrinsics: visual detectors use the color
-        // stream, and extrinsics express the color sensor's offset from the
-        // depth left imager (the camera reference frame). Fall back to depth
-        // intrinsics with identity extrinsics when color is not configured.
-        if (color_stream) {
+        if (config_->getMainSensor() == sensors::SensorType::color) {
+          if (not color_stream) {
+            throw std::runtime_error("color stream is not available");
+          }
           auto props = color_stream.get_intrinsics();
           auto ref_stream = depth_stream ? depth_stream : color_stream;
           fillResp(response, props, color_stream, ref_stream);
-        } else if (depth_stream) {
+        } else if (config_->getMainSensor() == sensors::SensorType::depth) {
+          if (not depth_stream) {
+            throw std::runtime_error("depth stream is not available");
+          }
           auto props = depth_stream.get_intrinsics();
-          fillResp(response, props, depth_stream, depth_stream);
-        } else {
-          throw std::runtime_error("no stream available");
+          auto ref_stream = color_stream ? color_stream : depth_stream;
+          fillResp(response, props, depth_stream, ref_stream);
         }
       } // End scope for my_dev lock
 
