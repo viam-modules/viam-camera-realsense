@@ -28,7 +28,9 @@ public:
     if (!color_frame) {
       throw std::runtime_error(
           "No color frame in frameset — point clouds require both color and "
-          "depth. Add \"color\" to the sensors list in your config.");
+          "depth streams. Possible causes: \"color\" is not listed in the "
+          "sensors config, or the camera is not receiving enough USB bandwidth "
+          "(try a different cable or port).");
     }
     pointcloud_->map_to(color_frame);
     auto points = pointcloud_->calculate(depth_frame);

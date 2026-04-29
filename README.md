@@ -43,7 +43,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
-| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list containing the strings `color` and/or `depth`. The sensor listed first determines the intrinsics returned by `get_properties` and what appears in the **CONTROL** tab. Use [`GetImages`](https://docs.viam.com/components/camera/#getimages) to retrieve images from all listed sensors simultaneously. Defaults to `["color", "depth"]` if omitted. |
+| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list containing the strings `color` and/or `depth`. The sensor listed first determines the intrinsics and extrinsics direction returned by `get_properties` (e.g. `["color", "depth"]` gives color intrinsics with color→depth extrinsics, while `["depth", "color"]` gives depth intrinsics with depth→color extrinsics). Use [`GetImages`](https://docs.viam.com/components/camera/#getimages) to retrieve images from all listed sensors simultaneously. Defaults to `["color", "depth"]` if omitted. |
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If this field is omitted or is an empty string, the module will use the first RealSense camera it detects. |
@@ -86,12 +86,12 @@ The following methods of the Viam camera API are supported:
 
 The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is anchored at the depth left imager** — the same convention used by the bounding-box geometries returned by `get_geometries`.
 
-`get_properties` returns intrinsics for the first sensor in the `sensors` list (color by default) and reports that sensor's offset from the depth left imager via `extrinsic_parameters`. When only one sensor is configured, extrinsics are identity (zero translation).
+`get_properties` returns intrinsics for the first sensor in the `sensors` list (color by default). When both sensors are configured, `extrinsic_parameters` reports the transform from the first sensor's frame to the second sensor's frame. When only one sensor is configured, extrinsics are identity (zero translation).
 
 | Field | Contents |
 | ----- | -------- |
 | `intrinsic_parameters` | `fx`, `fy`, `ppx`, `ppy` for the first configured sensor. |
-| `extrinsic_parameters.translation` | Position of that sensor's optical center relative to the depth left imager (the camera reference frame), in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i with the default `["color", "depth"]` config. |
+| `extrinsic_parameters.translation` | Transform from the first configured sensor's frame to the second sensor's frame, in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i with the default `["color", "depth"]` config (color→depth direction). |
 | `extrinsic_parameters.orientation` | Identity — the sub-degree rotation between depth and color is treated as zero. |
 
 With the default config (`["color", "depth"]`), if you derive a pose from color-stream intrinsics (e.g. an AprilTag detector or any PnP solver), the resulting pose is in the **color sensor frame**. To express it in the camera reference frame — which is what Viam composes against other components and the world frame — add `extrinsic_parameters.translation`:
