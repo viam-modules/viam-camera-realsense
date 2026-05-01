@@ -718,12 +718,18 @@ public:
         try {
           depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
                              .as<rs2::video_stream_profile>();
-        } catch (...) {
+        } catch (const std::exception &e) {
+          VIAM_RESOURCE_LOG(debug)
+              << "[get_properties] depth stream not in active profile: "
+              << e.what();
         }
         try {
           color_stream = profile.get_stream(RS2_STREAM_COLOR)
                              .as<rs2::video_stream_profile>();
-        } catch (...) {
+        } catch (const std::exception &e) {
+          VIAM_RESOURCE_LOG(debug)
+              << "[get_properties] color stream not in active profile: "
+              << e.what();
         }
 
         if (config_->getMainSensor() == sensors::SensorType::color) {
