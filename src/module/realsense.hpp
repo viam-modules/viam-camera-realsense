@@ -492,8 +492,8 @@ public:
           auto color = fs.get_color_frame();
           response.images.emplace_back(
               encoding::encodeVideoFrameToResponse(color));
-          std::uint64_t timestamp =
-              static_cast<std::uint64_t>(std::llround(color.get_timestamp()));
+          std::uint64_t timestamp = static_cast<std::uint64_t>(
+              color.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
 
           std::chrono::milliseconds latestTimestamp(timestamp);
           response.metadata.captured_at = viam::sdk::time_pt{
@@ -506,8 +506,8 @@ public:
           auto depth = fs.get_depth_frame();
           response.images.emplace_back(
               encoding::encodeDepthFrameToResponse(depth));
-          std::uint64_t timestamp =
-              static_cast<std::uint64_t>(std::llround(depth.get_timestamp()));
+          std::uint64_t timestamp = static_cast<std::uint64_t>(
+              depth.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
 
           std::chrono::milliseconds latestTimestamp(timestamp);
           response.metadata.captured_at = viam::sdk::time_pt{
@@ -527,12 +527,12 @@ public:
           should_process_color and should_process_depth) {
         auto const color = fs.get_color_frame();
         auto const depth = fs.get_depth_frame();
-        auto const timeDiffMs = static_cast<std::uint64_t>(std::llround(
-            std::abs(color.get_timestamp() - depth.get_timestamp())));
-        auto const colorTS =
-            static_cast<std::uint64_t>(std::llround(color.get_timestamp()));
-        auto const depthTS =
-            static_cast<std::uint64_t>(std::llround(depth.get_timestamp()));
+        auto const colorTS = static_cast<std::uint64_t>(
+            color.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+        auto const depthTS = static_cast<std::uint64_t>(
+            depth.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+        auto const timeDiffMs =
+            colorTS > depthTS ? colorTS - depthTS : depthTS - colorTS;
         // log if the timestamps differ more than MAX_FRAME_SET_TIME_DIFF_MS,
         // at most once every TIMESTAMP_WARNING_LOG_INTERVAL_MS at warning
         // level and always at debug level
@@ -606,15 +606,21 @@ public:
         throw std::invalid_argument("no color frame");
       }
 
-      time::throwIfTooOld(nowMs, color_frame.get_timestamp(), MAX_FRAME_AGE_MS,
-                          "no recent color frame: check USB connection");
+      time::throwIfTooOld(
+          nowMs,
+          static_cast<double>(color_frame.get_frame_metadata(
+              RS2_FRAME_METADATA_TIME_OF_ARRIVAL)),
+          MAX_FRAME_AGE_MS, "no recent color frame: check USB connection");
 
       rs2::depth_frame depth_frame = fs.get_depth_frame();
       if (not depth_frame) {
         throw std::invalid_argument("no depth frame");
       }
-      time::throwIfTooOld(nowMs, depth_frame.get_timestamp(), MAX_FRAME_AGE_MS,
-                          "no recent depth frame: check USB connection");
+      time::throwIfTooOld(
+          nowMs,
+          static_cast<double>(depth_frame.get_frame_metadata(
+              RS2_FRAME_METADATA_TIME_OF_ARRIVAL)),
+          MAX_FRAME_AGE_MS, "no recent depth frame: check USB connection");
 
       if (color_frame.get_data() == nullptr or
           color_frame.get_data_size() == 0) {
