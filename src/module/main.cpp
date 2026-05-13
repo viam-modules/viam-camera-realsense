@@ -56,6 +56,8 @@ int serve(int argc, char **argv) try {
   vsdk::Instance inst;
 
   VIAM_SDK_LOG(info) << "[serve] Starting Realsense module";
+  VIAM_SDK_LOG(info) << "[serve] BUILD_MARKER toa_patch_v1 built=" __DATE__
+                        " " __TIME__;
 
 #if defined(__APPLE__)
   // Log user ID and fail if it is Apple and not root
