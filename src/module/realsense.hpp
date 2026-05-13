@@ -34,8 +34,14 @@ static constexpr std::uint64_t MAX_FRAME_AGE_MS =
 static constexpr size_t MAX_GRPC_MESSAGE_SIZE =
     33554432; // 32MB gRPC message size limit
 static constexpr std::uint64_t MAX_FRAME_SET_TIME_DIFF_MS =
-    2; // max time difference between frames in a frameset to be considered
-       // simultaneous, in miliseconds (equal to 2 ms)
+    30; // Floor for the host-arrival time-diff threshold between color
+        // and depth within a frameset (TIME_OF_ARRIVAL domain). The two
+        // streams arrive over separate UVC interfaces and consistently
+        // differ by ~16-17ms due to USB transfer scheduling regardless
+        // of FPS. The effective threshold is computed at the use site as
+        // max(this floor, frame_interval_ms - 3) so it always exceeds the
+        // observed USB skew while still catching one-frame mis-pairs
+        // (which would show ~frame_interval_ms).
 static constexpr std::uint64_t TIMESTAMP_WARNING_LOG_INTERVAL_MS =
     60000; // 1
            // minute
@@ -533,10 +539,19 @@ public:
             depth.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
         auto const timeDiffMs =
             colorTS > depthTS ? colorTS - depthTS : depthTS - colorTS;
-        // log if the timestamps differ more than MAX_FRAME_SET_TIME_DIFF_MS,
+        // Compute threshold from the negotiated frame interval so the
+        // check adapts if the camera is configured at a different FPS.
+        // See MAX_FRAME_SET_TIME_DIFF_MS comment for rationale.
+        auto const fps = color.get_profile().fps();
+        auto const frame_interval_ms =
+            fps > 0 ? (1000ULL / static_cast<std::uint64_t>(fps)) : 33ULL;
+        auto const threshold_ms = std::max<std::uint64_t>(
+            MAX_FRAME_SET_TIME_DIFF_MS,
+            frame_interval_ms > 3 ? frame_interval_ms - 3 : 0);
+        // log if the timestamps differ more than threshold_ms,
         // at most once every TIMESTAMP_WARNING_LOG_INTERVAL_MS at warning
         // level and always at debug level
-        if (timeDiffMs > MAX_FRAME_SET_TIME_DIFF_MS) {
+        if (timeDiffMs > threshold_ms) {
           std::uint64_t now_ms = time::getNowMs();
           bool should_warn = false;
           {

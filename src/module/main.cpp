@@ -112,6 +112,8 @@ int serve(int argc, char **argv) try {
 }
 
 int main(int argc, char *argv[]) {
+  std::cerr << "[main] BUILD_MARKER toa_patch_v1 built=" __DATE__ " " __TIME__
+            << std::endl;
   std::cout << "Realsense C++ SDK version: " << RS2_API_VERSION_STR << "\n";
   const std::string usage = "usage: realsense /path/to/unix/socket";
   if (argc < 2) {
