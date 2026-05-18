@@ -278,10 +278,12 @@ public:
     struct WatchdogPauseGuard {
       watchdog::StaleFrameWatchdog<rs2::frameset> *w;
       ~WatchdogPauseGuard() {
-        if (w) w->resume();
+        if (w)
+          w->resume();
       }
     } watchdog_pause_guard{watchdog_.get()};
-    if (watchdog_) watchdog_->pause();
+    if (watchdog_)
+      watchdog_->pause();
     if (not physical_camera_assigned_) {
       VIAM_RESOURCE_LOG(error)
           << "[reconfigure] cannot reconfigure a device that "
@@ -979,9 +981,8 @@ public:
         return false;
       }
       try {
-        device_funcs_.startDevice(cfg.serial_number, device_,
-                                  latest_frameset_, MAX_FRAME_AGE_MS, cfg,
-                                  this->logger_);
+        device_funcs_.startDevice(cfg.serial_number, device_, latest_frameset_,
+                                  MAX_FRAME_AGE_MS, cfg, this->logger_);
         VIAM_RESOURCE_LOG(info)
             << "[watchdog] pipeline restart succeeded on " << cfg.serial_number;
         return true;
@@ -992,12 +993,11 @@ public:
       }
     };
     auto recovery_check = [this]() { return is_recovery_mode_.get(); };
-    watchdog_ =
-        std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
-            latest_frameset_, std::move(recovery_check), std::move(restart_fn),
-            this->logger_);
-    VIAM_RESOURCE_LOG(info) << "[watchdog] constructed for serial "
-                            << config_->serial_number;
+    watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
+        latest_frameset_, std::move(recovery_check), std::move(restart_fn),
+        this->logger_);
+    VIAM_RESOURCE_LOG(info)
+        << "[watchdog] constructed for serial " << config_->serial_number;
   }
 
 private:

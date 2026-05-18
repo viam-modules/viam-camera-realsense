@@ -24,11 +24,13 @@ template <typename FrameSetT> class StaleFrameWatchdog;
 // Default tunables. Defined as constexpr in the class body below; this
 // block names them in one place for the reader.
 //
-//   POLL_INTERVAL_MS              = 1000   one poll per second; off the hot path
-//   STALE_THRESHOLD_MS            = 10000  10x MAX_FRAME_AGE_MS; well above
+//   POLL_INTERVAL_MS              = 1000   one poll per second; off the hot
+//   path STALE_THRESHOLD_MS            = 10000  10x MAX_FRAME_AGE_MS; well
+//   above
 //                                          normal intra-frameset jitter
-//   CONSECUTIVE_POLLS_REQUIRED    = 3      ~3s of sustained staleness before action
-//   POST_RESTART_GRACE_MS         = 10000  rs2::pipeline needs a few seconds to
+//   CONSECUTIVE_POLLS_REQUIRED    = 3      ~3s of sustained staleness before
+//   action POST_RESTART_GRACE_MS         = 10000  rs2::pipeline needs a few
+//   seconds to
 //                                          start producing frames after restart
 //   MAX_RESTARTS_PER_HOUR         = 6      ~one restart every 10 minutes max;
 //                                          beyond that escalate to operator
@@ -54,9 +56,8 @@ template <typename FrameSetT> class StaleFrameWatchdog;
 //     mutations (in our case do_command_mutex_). Watchdog does not
 //     manage that mutex itself.
 //   - All public methods are safe to call from any thread.
-template <typename FrameSetT>
-class StaleFrameWatchdog {
- public:
+template <typename FrameSetT> class StaleFrameWatchdog {
+public:
   // Returns true if the restart was attempted and (best-effort) succeeded;
   // false if the watchdog should not count it against the rate limit.
   using RestartFn = std::function<bool()>;
@@ -70,8 +71,7 @@ class StaleFrameWatchdog {
       viam::sdk::LogSource logger)
       : frame_set_(std::move(frame_set)),
         recovery_check_(std::move(recovery_check)),
-        on_stale_(std::move(on_stale)),
-        logger_(std::move(logger)) {
+        on_stale_(std::move(on_stale)), logger_(std::move(logger)) {
     thread_ = std::thread([this]() { loop(); });
   }
 
@@ -82,10 +82,10 @@ class StaleFrameWatchdog {
     }
   }
 
-  StaleFrameWatchdog(const StaleFrameWatchdog&) = delete;
-  StaleFrameWatchdog& operator=(const StaleFrameWatchdog&) = delete;
-  StaleFrameWatchdog(StaleFrameWatchdog&&) = delete;
-  StaleFrameWatchdog& operator=(StaleFrameWatchdog&&) = delete;
+  StaleFrameWatchdog(const StaleFrameWatchdog &) = delete;
+  StaleFrameWatchdog &operator=(const StaleFrameWatchdog &) = delete;
+  StaleFrameWatchdog(StaleFrameWatchdog &&) = delete;
+  StaleFrameWatchdog &operator=(StaleFrameWatchdog &&) = delete;
 
   // Pause/resume during operator-initiated pipeline transitions
   // (reconfigure, firmware update, USB device change). Idempotent.
@@ -99,7 +99,7 @@ class StaleFrameWatchdog {
     restart_enabled_.store(enabled);
   }
 
- private:
+private:
   static constexpr std::uint64_t POLL_INTERVAL_MS = 1000;
   static constexpr std::uint64_t STALE_THRESHOLD_MS = 10'000;
   static constexpr int CONSECUTIVE_POLLS_REQUIRED = 3;
@@ -112,9 +112,9 @@ class StaleFrameWatchdog {
     int stale_count = 0;
 
     while (running_.load()) {
-      std::this_thread::sleep_for(
-          std::chrono::milliseconds(POLL_INTERVAL_MS));
-      if (!running_.load()) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
+      if (!running_.load())
+        break;
 
       if (paused_.load()) {
         stale_count = 0;
@@ -173,7 +173,7 @@ class StaleFrameWatchdog {
       bool ok = false;
       try {
         ok = on_stale_ ? on_stale_() : false;
-      } catch (const std::exception& e) {
+      } catch (const std::exception &e) {
         VIAM_SDK_LOG_IMPL(logger_, error)
             << "[watchdog] restart callback threw: " << e.what();
       } catch (...) {
@@ -194,7 +194,7 @@ class StaleFrameWatchdog {
 
   // Returns true and writes the max age (in ms) of color/depth into
   // out_age_ms; returns false if no frame is currently available.
-  bool compute_max_age_ms(double& out_age_ms) const {
+  bool compute_max_age_ms(double &out_age_ms) const {
     auto fs = frame_set_->get();
     double now_ms = time::getNowMs();
     double color_age = 0.0;
@@ -211,7 +211,8 @@ class StaleFrameWatchdog {
       depth_age = now_ms - depth.get_timestamp();
       any = true;
     }
-    if (!any) return false;
+    if (!any)
+      return false;
     out_age_ms = std::max(color_age, depth_age);
     return true;
   }
@@ -226,8 +227,7 @@ class StaleFrameWatchdog {
   void record_restart() {
     std::lock_guard<std::mutex> guard(restart_history_mtx_);
     prune_restart_history_locked();
-    restart_history_ms_.push_back(
-        static_cast<std::uint64_t>(time::getNowMs()));
+    restart_history_ms_.push_back(static_cast<std::uint64_t>(time::getNowMs()));
   }
 
   void prune_restart_history_locked() {
@@ -253,5 +253,5 @@ class StaleFrameWatchdog {
   std::thread thread_;
 };
 
-}  // namespace watchdog
-}  // namespace realsense
+} // namespace watchdog
+} // namespace realsense
