@@ -27,7 +27,8 @@ else
     if [[ "$(uname)" == "Linux" ]]; then
         sudo apt update && sudo apt install -y clang-format-19
     elif [[ "$(uname)" == "Darwin" ]]; then
-        brew install clang-format
+        brew install llvm@19
+        export PATH="$(brew --prefix llvm@19)/bin:$PATH"
     else
         echo "WARNING: installing the linter is not yet supported outside of Linux and Mac."
     fi

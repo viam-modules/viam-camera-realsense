@@ -249,8 +249,7 @@ void frameCallback(
   }
 
   if (color_frame) {
-    double colorAge = nowMs - static_cast<double>(color_frame.get_frame_metadata(
-                                  RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+    double colorAge = nowMs - color_frame.get_timestamp();
     if (colorAge > maxFrameAgeMs) {
       std::cerr << "[frame_callback] received color frame is too stale, age: "
                 << colorAge << "ms" << std::endl;
@@ -270,8 +269,7 @@ void frameCallback(
     return;
   }
   if (depth_frame) {
-    double depthAge = nowMs - static_cast<double>(depth_frame.get_frame_metadata(
-                                  RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+    double depthAge = nowMs - depth_frame.get_timestamp();
     if (depthAge > maxFrameAgeMs) {
       std::cerr << "[frame_callback] received depth frame is too stale, age: "
                 << depthAge << "ms" << std::endl;

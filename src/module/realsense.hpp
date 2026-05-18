@@ -7,6 +7,7 @@
 #include "sensors.hpp"
 #include "time.hpp"
 #include "utils.hpp"
+#include "watchdog.hpp"
 #include "zip_utils.hpp"
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
@@ -34,14 +35,8 @@ static constexpr std::uint64_t MAX_FRAME_AGE_MS =
 static constexpr size_t MAX_GRPC_MESSAGE_SIZE =
     33554432; // 32MB gRPC message size limit
 static constexpr std::uint64_t MAX_FRAME_SET_TIME_DIFF_MS =
-    30; // Floor for the host-arrival time-diff threshold between color
-        // and depth within a frameset (TIME_OF_ARRIVAL domain). The two
-        // streams arrive over separate UVC interfaces and consistently
-        // differ by ~16-17ms due to USB transfer scheduling regardless
-        // of FPS. The effective threshold is computed at the use site as
-        // max(this floor, frame_interval_ms - 3) so it always exceeds the
-        // observed USB skew while still catching one-frame mis-pairs
-        // (which would show ~frame_interval_ms).
+    2; // max time difference between frames in a frameset to be considered
+       // simultaneous, in miliseconds (equal to 2 ms)
 static constexpr std::uint64_t TIMESTAMP_WARNING_LOG_INTERVAL_MS =
     60000; // 1
            // minute
@@ -252,6 +247,10 @@ public:
         << "Realsense constructor end " << requested_serial_number;
   }
   ~Realsense() {
+    // Stop the watchdog FIRST so its thread joins before we touch
+    // device_/latest_frameset_. Otherwise a watchdog-triggered restart
+    // could race with destructor teardown.
+    watchdog_.reset();
     if (device_) {
       { // Begin scope for device_guard lock
         auto device_guard = device_->synchronize();
@@ -273,6 +272,16 @@ public:
   void reconfigure(const viam::sdk::Dependencies &deps,
                    const viam::sdk::ResourceConfig &cfg) override {
     VIAM_RESOURCE_LOG(info) << "[reconfigure] reconfigure start";
+    // Pause the watchdog for the duration of reconfigure so it can't
+    // race with operator-initiated stop/start of the pipeline. RAII
+    // guard ensures resume even on exception paths.
+    struct WatchdogPauseGuard {
+      watchdog::StaleFrameWatchdog<rs2::frameset> *w;
+      ~WatchdogPauseGuard() {
+        if (w) w->resume();
+      }
+    } watchdog_pause_guard{watchdog_.get()};
+    if (watchdog_) watchdog_->pause();
     if (not physical_camera_assigned_) {
       VIAM_RESOURCE_LOG(error)
           << "[reconfigure] cannot reconfigure a device that "
@@ -498,8 +507,8 @@ public:
           auto color = fs.get_color_frame();
           response.images.emplace_back(
               encoding::encodeVideoFrameToResponse(color));
-          std::uint64_t timestamp = static_cast<std::uint64_t>(
-              color.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+          std::uint64_t timestamp =
+              static_cast<std::uint64_t>(std::llround(color.get_timestamp()));
 
           std::chrono::milliseconds latestTimestamp(timestamp);
           response.metadata.captured_at = viam::sdk::time_pt{
@@ -512,8 +521,8 @@ public:
           auto depth = fs.get_depth_frame();
           response.images.emplace_back(
               encoding::encodeDepthFrameToResponse(depth));
-          std::uint64_t timestamp = static_cast<std::uint64_t>(
-              depth.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
+          std::uint64_t timestamp =
+              static_cast<std::uint64_t>(std::llround(depth.get_timestamp()));
 
           std::chrono::milliseconds latestTimestamp(timestamp);
           response.metadata.captured_at = viam::sdk::time_pt{
@@ -533,25 +542,16 @@ public:
           should_process_color and should_process_depth) {
         auto const color = fs.get_color_frame();
         auto const depth = fs.get_depth_frame();
-        auto const colorTS = static_cast<std::uint64_t>(
-            color.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
-        auto const depthTS = static_cast<std::uint64_t>(
-            depth.get_frame_metadata(RS2_FRAME_METADATA_TIME_OF_ARRIVAL));
-        auto const timeDiffMs =
-            colorTS > depthTS ? colorTS - depthTS : depthTS - colorTS;
-        // Compute threshold from the negotiated frame interval so the
-        // check adapts if the camera is configured at a different FPS.
-        // See MAX_FRAME_SET_TIME_DIFF_MS comment for rationale.
-        auto const fps = color.get_profile().fps();
-        auto const frame_interval_ms =
-            fps > 0 ? (1000ULL / static_cast<std::uint64_t>(fps)) : 33ULL;
-        auto const threshold_ms = std::max<std::uint64_t>(
-            MAX_FRAME_SET_TIME_DIFF_MS,
-            frame_interval_ms > 3 ? frame_interval_ms - 3 : 0);
-        // log if the timestamps differ more than threshold_ms,
+        auto const timeDiffMs = static_cast<std::uint64_t>(std::llround(
+            std::abs(color.get_timestamp() - depth.get_timestamp())));
+        auto const colorTS =
+            static_cast<std::uint64_t>(std::llround(color.get_timestamp()));
+        auto const depthTS =
+            static_cast<std::uint64_t>(std::llround(depth.get_timestamp()));
+        // log if the timestamps differ more than MAX_FRAME_SET_TIME_DIFF_MS,
         // at most once every TIMESTAMP_WARNING_LOG_INTERVAL_MS at warning
         // level and always at debug level
-        if (timeDiffMs > threshold_ms) {
+        if (timeDiffMs > MAX_FRAME_SET_TIME_DIFF_MS) {
           std::uint64_t now_ms = time::getNowMs();
           bool should_warn = false;
           {
@@ -621,21 +621,15 @@ public:
         throw std::invalid_argument("no color frame");
       }
 
-      time::throwIfTooOld(
-          nowMs,
-          static_cast<double>(color_frame.get_frame_metadata(
-              RS2_FRAME_METADATA_TIME_OF_ARRIVAL)),
-          MAX_FRAME_AGE_MS, "no recent color frame: check USB connection");
+      time::throwIfTooOld(nowMs, color_frame.get_timestamp(), MAX_FRAME_AGE_MS,
+                          "no recent color frame: check USB connection");
 
       rs2::depth_frame depth_frame = fs.get_depth_frame();
       if (not depth_frame) {
         throw std::invalid_argument("no depth frame");
       }
-      time::throwIfTooOld(
-          nowMs,
-          static_cast<double>(depth_frame.get_frame_metadata(
-              RS2_FRAME_METADATA_TIME_OF_ARRIVAL)),
-          MAX_FRAME_AGE_MS, "no recent depth frame: check USB connection");
+      time::throwIfTooOld(nowMs, depth_frame.get_timestamp(), MAX_FRAME_AGE_MS,
+                          "no recent depth frame: check USB connection");
 
       if (color_frame.get_data() == nullptr or
           color_frame.get_data_size() == 0) {
@@ -961,6 +955,51 @@ public:
     deviceChangedCallback(info);
   }
 
+  // Constructs the stale-frame watchdog. Called once on first successful
+  // device initialization in assign_and_initialize_device. The watchdog
+  // lives for the rest of the Realsense lifetime; reconfigure-driven
+  // pipeline transitions use pause()/resume() rather than recreating it.
+  void start_watchdog() {
+    if (watchdog_) {
+      return; // already running, nothing to do
+    }
+    auto restart_fn = [this]() -> bool {
+      std::lock_guard<std::mutex> guard(do_command_mutex_);
+      if (is_recovery_mode_.get() || !device_) {
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] skip restart: recovery mode or no device";
+        return false;
+      }
+      auto cfg = config_.get();
+      VIAM_RESOURCE_LOG(warn)
+          << "[watchdog] restarting rs2::pipeline after sustained "
+          << "staleness on serial " << cfg.serial_number;
+      if (!device_funcs_.stopDevice(device_, this->logger_)) {
+        VIAM_RESOURCE_LOG(error) << "[watchdog] stopDevice failed";
+        return false;
+      }
+      try {
+        device_funcs_.startDevice(cfg.serial_number, device_,
+                                  latest_frameset_, MAX_FRAME_AGE_MS, cfg,
+                                  this->logger_);
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] pipeline restart succeeded on " << cfg.serial_number;
+        return true;
+      } catch (const std::exception &e) {
+        VIAM_RESOURCE_LOG(error)
+            << "[watchdog] startDevice threw during restart: " << e.what();
+        return false;
+      }
+    };
+    auto recovery_check = [this]() { return is_recovery_mode_.get(); };
+    watchdog_ =
+        std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
+            latest_frameset_, std::move(recovery_check), std::move(restart_fn),
+            this->logger_);
+    VIAM_RESOURCE_LOG(info) << "[watchdog] constructed for serial "
+                            << config_->serial_number;
+  }
+
 private:
   boost::synchronized_value<RsResourceConfig> config_;
   std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> device_;
@@ -978,6 +1017,14 @@ private:
 
   DeviceFunctions device_funcs_;
   std::shared_ptr<RealsenseContext<SynchronizedContextT>> realsense_ctx_;
+
+  // Stale-frame watchdog: monitors latest_frameset_ for sustained
+  // staleness and triggers an rs2::pipeline restart when prolonged
+  // staleness is detected. Declared LAST so it's destroyed FIRST
+  // during ~Realsense — its thread joins before device_/latest_frameset_
+  // are torn down. Pause around operator-driven pipeline transitions
+  // (reconfigure, firmware update, USB device change).
+  std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {
     std::cout << "[deviceChangedCallback] Device connection status changed"
@@ -1348,7 +1395,7 @@ private:
                                   config_copy, this->logger_);
         physical_camera_assigned_ = true;
         is_recovery_mode_ = false;
-        is_recovery_mode_ = false;
+        start_watchdog();
         return true;
       } catch (const std::exception &e) {
         VIAM_RESOURCE_LOG(error) << "[assign_and_initialize_device] Failed to "
