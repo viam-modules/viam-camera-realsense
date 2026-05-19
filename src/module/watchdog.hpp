@@ -64,12 +64,13 @@ public:
   // Returns true if the device is in recovery mode (e.g. firmware update);
   // the watchdog skips its check while this returns true.
   using RecoveryCheckFn = std::function<bool()>;
+  // Returns the current frameset. Called each poll so it always sees the
+  // freshest cached value, regardless of how Realsense stores it internally.
+  using FramesetGetter = std::function<FrameSetT()>;
 
-  StaleFrameWatchdog(
-      std::shared_ptr<boost::synchronized_value<FrameSetT>> frame_set,
-      RecoveryCheckFn recovery_check, RestartFn on_stale,
-      viam::sdk::LogSource logger)
-      : frame_set_(std::move(frame_set)),
+  StaleFrameWatchdog(FramesetGetter get_fs, RecoveryCheckFn recovery_check,
+                     RestartFn on_stale, viam::sdk::LogSource logger)
+      : get_fs_(std::move(get_fs)),
         recovery_check_(std::move(recovery_check)),
         on_stale_(std::move(on_stale)), logger_(std::move(logger)) {
     thread_ = std::thread([this]() { loop(); });
@@ -121,11 +122,6 @@ private:
         continue;
       }
       if (recovery_check_ && recovery_check_()) {
-        stale_count = 0;
-        continue;
-      }
-      if (!frame_set_) {
-        // No frameset cache yet (e.g., device hasn't streamed). Wait.
         stale_count = 0;
         continue;
       }
@@ -195,7 +191,7 @@ private:
   // Returns true and writes the max age (in ms) of color/depth into
   // out_age_ms; returns false if no frame is currently available.
   bool compute_max_age_ms(double &out_age_ms) const {
-    auto fs = frame_set_->get();
+    auto fs = get_fs_();
     double now_ms = time::getNowMs();
     double color_age = 0.0;
     double depth_age = 0.0;
@@ -238,7 +234,7 @@ private:
     }
   }
 
-  std::shared_ptr<boost::synchronized_value<FrameSetT>> frame_set_;
+  FramesetGetter get_fs_;
   RecoveryCheckFn recovery_check_;
   RestartFn on_stale_;
   viam::sdk::LogSource logger_;

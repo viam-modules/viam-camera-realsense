@@ -993,8 +993,14 @@ public:
       }
     };
     auto recovery_check = [this]() { return is_recovery_mode_.get(); };
+    // Read latest_frameset_ on every poll — captures `this` so we always
+    // see the freshest shared_ptr value Realsense holds (frameCallback
+    // reassigns the pointer per frame). Empty frameset when none yet.
+    auto get_fs = [this]() -> rs2::frameset {
+      return latest_frameset_ ? latest_frameset_->get() : rs2::frameset{};
+    };
     watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
-        latest_frameset_, std::move(recovery_check), std::move(restart_fn),
+        std::move(get_fs), std::move(recovery_check), std::move(restart_fn),
         this->logger_);
     VIAM_RESOURCE_LOG(info)
         << "[watchdog] constructed for serial " << config_->serial_number;
