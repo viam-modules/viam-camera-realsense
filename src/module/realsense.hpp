@@ -42,11 +42,30 @@ static constexpr std::uint64_t TIMESTAMP_WARNING_LOG_INTERVAL_MS =
 
 enum class DoCommand : uint8_t {
   UPDATE_FIRMWARE,
+  // Runtime depth-sensor tuning. Each is a single-key payload; the value
+  // is the desired option setting.
+  SET_LASER_POWER,         // double 0..360
+  SET_DEPTH_EMITTER,       // bool
+  SET_DEPTH_VISUAL_PRESET, // string: default | hand | high_accuracy | ...
+  SET_DEPTH_EXPOSURE_US,   // double µs
+  SET_DEPTH_AUTO_EXPOSURE, // bool
+  SET_DEPTH_GAIN,          // double 0..248
+  GET_DEPTH_OPTIONS,       // no payload (any value) — returns current values
   UNKNOWN = std::numeric_limits<uint8_t>::max()
 };
 
 static const std::unordered_map<std::string, uint8_t> DoCommandMap{
     {{"update_firmware", static_cast<uint8_t>(DoCommand::UPDATE_FIRMWARE)},
+     {"set_laser_power", static_cast<uint8_t>(DoCommand::SET_LASER_POWER)},
+     {"set_depth_emitter", static_cast<uint8_t>(DoCommand::SET_DEPTH_EMITTER)},
+     {"set_depth_visual_preset",
+      static_cast<uint8_t>(DoCommand::SET_DEPTH_VISUAL_PRESET)},
+     {"set_depth_exposure_us",
+      static_cast<uint8_t>(DoCommand::SET_DEPTH_EXPOSURE_US)},
+     {"set_depth_auto_exposure",
+      static_cast<uint8_t>(DoCommand::SET_DEPTH_AUTO_EXPOSURE)},
+     {"set_depth_gain", static_cast<uint8_t>(DoCommand::SET_DEPTH_GAIN)},
+     {"get_depth_options", static_cast<uint8_t>(DoCommand::GET_DEPTH_OPTIONS)},
      {"unknown", static_cast<uint8_t>(DoCommand::UNKNOWN)}}};
 
 const std::string service_name = "viam_realsense";
@@ -144,6 +163,17 @@ struct RsResourceConfig {
   // Defaults to false to preserve the historical behavior of returning the
   // raw, unaligned streams.
   bool align_color_depth{false};
+
+  // Depth sensor tuning (all optional — if unset, the driver doesn't touch
+  // that option and the camera keeps its factory/firmware default).
+  std::optional<double> laser_power{}; // 0..360
+  std::optional<bool> depth_emitter_enabled{};
+  // One of: "default" | "hand" | "high_accuracy" | "high_density"
+  //       | "medium_density" | "remove_ir_pattern"
+  std::optional<std::string> depth_visual_preset{};
+  std::optional<double> depth_exposure_us{};
+  std::optional<bool> depth_auto_exposure{};
+  std::optional<double> depth_gain{};
 
   RsResourceConfig() = default;
 
@@ -356,6 +386,79 @@ public:
     return DoCommand::UNKNOWN;
   }
 
+  // Find the live depth sensor on the currently-attached rs2::device and
+  // invoke `fn(depth_sensor)`. The device lock is released before `fn` runs
+  // so blocking USB I/O (e.g., set_option) does not block frame callbacks.
+  template <typename F> bool withDepthSensor(F &&fn) {
+    if (not device_) {
+      return false;
+    }
+    std::optional<rs2::depth_sensor> ds;
+    {
+      auto guard = device_->synchronize();
+      if (not guard->device) {
+        return false;
+      }
+      for (auto &s : guard->device->query_sensors()) {
+        if (s.template is<rs2::depth_sensor>()) {
+          ds = s.template as<rs2::depth_sensor>();
+          break;
+        }
+      }
+    }
+    if (not ds) {
+      return false;
+    }
+    fn(*ds);
+    return true;
+  }
+
+  // Apply a single rs2_option to the live depth sensor and report status as
+  // a ProtoStruct response. Note: runtime overrides are not persisted across
+  // a pipeline restart — the next reconfigure re-applies values from the
+  // resource config.
+  viam::sdk::ProtoStruct setDepthOption(rs2_option opt, double value,
+                                        char const *name) {
+    viam::sdk::ProtoStruct response;
+    bool sensor_present = withDepthSensor([&](rs2::depth_sensor &ds) {
+      if (not ds.supports(opt)) {
+        response["success"] = false;
+        response["error"] = std::string("sensor does not support ") + name;
+        return;
+      }
+      try {
+        ds.set_option(opt, static_cast<float>(value));
+        response["success"] = true;
+        response["option"] = std::string(name);
+        response["value"] = value;
+      } catch (std::exception const &e) {
+        response["success"] = false;
+        response["error"] = std::string(e.what());
+      }
+    });
+    if (not sensor_present) {
+      response["success"] = false;
+      response["error"] = "no live depth sensor available";
+    }
+    return response;
+  }
+
+  // Extract a typed argument from a single-key command, or return a populated
+  // error ProtoStruct via `err_out` if the type doesn't match. Returns
+  // std::nullopt when an error has been written.
+  template <typename T>
+  static std::optional<T> extractArg(viam::sdk::ProtoStruct const &command,
+                                     char const *cmd_name, char const *expected,
+                                     viam::sdk::ProtoStruct &err_out) {
+    auto const &val = command.begin()->second;
+    if (not val.template is_a<T>()) {
+      err_out["success"] = false;
+      err_out["error"] = std::string(cmd_name) + " expects " + expected;
+      return std::nullopt;
+    }
+    return *val.template get<T>();
+  }
+
   viam::sdk::ProtoStruct
   do_command(const viam::sdk::ProtoStruct &command) override {
     VIAM_RESOURCE_LOG(info)
@@ -365,11 +468,9 @@ public:
     if (command.size() > 1) {
       viam::sdk::ProtoStruct response;
       response["success"] = false;
-      response["error"] =
-          "Firmware update command must contain exactly one parameter";
-      VIAM_RESOURCE_LOG(error)
-          << "[do_command] Invalid firmware update command: contains "
-          << command.size() << " parameters, expected 1";
+      response["error"] = "do_command must contain exactly one parameter";
+      VIAM_RESOURCE_LOG(error) << "[do_command] Invalid command: contains "
+                               << command.size() << " parameters, expected 1";
       return response;
     }
 
@@ -382,6 +483,101 @@ public:
     DoCommand do_command = get_do_command(command);
 
     try {
+      // Runtime depth-sensor tuning commands. Each is a single-key payload.
+      viam::sdk::ProtoStruct err;
+      switch (do_command) {
+      case DoCommand::SET_LASER_POWER: {
+        auto v =
+            extractArg<double>(command, "set_laser_power", "a number", err);
+        if (not v)
+          return err;
+        return setDepthOption(RS2_OPTION_LASER_POWER, *v, "laser_power");
+      }
+      case DoCommand::SET_DEPTH_EMITTER: {
+        auto v = extractArg<bool>(command, "set_depth_emitter", "a bool", err);
+        if (not v)
+          return err;
+        return setDepthOption(RS2_OPTION_EMITTER_ENABLED, *v ? 1.0 : 0.0,
+                              "emitter_enabled");
+      }
+      case DoCommand::SET_DEPTH_VISUAL_PRESET: {
+        auto v = extractArg<std::string>(command, "set_depth_visual_preset",
+                                         "a string", err);
+        if (not v)
+          return err;
+        auto preset = device::visualPresetFromString(*v);
+        if (not preset) {
+          err["success"] = false;
+          err["error"] = std::string("unknown visual_preset: ") + *v;
+          return err;
+        }
+        return setDepthOption(RS2_OPTION_VISUAL_PRESET,
+                              static_cast<double>(*preset), "visual_preset");
+      }
+      case DoCommand::SET_DEPTH_EXPOSURE_US: {
+        auto v = extractArg<double>(command, "set_depth_exposure_us",
+                                    "a number", err);
+        if (not v)
+          return err;
+        return setDepthOption(RS2_OPTION_EXPOSURE, *v, "exposure_us");
+      }
+      case DoCommand::SET_DEPTH_AUTO_EXPOSURE: {
+        auto v =
+            extractArg<bool>(command, "set_depth_auto_exposure", "a bool", err);
+        if (not v)
+          return err;
+        return setDepthOption(RS2_OPTION_ENABLE_AUTO_EXPOSURE, *v ? 1.0 : 0.0,
+                              "enable_auto_exposure");
+      }
+      case DoCommand::SET_DEPTH_GAIN: {
+        auto v = extractArg<double>(command, "set_depth_gain", "a number", err);
+        if (not v)
+          return err;
+        return setDepthOption(RS2_OPTION_GAIN, *v, "gain");
+      }
+      case DoCommand::GET_DEPTH_OPTIONS: {
+        viam::sdk::ProtoStruct r;
+        bool sensor_present = withDepthSensor([&](rs2::depth_sensor &ds) {
+          auto safe_get = [&](rs2_option o, char const *k) {
+            if (not ds.supports(o)) {
+              return;
+            }
+            try {
+              r[k] = static_cast<double>(ds.get_option(o));
+            } catch (std::exception const &e) {
+              VIAM_RESOURCE_LOG(warn) << "[get_depth_options] failed to read "
+                                      << k << ": " << e.what();
+            }
+          };
+          safe_get(RS2_OPTION_LASER_POWER, "laser_power");
+          safe_get(RS2_OPTION_EMITTER_ENABLED, "emitter_enabled");
+          safe_get(RS2_OPTION_EXPOSURE, "exposure_us");
+          safe_get(RS2_OPTION_ENABLE_AUTO_EXPOSURE, "auto_exposure");
+          safe_get(RS2_OPTION_GAIN, "gain");
+          // visual_preset is exposed as a string for symmetry with the SET
+          // path; the integer ProtoValue would force callers to know the
+          // rs2_rs400_visual_preset enum layout.
+          if (ds.supports(RS2_OPTION_VISUAL_PRESET)) {
+            try {
+              auto preset = static_cast<rs2_rs400_visual_preset>(
+                  static_cast<int>(ds.get_option(RS2_OPTION_VISUAL_PRESET)));
+              if (auto name = device::visualPresetToString(preset)) {
+                r["visual_preset"] = std::string(*name);
+              }
+            } catch (std::exception const &e) {
+              VIAM_RESOURCE_LOG(warn)
+                  << "[get_depth_options] failed to read visual_preset: "
+                  << e.what();
+            }
+          }
+        });
+        r["sensor_present"] = sensor_present;
+        return r;
+      }
+      default:
+        break;
+      }
+
       // Check if command contains "firmware_update"
       if (do_command == DoCommand::UPDATE_FIRMWARE) {
         VIAM_RESOURCE_LOG(info) << "[do_command] Received update_firmware";
@@ -898,6 +1094,58 @@ public:
       }
     }
 
+    if (attrs.count("laser_power")) {
+      if (not attrs["laser_power"].is_a<double>()) {
+        throw std::invalid_argument("laser_power must be a number (0..360)");
+      }
+      double lp = attrs["laser_power"].get_unchecked<double>();
+      if (lp < 0 or lp > 360) {
+        throw std::invalid_argument("laser_power must be in [0, 360]");
+      }
+    }
+    if (attrs.count("depth_emitter_enabled") and
+        not attrs["depth_emitter_enabled"].is_a<bool>()) {
+      throw std::invalid_argument("depth_emitter_enabled must be a bool");
+    }
+    if (attrs.count("depth_visual_preset")) {
+      if (not attrs["depth_visual_preset"].is_a<std::string>()) {
+        throw std::invalid_argument("depth_visual_preset must be a string");
+      }
+      std::string vp =
+          attrs["depth_visual_preset"].get_unchecked<std::string>();
+      if (not device::visualPresetFromString(vp)) {
+        std::string msg = "depth_visual_preset must be one of:";
+        for (auto const &[name, _] : device::kVisualPresetNames) {
+          msg += " ";
+          msg += name;
+        }
+        throw std::invalid_argument(msg);
+      }
+    }
+    if (attrs.count("depth_exposure_us")) {
+      if (not attrs["depth_exposure_us"].is_a<double>()) {
+        throw std::invalid_argument("depth_exposure_us must be a number");
+      }
+      double e = attrs["depth_exposure_us"].get_unchecked<double>();
+      if (e < 1 or e > 200000) {
+        throw std::invalid_argument(
+            "depth_exposure_us must be in [1, 200000] (microseconds)");
+      }
+    }
+    if (attrs.count("depth_auto_exposure") and
+        not attrs["depth_auto_exposure"].is_a<bool>()) {
+      throw std::invalid_argument("depth_auto_exposure must be a bool");
+    }
+    if (attrs.count("depth_gain")) {
+      if (not attrs["depth_gain"].is_a<double>()) {
+        throw std::invalid_argument("depth_gain must be a number");
+      }
+      double g = attrs["depth_gain"].get_unchecked<double>();
+      if (g < 0 or g > 248) {
+        throw std::invalid_argument("depth_gain must be in [0, 248]");
+      }
+    }
+
     if (attrs.count("align_color_depth")) {
       if (not attrs["align_color_depth"].is_a<bool>()) {
         throw std::invalid_argument("align_color_depth must be a bool");
@@ -1388,6 +1636,29 @@ private:
     auto native_config =
         realsense::RsResourceConfig(serial, configuration.name(), sensors,
                                     width, height, align_color_depth);
+
+    if (attrs.count("laser_power")) {
+      native_config.laser_power = attrs["laser_power"].get_unchecked<double>();
+    }
+    if (attrs.count("depth_emitter_enabled")) {
+      native_config.depth_emitter_enabled =
+          attrs["depth_emitter_enabled"].get_unchecked<bool>();
+    }
+    if (attrs.count("depth_visual_preset")) {
+      native_config.depth_visual_preset =
+          attrs["depth_visual_preset"].get_unchecked<std::string>();
+    }
+    if (attrs.count("depth_exposure_us")) {
+      native_config.depth_exposure_us =
+          attrs["depth_exposure_us"].get_unchecked<double>();
+    }
+    if (attrs.count("depth_auto_exposure")) {
+      native_config.depth_auto_exposure =
+          attrs["depth_auto_exposure"].get_unchecked<bool>();
+    }
+    if (attrs.count("depth_gain")) {
+      native_config.depth_gain = attrs["depth_gain"].get_unchecked<double>();
+    }
 
     return native_config;
   }

@@ -4,9 +4,13 @@
 #include "time.hpp"
 #include "utils.hpp"
 
+#include <array>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include <viam/sdk/log/logging.hpp>
 
@@ -38,6 +42,102 @@ void enableGlobalTimestamp(SensorT &sensor, viam::sdk::LogSource &logger) {
           << "[enableGlobalTimestamp] Failed to enable Global Timestamp: "
           << e.what();
     }
+  }
+}
+
+// Single source of truth for the visual_preset string <-> enum mapping used
+// by both the config validate path and the runtime do_command handler.
+inline constexpr std::array<
+    std::pair<std::string_view, rs2_rs400_visual_preset>, 6>
+    kVisualPresetNames{{
+        {"default", RS2_RS400_VISUAL_PRESET_DEFAULT},
+        {"hand", RS2_RS400_VISUAL_PRESET_HAND},
+        {"high_accuracy", RS2_RS400_VISUAL_PRESET_HIGH_ACCURACY},
+        {"high_density", RS2_RS400_VISUAL_PRESET_HIGH_DENSITY},
+        {"medium_density", RS2_RS400_VISUAL_PRESET_MEDIUM_DENSITY},
+        {"remove_ir_pattern", RS2_RS400_VISUAL_PRESET_REMOVE_IR_PATTERN},
+    }};
+
+inline std::optional<rs2_rs400_visual_preset>
+visualPresetFromString(std::string const &name) {
+  for (auto const &[k, v] : kVisualPresetNames) {
+    if (name == k) {
+      return v;
+    }
+  }
+  return std::nullopt;
+}
+
+inline std::optional<std::string_view>
+visualPresetToString(rs2_rs400_visual_preset preset) {
+  for (auto const &[k, v] : kVisualPresetNames) {
+    if (v == preset) {
+      return k;
+    }
+  }
+  return std::nullopt;
+}
+
+// Apply user-supplied depth sensor knobs (visual preset, laser power, emitter,
+// exposure, gain) before the pipeline starts. Each option is guarded by
+// supports(); unsupported ones are logged and skipped rather than aborting.
+//
+// Ordering matters: visual_preset is applied first because librealsense
+// presets reset the other RS2_OPTION_* values they cover.
+template <typename SensorT, typename ViamConfigT>
+void applyDepthSensorOptions(SensorT &sensor, ViamConfigT const &viamConfig,
+                             viam::sdk::LogSource &logger) {
+  auto safe_set = [&](rs2_option opt, double value, char const *name) {
+    if (not sensor.supports(opt)) {
+      VIAM_DEVICE_LOG(logger, warn)
+          << "[applyDepthSensorOptions] sensor does not support " << name;
+      return;
+    }
+    try {
+      sensor.set_option(opt, static_cast<float>(value));
+      VIAM_DEVICE_LOG(logger, info)
+          << "[applyDepthSensorOptions] set " << name << "=" << value;
+    } catch (std::exception const &e) {
+      VIAM_DEVICE_LOG(logger, error)
+          << "[applyDepthSensorOptions] failed to set " << name << ": "
+          << e.what();
+    }
+  };
+
+  if (viamConfig.depth_visual_preset) {
+    auto preset = visualPresetFromString(*viamConfig.depth_visual_preset);
+    if (not preset) {
+      VIAM_DEVICE_LOG(logger, warn)
+          << "[applyDepthSensorOptions] unknown visual_preset \""
+          << *viamConfig.depth_visual_preset << "\"";
+    } else {
+      safe_set(RS2_OPTION_VISUAL_PRESET, static_cast<double>(*preset),
+               "visual_preset");
+    }
+  }
+  if (viamConfig.depth_auto_exposure and viamConfig.depth_exposure_us) {
+    VIAM_DEVICE_LOG(logger, warn)
+        << "[applyDepthSensorOptions] both depth_auto_exposure and "
+           "depth_exposure_us are set; manual exposure will override "
+           "auto-exposure";
+  }
+  if (viamConfig.depth_auto_exposure) {
+    safe_set(RS2_OPTION_ENABLE_AUTO_EXPOSURE,
+             *viamConfig.depth_auto_exposure ? 1.0 : 0.0,
+             "enable_auto_exposure");
+  }
+  if (viamConfig.depth_exposure_us) {
+    safe_set(RS2_OPTION_EXPOSURE, *viamConfig.depth_exposure_us, "exposure_us");
+  }
+  if (viamConfig.depth_gain) {
+    safe_set(RS2_OPTION_GAIN, *viamConfig.depth_gain, "gain");
+  }
+  if (viamConfig.depth_emitter_enabled) {
+    safe_set(RS2_OPTION_EMITTER_ENABLED,
+             *viamConfig.depth_emitter_enabled ? 1.0 : 0.0, "emitter_enabled");
+  }
+  if (viamConfig.laser_power) {
+    safe_set(RS2_OPTION_LASER_POWER, *viamConfig.laser_power, "laser_power");
   }
 }
 
@@ -332,6 +432,10 @@ createSingleSensorConfig(std::shared_ptr<DeviceT> dev,
     if (s.template is<SensorT>()) {
       sensor = s;
       enableGlobalTimestamp(sensor, logger);
+      // depth-sensor-only single-stream path
+      if (s.template is<rs2::depth_sensor>()) {
+        applyDepthSensorOptions(sensor, viamConfig, logger);
+      }
     }
   }
 
@@ -388,6 +492,7 @@ std::shared_ptr<ConfigT> createSwD2CAlignConfig(std::shared_ptr<DeviceT> dev,
     }
     if (s.template is<DepthSensorT>()) {
       depth_sensor = s;
+      applyDepthSensorOptions(depth_sensor, viamConfig, logger);
     }
   }
 
