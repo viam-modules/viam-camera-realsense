@@ -146,12 +146,6 @@ struct RsResourceConfig {
                             std::optional<int> height = std::nullopt)
       : serial_number(serial_number), resource_name(resource_name),
         sensors(sensors), width(width), height(height) {}
-  sensors::SensorType getMainSensor() const {
-    if (sensors.empty()) {
-      throw std::invalid_argument("sensors list is empty");
-    }
-    return sensors[0];
-  }
 };
 
 struct DeviceFunctions {
@@ -698,7 +692,6 @@ public:
         // << "distortion_model: " << p.distortion_parameters.model << ", "
         // << "distortion_coeffs: [" << coeffs_stream.str() << "]" << "]";
       };
-      rs2_intrinsics props;
       viam::sdk::Camera::properties response{};
       { // Begin scope for my_dev lock
         auto my_dev = device_->synchronize();
@@ -732,21 +725,20 @@ public:
               << e.what();
         }
 
-        if (config_->getMainSensor() == sensors::SensorType::color) {
-          if (not color_stream) {
-            throw std::runtime_error("color stream is not available");
-          }
-          auto props = color_stream.get_intrinsics();
-          auto ref_stream = depth_stream ? depth_stream : color_stream;
-          fillResp(response, props, color_stream, ref_stream);
-        } else if (config_->getMainSensor() == sensors::SensorType::depth) {
-          if (not depth_stream) {
-            throw std::runtime_error("depth stream is not available");
-          }
-          auto props = depth_stream.get_intrinsics();
-          auto ref_stream = color_stream ? color_stream : depth_stream;
-          fillResp(response, props, depth_stream, ref_stream);
+        // The camera reference frame is always the depth left imager, matching
+        // get_geometries. Intrinsics come from color when configured (the
+        // stream most callers derive poses from), otherwise depth. Extrinsics
+        // are therefore intrinsics_stream -> depth, which is identity whenever
+        // depth is the intrinsics stream or only one sensor is configured.
+        const rs2::video_stream_profile &intrinsics_stream =
+            color_stream ? color_stream : depth_stream;
+        if (not intrinsics_stream) {
+          throw std::runtime_error("neither color nor depth stream is available");
         }
+        const rs2::video_stream_profile &ref_stream =
+            depth_stream ? depth_stream : color_stream;
+        auto props = intrinsics_stream.get_intrinsics();
+        fillResp(response, props, intrinsics_stream, ref_stream);
       } // End scope for my_dev lock
 
       VIAM_RESOURCE_LOG(debug) << "[get_properties] end";
