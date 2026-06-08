@@ -136,6 +136,14 @@ struct RsResourceConfig {
   std::vector<sensors::SensorType> sensors{};
   std::optional<int> width{};
   std::optional<int> height{};
+  // When true, depth frames returned by get_images() are spatially aligned
+  // to the color frame using librealsense's rs2::align filter. This makes
+  // depth_np[v, u] correspond to the same physical point as color_np[v, u]
+  // (depth pixel grid is resampled to color frame), which is required for
+  // any consumer that combines a 2D color-image mask with the depth array.
+  // Defaults to false to preserve the historical behavior of returning the
+  // raw, unaligned streams.
+  bool align_color_depth{false};
 
   RsResourceConfig() = default;
 
@@ -143,9 +151,11 @@ struct RsResourceConfig {
                             std::string const &resource_name,
                             std::vector<sensors::SensorType> const &sensors,
                             std::optional<int> width = std::nullopt,
-                            std::optional<int> height = std::nullopt)
+                            std::optional<int> height = std::nullopt,
+                            bool align_color_depth = false)
       : serial_number(serial_number), resource_name(resource_name),
-        sensors(sensors), width(width), height(height) {}
+        sensors(sensors), width(width), height(height),
+        align_color_depth(align_color_depth) {}
 };
 
 struct DeviceFunctions {
@@ -176,6 +186,9 @@ struct DeviceFunctions {
       std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
       realsense::RsResourceConfig const &, viam::sdk::LogSource &)>
       reconfigureDevice;
+  std::function<bool(std::shared_ptr<rs2::device>, std::string &current,
+                     std::string &recommended)>
+      getFirmwareVersions;
 };
 
 template <typename SynchronizedContextT>
@@ -447,6 +460,20 @@ public:
       VIAM_RESOURCE_LOG(debug) << "[get_images] start";
       std::string serial_number = config_->serial_number;
       auto fs = latest_frameset_->get();
+
+      // Optionally align depth to color so that depth_np[v, u] and
+      // color_np[v, u] refer to the same physical point. The IR/depth and
+      // RGB sensors on a RealSense are physically offset (~15-55 mm) and
+      // have different FOVs, so without this step a 2D mask drawn on the
+      // color image cannot be used directly to look up depth values. This
+      // is opt-in to preserve the historical behavior of returning the raw
+      // unaligned streams.
+      if (config_->align_color_depth) {
+        // librealsense's align filter is stateful; keep one per thread to
+        // avoid reallocating internal buffers on every call.
+        static thread_local rs2::align align_to_color(RS2_STREAM_COLOR);
+        fs = align_to_color.process(fs);
+      }
 
       std::vector<sensors::SensorType> sensors = config_->sensors;
 
@@ -879,6 +906,35 @@ public:
       }
     }
 
+    if (attrs.count("align_color_depth")) {
+      if (not attrs["align_color_depth"].is_a<bool>()) {
+        throw std::invalid_argument("align_color_depth must be a bool");
+      }
+      bool align = attrs["align_color_depth"].get_unchecked<bool>();
+      if (align and attrs.count("sensors")) {
+        // Aligning requires both streams in the pipeline. The default
+        // (no `sensors` field) enables both, so we only need to check the
+        // case where the user explicitly listed sensors.
+        auto sensors_list =
+            attrs["sensors"].get_unchecked<viam::sdk::ProtoList>();
+        bool has_color = false, has_depth = false;
+        for (const auto &s : sensors_list) {
+          if (not s.is_a<std::string>())
+            continue;
+          auto name = s.get_unchecked<std::string>();
+          if (name == "color")
+            has_color = true;
+          if (name == "depth")
+            has_depth = true;
+        }
+        if (not(has_color and has_depth)) {
+          throw std::invalid_argument(
+              "align_color_depth requires both 'color' and 'depth' in the "
+              "sensors list");
+        }
+      }
+    }
+
     // If we reach here, the serial number is valid
     return {};
   }
@@ -968,6 +1024,36 @@ private:
 
     try {
 
+      // If not in recovery mode and no firmware URL was provided, check whether
+      // the device already runs the recommended version before touching any
+      // state — no callback clearing, no stream disruption needed.
+      if (!is_recovery_mode_.get() && firmware_url.empty() && device_) {
+        auto device_guard = device_->synchronize();
+        auto pre_check_device = device_guard->device;
+        std::string current, recommended;
+        if (device_funcs_.getFirmwareVersions(pre_check_device, current,
+                                              recommended)) {
+          VIAM_RESOURCE_LOG(info)
+              << "[handleFirmwareUpdate] Current firmware: " << current
+              << ", recommended: " << recommended;
+          if (current == recommended) {
+            std::string msg =
+                std::string(
+                    "Firmware is already at the recommended version (") +
+                current +
+                "). No update needed. To force an update to a specific "
+                "version, specify the firmware URL directly using: "
+                "{\"update_firmware\": \"https://your-firmware-url.zip\"}. "
+                "Find firmware URLs at: "
+                "https://dev.realsenseai.com/docs/firmware-releases-d400";
+            VIAM_RESOURCE_LOG(info) << "[handleFirmwareUpdate] " << msg;
+            response["success"] = true;
+            response["message"] = msg;
+            return response;
+          }
+        }
+      }
+
       // Temporarily clear the device change callback to prevent interference
       // It will be automatically restored when this scope exits
       realsense_ctx_->clearDevicesChangedCallback();
@@ -1045,15 +1131,12 @@ private:
 
       // Check if firmware update succeeded
       if (update_result.first) {
-        // Success - clear device assignment
+        // Firmware was flashed — device will reboot and reconnect on its own.
         device_ = nullptr;
         recovery_device_ptr_ = nullptr;
         physical_camera_assigned_ = false;
         is_recovery_mode_ = false;
 
-        // Remove the device's serial number from the assigned set
-        // This allows the device to be reassigned when it reconnects after
-        // firmware update
         {
           auto serials_guard = assigned_serials_->synchronize();
           serials_guard->erase(device_serial_number);
@@ -1306,8 +1389,13 @@ private:
     if (attrs.count("height_px")) {
       height = static_cast<int>(attrs["height_px"].get_unchecked<double>());
     }
-    auto native_config = realsense::RsResourceConfig(
-        serial, configuration.name(), sensors, width, height);
+    bool align_color_depth = false;
+    if (attrs.count("align_color_depth")) {
+      align_color_depth = attrs["align_color_depth"].get_unchecked<bool>();
+    }
+    auto native_config =
+        realsense::RsResourceConfig(serial, configuration.name(), sensors,
+                                    width, height, align_color_depth);
 
     return native_config;
   }
@@ -1364,7 +1452,19 @@ private:
                   rs2::device, rs2::config, rs2::color_sensor,
                   rs2::depth_sensor, rs2::video_stream_profile>(
                   device, viamConfig, logger);
-            }};
+            },
+        .getFirmwareVersions = [](std::shared_ptr<rs2::device> dev,
+                                  std::string &current,
+                                  std::string &recommended) -> bool {
+          if (!dev || !dev->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION) ||
+              !dev->supports(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION)) {
+            return false;
+          }
+          current = dev->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+          recommended =
+              dev->get_info(RS2_CAMERA_INFO_RECOMMENDED_FIRMWARE_VERSION);
+          return true;
+        }};
   };
 };
 }; // namespace realsense

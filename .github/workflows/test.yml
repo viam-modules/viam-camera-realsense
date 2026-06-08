@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: buildjet-8vcpu-ubuntu-2204-arm
+          - os: github-linux-arm64-8core
             container:
               image: ghcr.io/viam-modules/viam-camera-realsense:arm64
               options: --platform linux/arm64
@@ -40,11 +40,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies
-        if: runner.os == 'macOS'
         run: |
           make setup
           test -f ./venv/bin/activate && . ./venv/bin/activate && conan profile show
-      
+
+      - name: Install Conan dependencies
+        run: |
+          make conan-install-test
+
       - name: Lint
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -55,39 +58,23 @@ jobs:
             exit 1
           fi
 
-      - name: Install Conan dependencies
-        if: runner.os == 'macOS'
-        run: |
-          make conan-install-test
-
-      - name: Build with coverage (Linux amd64 only)
+      - name: Install lcov (Linux amd64 only)
         if: matrix.coverage == true
-        run: |
-          mkdir -p build-native && cd build-native
-          cmake .. -DVIAM_REALSENSE_ENABLE_TESTS=ON -DVIAM_REALSENSE_ENABLE_COVERAGE=ON -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+        run: sudo apt-get update && sudo apt-get install -y lcov
 
-      - name: Build without coverage (other platforms)
+      - name: Build and run tests with coverage (Linux amd64 only)
+        if: matrix.coverage == true
+        run: make test-coverage
+
+      - name: Build and run tests (other platforms)
         if: matrix.coverage != true
-        run: make build-native
-
-      - name: Run the tests
-        run: cd build-native && ctest --output-on-failure
-
-      - name: Generate coverage report
-        if: matrix.coverage == true
-        run: |
-          sudo apt-get update && sudo apt-get install -y lcov
-          cd build-native
-          lcov --capture --directory . --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/test/*' '*/build-native/_deps/*' --output-file coverage.info
-          lcov --list coverage.info
+        run: make test
 
       - name: Upload coverage reports to Codecov
         if: matrix.coverage == true
         uses: codecov/codecov-action@v5
         with:
-          files: ./build-native/coverage.info
+          files: ./build-conan/coverage.info
           flags: unittests
           # Token is optional for public repos, but recommended for reliability
           # If uploads fail, ensure CODECOV_TOKEN is set in repository secrets

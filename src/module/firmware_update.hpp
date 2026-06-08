@@ -274,27 +274,6 @@ updateFirmware(std::shared_ptr<rs2::device> rs_device,
              "firmware version: "
           << recommended_version;
 
-      // Pre-flight check: Compare current firmware version with recommended
-      if (rs_device->supports(RS2_CAMERA_INFO_FIRMWARE_VERSION)) {
-        std::string current_version =
-            rs_device->get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
-        VIAM_SDK_LOG_IMPL(logger, info)
-            << "[handleFirmwareUpdate] Current firmware version: "
-            << current_version;
-
-        if (current_version == recommended_version) {
-          std::string msg =
-              std::string("Firmware is already at the recommended version (") +
-              current_version +
-              "). No update needed. To force an update to a specific version, "
-              "specify the firmware URL directly using: {\"update_firmware\": "
-              "\"https://your-firmware-url.zip\"}. Find firmware URLs at: "
-              "https://dev.realsenseai.com/docs/firmware-releases-d400";
-          VIAM_SDK_LOG_IMPL(logger, info) << "[handleFirmwareUpdate] " << msg;
-          return {true, {{"message", msg}}};
-        }
-      }
-
       // Look up URL for recommended version
       auto const firmware_url_opt =
           getFirmwareURLForVersion(recommended_version);
