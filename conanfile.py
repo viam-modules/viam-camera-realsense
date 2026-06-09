@@ -42,7 +42,9 @@ class ViamRealsense(ConanFile):
         self.requires("libjpeg-turbo/[>=2.1.0 <3]")
         self.requires("libcurl/[>=8.0.0 <9]")
         self.requires("libzip/1.11.1")
-        
+        # Pin xtensor to a C++17-compatible version; 0.27+ requires C++20.
+        self.requires("xtensor/[>=0.24.3 <0.27.0]", override=True)
+
     def layout(self):
         cmake_layout(self, src_folder=".")
 
