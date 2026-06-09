@@ -111,6 +111,7 @@ module.tar.gz: conan-pkg meta.json
 	test -f ./venv/bin/activate && . ./venv/bin/activate; \
 	conan install --requires=viam-camera-realsense/0.0.1 \
 	$(CONAN_FLAGS) \
+	--lockfile-partial \
 	--deployer-package "&" \
 	--envs-generation false
 
