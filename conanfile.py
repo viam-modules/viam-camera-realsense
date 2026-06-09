@@ -42,7 +42,14 @@ class ViamRealsense(ConanFile):
         self.requires("libjpeg-turbo/[>=2.1.0 <3]")
         self.requires("libcurl/[>=8.0.0 <9]")
         self.requires("libzip/1.11.1")
-        # Pin xtensor to a C++17-compatible version; 0.27+ requires C++20.
+        # Pin to prebuilt versions; the SDK's floating ranges drifted to
+        # newer releases that aren't prebuilt, forcing slow source builds.
+        self.requires("grpc/1.72.0", override=True)
+        self.requires("protobuf/5.27.0", override=True)
+        self.requires("abseil/20250127.0", override=True)
+        self.requires("re2/20230301", override=True)
+        self.requires("openssl/3.6.0", override=True)
+        self.requires("zlib/1.3.1", override=True)
         self.requires("xtensor/[>=0.24.3 <0.27.0]", override=True)
 
     def layout(self):
