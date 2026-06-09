@@ -760,7 +760,8 @@ public:
         const rs2::video_stream_profile &intrinsics_stream =
             color_stream ? color_stream : depth_stream;
         if (not intrinsics_stream) {
-          throw std::runtime_error("neither color nor depth stream is available");
+          throw std::runtime_error(
+              "neither color nor depth stream is available");
         }
         const rs2::video_stream_profile &ref_stream =
             depth_stream ? depth_stream : color_stream;
