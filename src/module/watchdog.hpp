@@ -74,8 +74,7 @@ public:
   StaleFrameWatchdog(FramesetGetter get_fs, RecoveryCheckFn recovery_check,
                      RestartFn on_stale, viam::sdk::LogSource logger,
                      Tunables tunables = {})
-      : get_fs_(std::move(get_fs)),
-        recovery_check_(std::move(recovery_check)),
+      : get_fs_(std::move(get_fs)), recovery_check_(std::move(recovery_check)),
         on_stale_(std::move(on_stale)), logger_(std::move(logger)),
         tunables_(tunables) {
     thread_ = std::thread([this]() { loop(); });
