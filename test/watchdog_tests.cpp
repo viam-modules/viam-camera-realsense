@@ -218,8 +218,13 @@ TEST(WatchdogTest, SuccessfulRestartsAreRateLimited) {
   auto t = fast_tunables();   // max_restarts_per_hour = 3
   StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
                                       h.on_stale(), make_logger(), t);
-  // Give it long enough to blow past the cap if it weren't limited.
-  std::this_thread::sleep_for(std::chrono::milliseconds(900));
+  // Wait until it reaches the cap (timing-robust on slow CI runners), then
+  // confirm it never exceeds it — the rate-limit invariant under test. Use a
+  // generous timeout since reaching the cap takes several detect+grace cycles.
+  ASSERT_TRUE(
+      wait_until([&] { return h.restart_calls() >= t.max_restarts_per_hour; },
+                 std::chrono::milliseconds(10000)));
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
   EXPECT_EQ(h.restart_calls(), t.max_restarts_per_hour);
 }
 
