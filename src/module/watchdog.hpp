@@ -13,27 +13,11 @@
 
 #include <viam/sdk/log/logging.hpp>
 
-#include <boost/thread/synchronized_value.hpp>
-
 namespace realsense {
 namespace watchdog {
 
 // Forward declare so the template signature reads cleanly.
 template <typename FrameSetT> class StaleFrameWatchdog;
-
-// Default tunables. Defined as constexpr in the class body below; this
-// block names them in one place for the reader.
-//
-//   POLL_INTERVAL_MS              = 1000   one poll per second; off the hot
-//   path STALE_THRESHOLD_MS            = 10000  10x MAX_FRAME_AGE_MS; well
-//   above
-//                                          normal intra-frameset jitter
-//   CONSECUTIVE_POLLS_REQUIRED    = 3      ~3s of sustained staleness before
-//   action POST_RESTART_GRACE_MS         = 10000  rs2::pipeline needs a few
-//   seconds to
-//                                          start producing frames after restart
-//   MAX_RESTARTS_PER_HOUR         = 6      ~one restart every 10 minutes max;
-//                                          beyond that escalate to operator
 
 // StaleFrameWatchdog
 //
@@ -68,11 +52,32 @@ public:
   // freshest cached value, regardless of how Realsense stores it internally.
   using FramesetGetter = std::function<FrameSetT()>;
 
+  // Tunables. Defaults are the production values; tests inject small
+  // intervals so they run in milliseconds instead of tens of seconds.
+  //
+  //   poll_interval_ms           one poll per second; off the hot path
+  //   stale_threshold_ms         10x MAX_FRAME_AGE_MS; well above normal
+  //                              intra-frameset jitter
+  //   consecutive_polls_required ~3s of sustained staleness before action
+  //   post_restart_grace_ms      rs2::pipeline needs a few seconds to start
+  //                              producing frames after a restart
+  //   max_restarts_per_hour      ~one restart every 10 minutes max; beyond
+  //                              that escalate to operator
+  struct Tunables {
+    std::uint64_t poll_interval_ms = 1000;
+    std::uint64_t stale_threshold_ms = 10'000;
+    int consecutive_polls_required = 3;
+    std::uint64_t post_restart_grace_ms = 10'000;
+    int max_restarts_per_hour = 6;
+  };
+
   StaleFrameWatchdog(FramesetGetter get_fs, RecoveryCheckFn recovery_check,
-                     RestartFn on_stale, viam::sdk::LogSource logger)
+                     RestartFn on_stale, viam::sdk::LogSource logger,
+                     Tunables tunables = {})
       : get_fs_(std::move(get_fs)),
         recovery_check_(std::move(recovery_check)),
-        on_stale_(std::move(on_stale)), logger_(std::move(logger)) {
+        on_stale_(std::move(on_stale)), logger_(std::move(logger)),
+        tunables_(tunables) {
     thread_ = std::thread([this]() { loop(); });
   }
 
@@ -101,11 +106,6 @@ public:
   }
 
 private:
-  static constexpr std::uint64_t POLL_INTERVAL_MS = 1000;
-  static constexpr std::uint64_t STALE_THRESHOLD_MS = 10'000;
-  static constexpr int CONSECUTIVE_POLLS_REQUIRED = 3;
-  static constexpr std::uint64_t POST_RESTART_GRACE_MS = 10'000;
-  static constexpr int MAX_RESTARTS_PER_HOUR = 6;
   static constexpr std::uint64_t ONE_HOUR_MS = 60ULL * 60ULL * 1000ULL;
 
   void loop() {
@@ -113,7 +113,8 @@ private:
     int stale_count = 0;
 
     while (running_.load()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(tunables_.poll_interval_ms));
       if (!running_.load())
         break;
 
@@ -133,20 +134,20 @@ private:
         continue;
       }
 
-      if (age_ms <= static_cast<double>(STALE_THRESHOLD_MS)) {
+      if (age_ms <= static_cast<double>(tunables_.stale_threshold_ms)) {
         stale_count = 0;
         continue;
       }
 
       stale_count += 1;
-      if (stale_count < CONSECUTIVE_POLLS_REQUIRED) {
+      if (stale_count < tunables_.consecutive_polls_required) {
         continue;
       }
 
       // Sustained staleness confirmed.
       VIAM_SDK_LOG_IMPL(logger_, warn)
           << "[watchdog] sustained stale frame: age=" << age_ms
-          << "ms threshold=" << STALE_THRESHOLD_MS << "ms";
+          << "ms threshold=" << tunables_.stale_threshold_ms << "ms";
 
       if (!restart_enabled_.load()) {
         VIAM_SDK_LOG_IMPL(logger_, info)
@@ -157,12 +158,12 @@ private:
 
       if (rate_limited()) {
         VIAM_SDK_LOG_IMPL(logger_, error)
-            << "[watchdog] rate-limited at " << MAX_RESTARTS_PER_HOUR
+            << "[watchdog] rate-limited at " << tunables_.max_restarts_per_hour
             << " restarts/hour — operator intervention needed";
         // Keep counter at threshold so we log on every subsequent poll
         // (no flapping silence). Reset only after grace would mask the
         // operator-attention signal.
-        stale_count = CONSECUTIVE_POLLS_REQUIRED;
+        stale_count = tunables_.consecutive_polls_required;
         continue;
       }
 
@@ -180,7 +181,7 @@ private:
       if (ok) {
         record_restart();
         std::this_thread::sleep_for(
-            std::chrono::milliseconds(POST_RESTART_GRACE_MS));
+            std::chrono::milliseconds(tunables_.post_restart_grace_ms));
       }
       stale_count = 0;
     }
@@ -217,7 +218,7 @@ private:
     std::lock_guard<std::mutex> guard(restart_history_mtx_);
     prune_restart_history_locked();
     return restart_history_ms_.size() >=
-           static_cast<size_t>(MAX_RESTARTS_PER_HOUR);
+           static_cast<size_t>(tunables_.max_restarts_per_hour);
   }
 
   void record_restart() {
@@ -238,6 +239,7 @@ private:
   RecoveryCheckFn recovery_check_;
   RestartFn on_stale_;
   viam::sdk::LogSource logger_;
+  Tunables tunables_;
 
   std::atomic<bool> running_{true};
   std::atomic<bool> paused_{false};
