@@ -103,13 +103,6 @@ public:
   void pause() noexcept { paused_.store(true); }
   void resume() noexcept { paused_.store(false); }
 
-  // Enable or disable the restart action. When disabled, the watchdog
-  // still detects and logs sustained staleness but does not invoke
-  // on_stale_. Useful for canary deployment.
-  void set_restart_enabled(bool enabled) noexcept {
-    restart_enabled_.store(enabled);
-  }
-
 private:
   static constexpr std::uint64_t ONE_HOUR_MS = 60ULL * 60ULL * 1000ULL;
 
@@ -161,13 +154,6 @@ private:
       VIAM_SDK_LOG_IMPL(logger_, warn)
           << "[watchdog] sustained stale frame: age=" << age_ms
           << "ms threshold=" << tunables_.stale_threshold_ms << "ms";
-
-      if (!restart_enabled_.load()) {
-        VIAM_SDK_LOG_IMPL(logger_, info)
-            << "[watchdog] restart disabled; continuing to monitor";
-        stale_count = 0;
-        continue;
-      }
 
       if (rate_limited()) {
         VIAM_SDK_LOG_IMPL(logger_, error)
@@ -255,7 +241,6 @@ private:
 
   std::atomic<bool> running_{true};
   std::atomic<bool> paused_{false};
-  std::atomic<bool> restart_enabled_{true};
 
   // Guards the interruptible wait so shutdown can wake the loop immediately.
   std::mutex cv_mutex_;

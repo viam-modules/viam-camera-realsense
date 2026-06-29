@@ -197,19 +197,6 @@ TEST(WatchdogTest, PauseSuppressesResumeReArms) {
       << "resumed watchdog must detect the still-stale stream";
 }
 
-// With restart disabled, sustained staleness is detected/logged but on_stale
-// is never invoked.
-TEST(WatchdogTest, RestartDisabledDetectsButDoesNotAct) {
-  Harness h;
-  h.set_mode(FrameMode::Stale);
-  StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
-                                      h.on_stale(), make_logger(),
-                                      fast_tunables());
-  wd.set_restart_enabled(false);
-  std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  EXPECT_EQ(h.restart_calls(), 0);
-}
-
 // Successful restarts are rate-limited to max_restarts_per_hour.
 TEST(WatchdogTest, SuccessfulRestartsAreRateLimited) {
   Harness h;
