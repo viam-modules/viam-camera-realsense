@@ -1,0 +1,85 @@
+name: Bump Viam C++ SDK
+
+# Opens (or updates) a PR bumping the viam-cpp-sdk pin in conanfile.py whenever a
+# newer viam-cpp-sdk release is published, polled daily. The SDK is pinned via
+# conan, which Dependabot can't track, so this does it explicitly.
+#
+# The PR is created with the org-level GIT_ACCESS_TOKEN bot secret (the same token
+# the viam-python-sdk update_protos workflow uses) rather than the default
+# GITHUB_TOKEN. This is deliberate: PRs opened by GITHUB_TOKEN do NOT trigger other
+# workflows, so the conan build/test wouldn't run on the bump; the bot token makes
+# CI run automatically.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily at 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve latest and current viam-cpp-sdk versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Latest published release of the SDK, tag format "releases/vX.Y.Z".
+          tag="$(gh release view --repo viamrobotics/viam-cpp-sdk --json tagName --jq .tagName)"
+          latest="${tag#releases/v}"
+          # Currently pinned version in conanfile.py, e.g. viam-cpp-sdk/0.31.0
+          current="$(grep -oE 'viam-cpp-sdk/[0-9]+\.[0-9]+\.[0-9]+' conanfile.py | head -1 | cut -d/ -f2)"
+          echo "latest=$latest"   >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          # Only bump forward (never downgrade).
+          if [ "$current" != "$latest" ] && \
+             [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n1)" = "$latest" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "viam-cpp-sdk: current=$current latest=$latest"
+
+      - name: Update conanfile.py pin
+        if: steps.versions.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          sed -i "s#viam-cpp-sdk/${{ steps.versions.outputs.current }}#viam-cpp-sdk/${{ steps.versions.outputs.latest }}#g" conanfile.py
+
+      - name: Regenerate conan.lock (if present)
+        if: steps.versions.outputs.needed == 'true' && hashFiles('conan.lock') != ''
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --upgrade conan
+          conan profile detect --force
+          conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0 || true
+          conan lock create . -o "&:with_tests=False" -s:a build_type=Release -s:a compiler.cppstd=17
+
+      - name: Open / update pull request
+        if: steps.versions.outputs.needed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GIT_ACCESS_TOKEN }}
+          branch: deps/bump-viam-cpp-sdk
+          delete-branch: true
+          commit-message: "deps: bump viam-cpp-sdk to ${{ steps.versions.outputs.latest }}"
+          title: "deps: bump viam-cpp-sdk to ${{ steps.versions.outputs.latest }}"
+          labels: dependencies
+          body: |
+            Bumps the `viam-cpp-sdk` conan pin from
+            `${{ steps.versions.outputs.current }}` to `${{ steps.versions.outputs.latest }}`
+            ([viam-cpp-sdk release](https://github.com/viamrobotics/viam-cpp-sdk/releases/tag/releases/v${{ steps.versions.outputs.latest }})).
+
+            - Updates the pin in `conanfile.py`.
+            - Regenerates `conan.lock` if the repo has one.
+
+            Opened automatically by the **Bump Viam C++ SDK** workflow. Please confirm CI
+            (the conan build/test) passes before merging.
