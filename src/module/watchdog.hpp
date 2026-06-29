@@ -226,9 +226,11 @@ private:
   }
 
   void prune_restart_history_locked() {
-    auto cutoff = static_cast<std::uint64_t>(time::getNowMs()) - ONE_HOUR_MS;
+    // Additive comparison (now - front) avoids unsigned underflow if getNowMs()
+    // is ever smaller than ONE_HOUR_MS; front() <= now so this stays >= 0.
+    auto now = static_cast<std::uint64_t>(time::getNowMs());
     while (!restart_history_ms_.empty() &&
-           restart_history_ms_.front() < cutoff) {
+           now - restart_history_ms_.front() > ONE_HOUR_MS) {
       restart_history_ms_.pop_front();
     }
   }
