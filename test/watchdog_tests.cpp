@@ -259,6 +259,27 @@ TEST(WatchdogTest, StopsRestartingAfterRecovery) {
   EXPECT_EQ(h.restart_calls(), after_recovery);
 }
 
+// Destruction must not block for a full poll interval — the interruptible wait
+// should wake immediately when running_ is cleared.
+TEST(WatchdogTest, DestructorPreemptsLongSleep) {
+  Harness h;
+  h.set_mode(FrameMode::Fresh);
+  auto t = fast_tunables();
+  t.poll_interval_ms = 5000; // long; dtor must not wait this out
+  const auto start = std::chrono::steady_clock::now();
+  {
+    StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
+                                        h.on_stale(), make_logger(), t);
+    // Let the loop enter its wait before we tear down.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  } // ~StaleFrameWatchdog here: should return promptly, not after 5s.
+  const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - start)
+                              .count();
+  EXPECT_LT(elapsed_ms, 1000)
+      << "destructor blocked on the poll interval (" << elapsed_ms << "ms)";
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

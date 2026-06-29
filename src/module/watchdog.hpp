@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -81,7 +82,12 @@ public:
   }
 
   ~StaleFrameWatchdog() {
-    running_.store(false);
+    { // Set the flag under the cv mutex before notifying so a thread about to
+      // wait can't miss the wakeup (lost-wakeup race).
+      std::lock_guard<std::mutex> lk(cv_mutex_);
+      running_.store(false);
+    }
+    cv_.notify_all();
     if (thread_.joinable()) {
       thread_.join();
     }
@@ -107,13 +113,21 @@ public:
 private:
   static constexpr std::uint64_t ONE_HOUR_MS = 60ULL * 60ULL * 1000ULL;
 
+  // Sleep for up to ms, but return immediately if running_ is cleared (e.g.
+  // during ~StaleFrameWatchdog). Keeps shutdown/teardown from blocking on a
+  // full poll interval or post-restart grace period.
+  void interruptible_wait(std::uint64_t ms) {
+    std::unique_lock<std::mutex> lk(cv_mutex_);
+    cv_.wait_for(lk, std::chrono::milliseconds(ms),
+                 [this] { return !running_.load(); });
+  }
+
   void loop() {
     VIAM_SDK_LOG_IMPL(logger_, info) << "[watchdog] started";
     int stale_count = 0;
 
     while (running_.load()) {
-      std::this_thread::sleep_for(
-          std::chrono::milliseconds(tunables_.poll_interval_ms));
+      interruptible_wait(tunables_.poll_interval_ms);
       if (!running_.load())
         break;
 
@@ -179,8 +193,7 @@ private:
 
       if (ok) {
         record_restart();
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(tunables_.post_restart_grace_ms));
+        interruptible_wait(tunables_.post_restart_grace_ms);
       }
       stale_count = 0;
     }
@@ -243,6 +256,10 @@ private:
   std::atomic<bool> running_{true};
   std::atomic<bool> paused_{false};
   std::atomic<bool> restart_enabled_{true};
+
+  // Guards the interruptible wait so shutdown can wake the loop immediately.
+  std::mutex cv_mutex_;
+  std::condition_variable cv_;
 
   std::mutex restart_history_mtx_;
   std::deque<std::uint64_t> restart_history_ms_;
