@@ -676,17 +676,31 @@ public:
         p.extrinsic_parameters =
             realsense::extrinsics::get_extrinsics(stream, ref_stream);
 
-        p.distortion_parameters.model = rs2_distortion_to_string(props.model);
+        switch (props.model) {
+        case RS2_DISTORTION_BROWN_CONRADY:
+        case RS2_DISTORTION_MODIFIED_BROWN_CONRADY:
+          p.distortion_parameters.model = "brown_conrady";
+          break;
+        case RS2_DISTORTION_INVERSE_BROWN_CONRADY:
+          p.distortion_parameters.model = "inverse_brown_conrady";
+          break;
+        default:
+          p.distortion_parameters.model = "";
+          break;
+        }
+
         // RealSense reports coeffs in OpenCV order [k1, k2, p1, p2, k3], but
         // rdk's (Inverse)BrownConrady distorter expects [k1, k2, k3, p1, p2]
         // (all radial terms, then tangential). Reorder to match rdk's contract.
-        p.distortion_parameters.parameters = {
-            props.coeffs[0], // RadialK1     (k1)
-            props.coeffs[1], // RadialK2     (k2)
-            props.coeffs[4], // RadialK3     (k3)
-            props.coeffs[2], // TangentialP1 (p1)
-            props.coeffs[3], // TangentialP2 (p2)
-        };
+        if (not p.distortion_parameters.model.empty()) {
+          p.distortion_parameters.parameters = {
+              props.coeffs[0], // RadialK1     (k1)
+              props.coeffs[1], // RadialK2     (k2)
+              props.coeffs[4], // RadialK3     (k3)
+              props.coeffs[2], // TangentialP1 (p1)
+              props.coeffs[3], // TangentialP2 (p2)
+          };
+        }
 
         std::stringstream coeffs_stream;
         for (size_t i = 0; i < p.distortion_parameters.parameters.size(); ++i) {
