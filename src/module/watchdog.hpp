@@ -105,6 +105,9 @@ public:
 
 private:
   static constexpr std::uint64_t ONE_HOUR_MS = 60ULL * 60ULL * 1000ULL;
+  // Throttle the "rate-limited / operator intervention" error so a persistent
+  // wedge signals once a minute instead of every poll.
+  static constexpr std::uint64_t RATE_LIMITED_LOG_INTERVAL_MS = 60'000;
 
   // Sleep for up to ms, but return immediately if running_ is cleared (e.g.
   // during ~StaleFrameWatchdog). Keeps shutdown/teardown from blocking on a
@@ -156,13 +159,15 @@ private:
           << "ms threshold=" << tunables_.stale_threshold_ms << "ms";
 
       if (rate_limited()) {
-        VIAM_SDK_LOG_IMPL(logger_, error)
-            << "[watchdog] rate-limited at " << tunables_.max_restarts_per_hour
-            << " restarts/hour — operator intervention needed";
-        // Keep counter at threshold so we log on every subsequent poll
-        // (no flapping silence). Reset only after grace would mask the
-        // operator-attention signal.
-        stale_count = tunables_.consecutive_polls_required;
+        auto now = static_cast<std::uint64_t>(time::getNowMs());
+        if (now - last_rate_limited_log_ms_ > RATE_LIMITED_LOG_INTERVAL_MS) {
+          last_rate_limited_log_ms_ = now;
+          VIAM_SDK_LOG_IMPL(logger_, error)
+              << "[watchdog] rate-limited at "
+              << tunables_.max_restarts_per_hour
+              << " restarts/hour — operator intervention needed";
+        }
+        stale_count = 0;
         continue;
       }
 
@@ -250,6 +255,9 @@ private:
 
   std::mutex restart_history_mtx_;
   std::deque<std::uint64_t> restart_history_ms_;
+
+  // Loop-thread only; last time the rate-limited error was logged.
+  std::uint64_t last_rate_limited_log_ms_{0};
 
   std::thread thread_;
 };

@@ -675,11 +675,12 @@ bool stopDevice(std::shared_ptr<boost::synchronized_value<ViamDeviceT>> &dev,
     { // Begin scope for dev_ptr lock
       auto dev_ptr = dev->synchronize();
       if (not dev_ptr->started) {
-        VIAM_DEVICE_LOG(logger, error)
-            << "[stopDevice] unable to stop device that is not "
-               "currently running "
+        // Idempotent "ensure stopped": already stopped is success, so a restart
+        // can safely retry startDevice after a failed start.
+        VIAM_DEVICE_LOG(logger, debug)
+            << "[stopDevice] device already stopped: "
             << dev_ptr->serial_number;
-        return false;
+        return true;
       }
 
       dev_ptr->pipe->stop();
