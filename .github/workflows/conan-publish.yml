@@ -7,6 +7,10 @@ name: Publish conan packages
 # that Viam's cloud builder uses (see meta.json `distro` field).
 
 on:
+  # TEMPORARY: run on the PR so we can prototype the publish before merge.
+  # Remove (or scope to conanfile.py/conan.lock paths) before merging to main.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       upload_module:
