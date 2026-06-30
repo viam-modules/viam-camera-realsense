@@ -1,0 +1,81 @@
+name: Publish conan packages
+
+# Publishes module-side Conan dependencies (librealsense, libusb,
+# and optionally viam-camera-realsense itself) to the viamconan
+# remote so cloud builds get cache hits instead of rebuilding from
+# source. Matrix targets the same debian:bookworm + arch combinations
+# that Viam's cloud builder uses (see meta.json `distro` field).
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_module:
+        description: "Also upload viam-camera-realsense/* (off by default — only needed if consumers will pull it from Conan)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            image: debian:bookworm
+            platform: linux/amd64
+          - runner: ubuntu-22.04-arm
+            image: debian:bookworm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Install make + sudo (container is minimal)
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            make sudo git ca-certificates
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Run setup (installs conan + adds viamconan remote)
+        run: make setup
+
+      - name: Authenticate to viamconan
+        env:
+          CONAN_REMOTE_URL: ${{ secrets.conanRemote }}
+          CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.conanUsername }}
+          CONAN_PASSWORD_VIAMCONAN: ${{ secrets.conanPassword }}
+        run: |
+          . ./venv/bin/activate
+          # setup.sh already adds the remote; force-update URL in case it changed
+          conan remote update viamconan --url "$CONAN_REMOTE_URL" || true
+          conan remote auth --force -cc core:non_interactive=True viamconan
+
+      - name: Build dependency graph (conan create)
+        run: |
+          . ./venv/bin/activate
+          # Same flags the Makefile uses for module.tar.gz, ensuring the
+          # package_ids we publish are what the cloud builder asks for.
+          conan create . \
+            -o "&:with_tests=False" \
+            -s:a build_type=Release \
+            -s:a compiler.cppstd=17 \
+            --build=missing
+
+      - name: Upload librealsense and libusb binaries
+        run: |
+          . ./venv/bin/activate
+          conan upload "librealsense/*" -r viamconan -c
+          conan upload "libusb/*" -r viamconan -c
+
+      - name: Upload module recipe + binary (optional)
+        if: inputs.upload_module
+        run: |
+          . ./venv/bin/activate
+          conan upload "viam-camera-realsense/*" -r viamconan -c
