@@ -1033,11 +1033,8 @@ private:
 
   // Stale-frame watchdog: restarts the rs2::pipeline once a frame is stale
   // (older than stale_threshold_ms, default 10s) for 3 consecutive polls
-  // (debounce) — see watchdog::Tunables.
-  // Declared LAST so it's destroyed FIRST during ~Realsense — its thread
-  // joins before device_/latest_frameset_ are torn down. Pause around
-  // operator-driven pipeline transitions (reconfigure, firmware update,
-  // USB device change).
+  // (debounce) — see watchdog::Tunables. Declared LAST so its thread joins
+  // first in ~Realsense; paused during reconfigure/firmware/device-change.
   std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {

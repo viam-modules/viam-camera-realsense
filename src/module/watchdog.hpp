@@ -22,25 +22,14 @@ template <typename FrameSetT> class StaleFrameWatchdog;
 
 // StaleFrameWatchdog
 //
-// Background thread that periodically checks the cached frameset for
-// staleness (via frame.get_timestamp() age vs host clock). When the
-// most-recent frame has been stale for CONSECUTIVE_POLLS_REQUIRED polls,
-// the watchdog invokes a caller-provided RestartFn that is expected to
-// tear down and re-create the rs2::pipeline.
+// Background thread that polls the cached frameset (via FramesetGetter) and
+// invokes RestartFn to rebuild the rs2::pipeline once a frame stays stale for
+// consecutive_polls_required polls. Rate-limited (see Tunables).
 //
-// Owned by Realsense. Construct after the pipeline is started, destroy
-// before the pipeline is torn down. Use pause()/resume() around
-// operator-initiated lifecycle transitions (reconfigure, firmware
-// update, USB device-change handling) so the watchdog does not race
-// with those operations.
-//
-// Concurrency contract:
-//   - frame_set_ is read through its synchronized_value; safe wrt.
-//     frameCallback writes.
-//   - The RestartFn must acquire whatever mutex serializes pipeline
-//     mutations (in our case do_command_mutex_). Watchdog does not
-//     manage that mutex itself.
-//   - All public methods are safe to call from any thread.
+// Owned by Realsense: construct after the pipeline starts, destroy before it
+// tears down. pause()/resume() (thread-safe) bracket operator-driven
+// transitions (reconfigure, firmware update, device change). RestartFn owns
+// whatever locking serializes pipeline mutations.
 template <typename FrameSetT> class StaleFrameWatchdog {
 public:
   // Returns true if the restart was attempted and (best-effort) succeeded;
@@ -53,23 +42,13 @@ public:
   // freshest cached value, regardless of how Realsense stores it internally.
   using FramesetGetter = std::function<FrameSetT()>;
 
-  // Tunables. Defaults are the production values; tests inject small
-  // intervals so they run in milliseconds instead of tens of seconds.
-  //
-  //   poll_interval_ms           one poll per second; off the hot path
-  //   stale_threshold_ms         10x MAX_FRAME_AGE_MS; well above normal
-  //                              intra-frameset jitter
-  //   consecutive_polls_required ~3s of sustained staleness before action
-  //   post_restart_grace_ms      rs2::pipeline needs a few seconds to start
-  //                              producing frames after a restart
-  //   max_restarts_per_hour      ~one restart every 10 minutes max; beyond
-  //                              that escalate to operator
+  // Defaults are production values; tests inject small intervals.
   struct Tunables {
-    std::uint64_t poll_interval_ms = 1000;
-    std::uint64_t stale_threshold_ms = 10'000;
-    int consecutive_polls_required = 3;
-    std::uint64_t post_restart_grace_ms = 10'000;
-    int max_restarts_per_hour = 6;
+    std::uint64_t poll_interval_ms = 1000;        // check cadence
+    std::uint64_t stale_threshold_ms = 10'000;    // age before a frame is stale
+    int consecutive_polls_required = 3;           // debounce
+    std::uint64_t post_restart_grace_ms = 10'000; // pipeline warm-up
+    int max_restarts_per_hour = 6;                // restart-storm cap
   };
 
   StaleFrameWatchdog(FramesetGetter get_fs, RecoveryCheckFn recovery_check,
