@@ -971,6 +971,8 @@ public:
       return; // already running, nothing to do
     }
     auto restart_fn = [this]() -> bool {
+      // Serialize the stop/start against do_command (e.g. firmware update),
+      // which also rebuilds the pipeline.
       std::lock_guard<std::mutex> guard(do_command_mutex_);
       if (is_recovery_mode_.get() || !device_) {
         VIAM_RESOURCE_LOG(info)
