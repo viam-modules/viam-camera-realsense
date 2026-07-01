@@ -1029,12 +1029,13 @@ private:
   DeviceFunctions device_funcs_;
   std::shared_ptr<RealsenseContext<SynchronizedContextT>> realsense_ctx_;
 
-  // Stale-frame watchdog: monitors latest_frameset_ for sustained
-  // staleness and triggers an rs2::pipeline restart when prolonged
-  // staleness is detected. Declared LAST so it's destroyed FIRST
-  // during ~Realsense — its thread joins before device_/latest_frameset_
-  // are torn down. Pause around operator-driven pipeline transitions
-  // (reconfigure, firmware update, USB device change).
+  // Stale-frame watchdog: restarts the rs2::pipeline once a frame is stale
+  // (older than stale_threshold_ms, default 10s) for 3 consecutive polls
+  // (debounce) — see watchdog::Tunables.
+  // Declared LAST so it's destroyed FIRST during ~Realsense — its thread
+  // joins before device_/latest_frameset_ are torn down. Pause around
+  // operator-driven pipeline transitions (reconfigure, firmware update,
+  // USB device change).
   std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {
