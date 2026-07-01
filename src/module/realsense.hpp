@@ -274,16 +274,21 @@ public:
     VIAM_RESOURCE_LOG(info) << "[reconfigure] reconfigure start";
     // Pause the watchdog for the duration of reconfigure so it can't
     // race with operator-initiated stop/start of the pipeline. RAII
-    // guard ensures resume even on exception paths.
+    // guard pauses on construction and resumes on destruction (incl.
+    // exception paths); pause()/resume() are noexcept.
     struct WatchdogPauseGuard {
       watchdog::StaleFrameWatchdog<rs2::frameset> *w;
+      explicit WatchdogPauseGuard(
+          watchdog::StaleFrameWatchdog<rs2::frameset> *w)
+          : w(w) {
+        if (w)
+          w->pause();
+      }
       ~WatchdogPauseGuard() {
         if (w)
           w->resume();
       }
     } watchdog_pause_guard{watchdog_.get()};
-    if (watchdog_)
-      watchdog_->pause();
     if (not physical_camera_assigned_) {
       VIAM_RESOURCE_LOG(error)
           << "[reconfigure] cannot reconfigure a device that "
