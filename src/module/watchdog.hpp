@@ -105,70 +105,86 @@ private:
       interruptible_wait(tunables_.poll_interval_ms);
       if (!running_.load())
         break;
-
-      if (paused_.load()) {
-        stale_count = 0;
-        continue;
-      }
-      if (recovery_check_ && recovery_check_()) {
-        stale_count = 0;
-        continue;
-      }
-
-      double age_ms = 0.0;
-      if (!compute_max_age_ms(age_ms)) {
-        // No frame available yet; treat as not-stale.
-        stale_count = 0;
-        continue;
-      }
-
-      if (age_ms <= static_cast<double>(tunables_.stale_threshold_ms)) {
-        stale_count = 0;
-        continue;
-      }
-
-      stale_count += 1;
-      if (stale_count < tunables_.consecutive_polls_required) {
-        continue;
-      }
-
-      // Sustained staleness confirmed.
-      VIAM_SDK_LOG_IMPL(logger_, warn)
-          << "[watchdog] sustained stale frame: age=" << age_ms
-          << "ms threshold=" << tunables_.stale_threshold_ms << "ms";
-
-      if (rate_limited()) {
-        auto now = static_cast<std::uint64_t>(time::getNowMs());
-        if (now - last_rate_limited_log_ms_ > RATE_LIMITED_LOG_INTERVAL_MS) {
-          last_rate_limited_log_ms_ = now;
-          VIAM_SDK_LOG_IMPL(logger_, error)
-              << "[watchdog] rate-limited at "
-              << tunables_.max_restarts_per_hour
-              << " restarts/hour — operator intervention needed";
-        }
-        stale_count = 0;
-        continue;
-      }
-
-      bool ok = false;
+      // Guard the poll: get_fs_/frame accessors are rs2 calls that can throw,
+      // and an escaped exception on this thread would std::terminate the whole
+      // module. A bad poll logs and is treated as not-stale.
       try {
-        ok = on_stale_ ? on_stale_() : false;
+        poll_once(stale_count);
       } catch (const std::exception &e) {
         VIAM_SDK_LOG_IMPL(logger_, error)
-            << "[watchdog] restart callback threw: " << e.what();
+            << "[watchdog] poll error: " << e.what();
+        stale_count = 0;
       } catch (...) {
-        VIAM_SDK_LOG_IMPL(logger_, error)
-            << "[watchdog] restart callback threw unknown exception";
+        VIAM_SDK_LOG_IMPL(logger_, error) << "[watchdog] poll error (unknown)";
+        stale_count = 0;
       }
-
-      if (ok) {
-        record_restart();
-        interruptible_wait(tunables_.post_restart_grace_ms);
-      }
-      stale_count = 0;
     }
 
     VIAM_SDK_LOG_IMPL(logger_, info) << "[watchdog] stopped";
+  }
+
+  // One poll iteration. Early-returns (like `continue`) on any not-stale or
+  // handled condition. May throw from get_fs_/frame accessors; loop() guards.
+  void poll_once(int &stale_count) {
+    if (paused_.load()) {
+      stale_count = 0;
+      return;
+    }
+    if (recovery_check_ && recovery_check_()) {
+      stale_count = 0;
+      return;
+    }
+
+    double age_ms = 0.0;
+    if (!compute_max_age_ms(age_ms)) {
+      // No frame available yet; treat as not-stale.
+      stale_count = 0;
+      return;
+    }
+
+    if (age_ms <= static_cast<double>(tunables_.stale_threshold_ms)) {
+      stale_count = 0;
+      return;
+    }
+
+    stale_count += 1;
+    if (stale_count < tunables_.consecutive_polls_required) {
+      return;
+    }
+
+    // Sustained staleness confirmed.
+    VIAM_SDK_LOG_IMPL(logger_, warn)
+        << "[watchdog] sustained stale frame: age=" << age_ms
+        << "ms threshold=" << tunables_.stale_threshold_ms << "ms";
+
+    if (rate_limited()) {
+      auto now = static_cast<std::uint64_t>(time::getNowMs());
+      if (now - last_rate_limited_log_ms_ > RATE_LIMITED_LOG_INTERVAL_MS) {
+        last_rate_limited_log_ms_ = now;
+        VIAM_SDK_LOG_IMPL(logger_, error)
+            << "[watchdog] rate-limited at " << tunables_.max_restarts_per_hour
+            << " restarts/hour — operator intervention needed";
+      }
+      stale_count = 0;
+      return;
+    }
+
+    bool ok = false;
+    try {
+      ok = on_stale_ ? on_stale_() : false;
+    } catch (const std::exception &e) {
+      VIAM_SDK_LOG_IMPL(logger_, error)
+          << "[watchdog] restart callback threw: " << e.what();
+    } catch (...) {
+      VIAM_SDK_LOG_IMPL(logger_, error)
+          << "[watchdog] restart callback threw unknown exception";
+    }
+
+    if (ok) {
+      record_restart();
+      interruptible_wait(tunables_.post_restart_grace_ms);
+    }
+    stale_count = 0;
   }
 
   // Returns true and writes the max age (in ms) of color/depth into

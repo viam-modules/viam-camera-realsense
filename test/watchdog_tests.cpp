@@ -49,10 +49,15 @@ public:
   void set_mode(FrameMode m) { mode_.store(m); }
   void set_recovery(bool r) { recovery_.store(r); }
   void set_restart_result(bool ok) { restart_result_.store(ok); }
+  void set_throw(bool t) { throw_.store(t); }
   int restart_calls() const { return restart_calls_.load(); }
 
   StaleFrameWatchdog<FakeFrameSet>::FramesetGetter fs_getter() {
-    return [this]() { return synth(); };
+    return [this]() -> FakeFrameSet {
+      if (throw_.load())
+        throw std::runtime_error("get_fs boom");
+      return synth();
+    };
   }
   StaleFrameWatchdog<FakeFrameSet>::RecoveryCheckFn recovery_check() {
     return [this]() { return recovery_.load(); };
@@ -92,6 +97,7 @@ private:
   std::atomic<FrameMode> mode_{FrameMode::None};
   std::atomic<bool> recovery_{false};
   std::atomic<bool> restart_result_{true};
+  std::atomic<bool> throw_{false};
   std::atomic<int> restart_calls_{0};
 };
 
@@ -265,6 +271,27 @@ TEST(WatchdogTest, DestructorPreemptsLongSleep) {
                               .count();
   EXPECT_LT(elapsed_ms, 1000)
       << "destructor blocked on the poll interval (" << elapsed_ms << "ms)";
+}
+
+// An exception from get_fs_ must not kill the watchdog thread (an escaped
+// exception would std::terminate the whole module). The thread should keep
+// polling and resume detecting once the getter stops throwing.
+TEST(WatchdogTest, SurvivesGetFsException) {
+  Harness h;
+  h.set_throw(true); // every poll's get_fs_ throws
+  StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
+                                      h.on_stale(), make_logger(),
+                                      fast_tunables());
+  // Poll through several throwing iterations — must not crash or exit.
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+  EXPECT_EQ(h.restart_calls(), 0);
+
+  // Recover: getter now returns stale frames; a live thread must still detect.
+  h.set_throw(false);
+  h.set_mode(FrameMode::Stale);
+  EXPECT_TRUE(wait_until([&] { return h.restart_calls() >= 1; }, kTimeout))
+      << "watchdog thread should survive get_fs exceptions and resume "
+         "detecting";
 }
 
 int main(int argc, char **argv) {
