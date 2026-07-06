@@ -832,6 +832,34 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
   EXPECT_TRUE(found_destroyed) << "Should log 'device destroyed'";
 }
 
+TEST_F(DeviceTest, StopDevice_NotStartedDevice_ReturnsTrueIdempotent) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  // A device that is not currently streaming.
+  auto device = std::make_shared<boost::synchronized_value<ViamRSDevice<>>>();
+  {
+    auto dev_guard = device->synchronize();
+    dev_guard->serial_number = "test123";
+    dev_guard->started = false;
+    dev_guard->pipe = std::make_shared<rs2::pipeline>();
+  }
+
+  // stopDevice is idempotent: stopping an already-stopped device succeeds (no
+  // error), so the watchdog restart can retry startDevice after a failed start.
+  bool result = stopDevice(device, logger);
+
+  EXPECT_TRUE(result);
+  EXPECT_EQ(log_capture.get_error_logs().size(), 0)
+      << "already-stopped device should not log an error";
+}
+
+TEST_F(DeviceTest, StopDevice_NullDevice_ReturnsFalse) {
+  viam::sdk::LogSource logger;
+  std::shared_ptr<boost::synchronized_value<ViamRSDevice<>>> device = nullptr;
+  EXPECT_FALSE(stopDevice(device, logger));
+}
+
 TEST_F(DeviceTest, DestroyDevice_NullDevice_ReturnsFalse) {
   test_utils::LogCaptureFixture log_capture;
   viam::sdk::LogSource logger;

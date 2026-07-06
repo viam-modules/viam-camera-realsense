@@ -7,6 +7,7 @@
 #include "sensors.hpp"
 #include "time.hpp"
 #include "utils.hpp"
+#include "watchdog.hpp"
 #include "zip_utils.hpp"
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
@@ -240,6 +241,10 @@ public:
         << "Realsense constructor end " << requested_serial_number;
   }
   ~Realsense() {
+    // Stop the watchdog FIRST so its thread joins before we touch
+    // device_/latest_frameset_. Otherwise a watchdog-triggered restart
+    // could race with destructor teardown.
+    watchdog_.reset();
     if (device_) {
       { // Begin scope for device_guard lock
         auto device_guard = device_->synchronize();
@@ -261,6 +266,23 @@ public:
   void reconfigure(const viam::sdk::Dependencies &deps,
                    const viam::sdk::ResourceConfig &cfg) override {
     VIAM_RESOURCE_LOG(info) << "[reconfigure] reconfigure start";
+    // Pause the watchdog for the duration of reconfigure so it can't
+    // race with operator-initiated stop/start of the pipeline. RAII
+    // guard pauses on construction and resumes on destruction (incl.
+    // exception paths); pause()/resume() are noexcept.
+    struct WatchdogPauseGuard {
+      watchdog::StaleFrameWatchdog<rs2::frameset> *w;
+      explicit WatchdogPauseGuard(
+          watchdog::StaleFrameWatchdog<rs2::frameset> *w)
+          : w(w) {
+        if (w)
+          w->pause();
+      }
+      ~WatchdogPauseGuard() {
+        if (w)
+          w->resume();
+      }
+    } watchdog_pause_guard{watchdog_.get()};
     if (not physical_camera_assigned_) {
       VIAM_RESOURCE_LOG(error)
           << "[reconfigure] cannot reconfigure a device that "
@@ -974,6 +996,57 @@ public:
     deviceChangedCallback(info);
   }
 
+  // Constructs the stale-frame watchdog. Called once on first successful
+  // device initialization in assign_and_initialize_device. The watchdog
+  // lives for the rest of the Realsense lifetime; reconfigure-driven
+  // pipeline transitions use pause()/resume() rather than recreating it.
+  void start_watchdog() {
+    if (watchdog_) {
+      return; // already running, nothing to do
+    }
+    auto restart_fn = [this]() -> bool {
+      // Serialize the stop/start against do_command (e.g. firmware update),
+      // which also rebuilds the pipeline.
+      std::lock_guard<std::mutex> guard(do_command_mutex_);
+      if (is_recovery_mode_.get() || !device_) {
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] skip restart: recovery mode or no device";
+        return false;
+      }
+      auto cfg = config_.get();
+      VIAM_RESOURCE_LOG(warn)
+          << "[watchdog] restarting rs2::pipeline after sustained "
+          << "staleness on serial " << cfg.serial_number;
+      if (!device_funcs_.stopDevice(device_, this->logger_)) {
+        VIAM_RESOURCE_LOG(error) << "[watchdog] stopDevice failed";
+        return false;
+      }
+      try {
+        device_funcs_.startDevice(cfg.serial_number, device_, latest_frameset_,
+                                  MAX_FRAME_AGE_MS, cfg, this->logger_);
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] pipeline restart succeeded on " << cfg.serial_number;
+        return true;
+      } catch (const std::exception &e) {
+        VIAM_RESOURCE_LOG(error)
+            << "[watchdog] startDevice threw during restart: " << e.what();
+        return false;
+      }
+    };
+    auto recovery_check = [this]() { return is_recovery_mode_.get(); };
+    // Read latest_frameset_ on every poll — captures `this` so we always
+    // see the freshest shared_ptr value Realsense holds (frameCallback
+    // reassigns the pointer per frame). Empty frameset when none yet.
+    auto get_fs = [this]() -> rs2::frameset {
+      return latest_frameset_ ? latest_frameset_->get() : rs2::frameset{};
+    };
+    watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
+        std::move(get_fs), std::move(recovery_check), std::move(restart_fn),
+        this->logger_);
+    VIAM_RESOURCE_LOG(info)
+        << "[watchdog] constructed for serial " << config_->serial_number;
+  }
+
 private:
   boost::synchronized_value<RsResourceConfig> config_;
   std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> device_;
@@ -991,6 +1064,12 @@ private:
 
   DeviceFunctions device_funcs_;
   std::shared_ptr<RealsenseContext<SynchronizedContextT>> realsense_ctx_;
+
+  // Stale-frame watchdog: restarts the rs2::pipeline once a frame is stale
+  // (older than stale_threshold_ms, default 10s) for 3 consecutive polls
+  // (debounce) — see watchdog::Tunables. Declared LAST so its thread joins
+  // first in ~Realsense; paused during reconfigure/firmware/device-change.
+  std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {
     std::cout << "[deviceChangedCallback] Device connection status changed"
@@ -1361,7 +1440,7 @@ private:
                                   config_copy, this->logger_);
         physical_camera_assigned_ = true;
         is_recovery_mode_ = false;
-        is_recovery_mode_ = false;
+        start_watchdog();
         return true;
       } catch (const std::exception &e) {
         VIAM_RESOURCE_LOG(error) << "[assign_and_initialize_device] Failed to "
