@@ -27,9 +27,9 @@ template <typename FrameSetT> class StaleFrameWatchdog;
 // consecutive_polls_required polls. Rate-limited (see Tunables).
 //
 // Owned by Realsense: construct after the pipeline starts, destroy before it
-// tears down. pause()/resume() (thread-safe) bracket operator-driven
-// transitions (reconfigure, firmware update, device change). RestartFn owns
-// whatever locking serializes pipeline mutations.
+// tears down. pause()/resume() (thread-safe) let the owner suspend stale
+// checking across a deliberate pipeline transition. RestartFn owns whatever
+// locking serializes pipeline mutations.
 template <typename FrameSetT> class StaleFrameWatchdog {
 public:
   // Returns true if the restart was attempted and (best-effort) succeeded;
@@ -77,8 +77,10 @@ public:
   StaleFrameWatchdog(StaleFrameWatchdog &&) = delete;
   StaleFrameWatchdog &operator=(StaleFrameWatchdog &&) = delete;
 
-  // Pause/resume during operator-initiated pipeline transitions
-  // (reconfigure, firmware update, USB device change). Idempotent.
+  // Suspend/resume stale checking around a deliberate pipeline transition
+  // driven by the owner. Idempotent. (Firmware update and device change are
+  // already covered by the recovery-mode skip and RestartFn's own locking, so
+  // there is currently no in-tree caller; kept as owner-facing API.)
   void pause() noexcept { paused_.store(true); }
   void resume() noexcept { paused_.store(false); }
 
@@ -212,20 +214,21 @@ private:
     return true;
   }
 
+  // rate_limited/record_restart/prune_restart_history are called only from the
+  // loop thread (via poll_once), so restart_history_ms_ needs no lock — same as
+  // last_rate_limited_log_ms_ below.
   bool rate_limited() {
-    std::lock_guard<std::mutex> guard(restart_history_mtx_);
-    prune_restart_history_locked();
+    prune_restart_history();
     return restart_history_ms_.size() >=
            static_cast<size_t>(tunables_.max_restarts_per_hour);
   }
 
   void record_restart() {
-    std::lock_guard<std::mutex> guard(restart_history_mtx_);
-    prune_restart_history_locked();
+    prune_restart_history();
     restart_history_ms_.push_back(static_cast<std::uint64_t>(time::getNowMs()));
   }
 
-  void prune_restart_history_locked() {
+  void prune_restart_history() {
     // Additive comparison (now - front) avoids unsigned underflow if getNowMs()
     // is ever smaller than ONE_HOUR_MS; front() <= now so this stays >= 0.
     auto now = static_cast<std::uint64_t>(time::getNowMs());
@@ -248,7 +251,7 @@ private:
   std::mutex cv_mutex_;
   std::condition_variable cv_;
 
-  std::mutex restart_history_mtx_;
+  // Loop-thread only (touched solely from poll_once); no lock needed.
   std::deque<std::uint64_t> restart_history_ms_;
 
   // Loop-thread only; last time the rate-limited error was logged.
