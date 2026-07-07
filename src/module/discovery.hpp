@@ -7,7 +7,6 @@
 #include <thread>
 
 #include <viam/sdk/config/resource.hpp>
-#include <viam/sdk/resource/reconfigurable.hpp>
 #include <viam/sdk/services/discovery.hpp>
 
 #include <librealsense2/rs.hpp>
@@ -154,6 +153,10 @@ public:
   viam::sdk::ProtoStruct
   do_command(const viam::sdk::ProtoStruct &command) override {
     VIAM_SDK_LOG(error) << "do_command not implemented";
+    return viam::sdk::ProtoStruct{};
+  }
+
+  viam::sdk::ProtoStruct get_status() override {
     return viam::sdk::ProtoStruct{};
   }
 };

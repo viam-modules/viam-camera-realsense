@@ -87,15 +87,6 @@ bool destroyDevice(
     std::shared_ptr<boost::synchronized_value<ViamDeviceT>> &dev) noexcept;
 
 /********************** STREAMING LIFECYCLE ************************/
-template <typename ViamConfigT, typename ViamDeviceT = ViamRSDevice<>,
-          typename DeviceT = rs2::device, typename ConfigT = rs2::config,
-          typename ColorSensorT = rs2::color_sensor,
-          typename DepthSensorT = rs2::depth_sensor,
-          typename VideoStreamProfileT = rs2::video_stream_profile>
-void reconfigureDevice(
-    std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
-    ViamConfigT const &viamConfig);
-
 template <typename ViamDeviceT, typename FrameSetT, typename ViamConfigT>
 void startDevice(
     std::string const &serialNumber,
