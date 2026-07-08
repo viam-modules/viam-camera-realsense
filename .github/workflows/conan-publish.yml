@@ -52,13 +52,16 @@ jobs:
 
       - name: Authenticate to viamconan
         env:
-          CONAN_REMOTE_URL: ${{ secrets.conanRemote }}
-          CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.conanUsername }}
-          CONAN_PASSWORD_VIAMCONAN: ${{ secrets.conanPassword }}
+          CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
+          CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
+          CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
         run: |
           . ./venv/bin/activate
-          # setup.sh already adds the remote; force-update URL in case it changed
-          conan remote update viamconan --url "$CONAN_REMOTE_URL" || true
+          # setup.sh already added viamconan with the correct URL. Only override
+          # it when the secret is actually set — never wipe it to empty.
+          if [ -n "$CONAN_REMOTE_URL" ]; then
+            conan remote update viamconan --url "$CONAN_REMOTE_URL"
+          fi
           conan remote auth --force -cc core:non_interactive=True viamconan
 
       - name: Build dependency graph (conan create)
@@ -70,6 +73,7 @@ jobs:
             -o "&:with_tests=False" \
             -s:a build_type=Release \
             -s:a compiler.cppstd=17 \
+            --lockfile conan.lock \
             --build=missing
 
       - name: Upload librealsense and libusb binaries
