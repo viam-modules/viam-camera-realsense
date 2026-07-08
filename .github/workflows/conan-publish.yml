@@ -36,6 +36,14 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container:
       image: ${{ matrix.image }}
+    # Job-level so every step that touches the remote (build + upload) has
+    # credentials. Conan auto-uses CONAN_LOGIN_USERNAME_<REMOTE> /
+    # CONAN_PASSWORD_<REMOTE> for auth, so uploads don't fall back to an
+    # interactive prompt (which EOFs in CI).
+    env:
+      CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
+      CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
+      CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
 
     steps:
       - name: Install make + sudo (container is minimal)
