@@ -44,6 +44,7 @@ class ViamRealsense(ConanFile):
         self.requires("libzip/1.11.1")
         # Pin to prebuilt versions; the SDK's floating ranges drifted to
         # newer releases that aren't prebuilt, forcing slow source builds.
+        self.requires("boost/1.90.0", override=True)
         self.requires("grpc/1.72.0", override=True)
         self.requires("protobuf/5.27.0", override=True)
         self.requires("abseil/20250127.0", override=True)

@@ -7,10 +7,8 @@ name: Publish conan packages
 # that Viam's cloud builder uses (see meta.json `distro` field).
 
 on:
-  # TEMPORARY: run on the PR so we can prototype the publish before merge.
-  # Remove (or scope to conanfile.py/conan.lock paths) before merging to main.
-  pull_request:
-    branches: [main]
+  # Manual only — fire from the Actions tab (or `gh workflow run`) when
+  # librealsense/libusb versions change and need re-publishing.
   workflow_dispatch:
     inputs:
       upload_module:
@@ -38,10 +36,10 @@ jobs:
       image: ${{ matrix.image }}
     # Job-level so every step that touches the remote (build + upload) has
     # credentials. Conan auto-uses CONAN_LOGIN_USERNAME_<REMOTE> /
-    # CONAN_PASSWORD_<REMOTE> for auth, so uploads don't fall back to an
-    # interactive prompt (which EOFs in CI).
+    # CONAN_PASSWORD_<REMOTE> to authenticate, so no step needs an explicit
+    # login and uploads never fall back to an interactive prompt (EOFs in CI).
+    # The remote URL itself is added by `make setup` (bin/setup.sh).
     env:
-      CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
       CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
       CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
 
@@ -58,18 +56,11 @@ jobs:
       - name: Run setup (installs conan + adds viamconan remote)
         run: make setup
 
-      - name: Authenticate to viamconan
-        env:
-          CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
-          CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
-          CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
+      - name: Verify viamconan auth (fail fast before the long build)
+        # Credentials come from the job-level env. This step just forces an
+        # auth handshake so bad creds fail here in seconds, not after the build.
         run: |
           . ./venv/bin/activate
-          # setup.sh already added viamconan with the correct URL. Only override
-          # it when the secret is actually set — never wipe it to empty.
-          if [ -n "$CONAN_REMOTE_URL" ]; then
-            conan remote update viamconan --url "$CONAN_REMOTE_URL"
-          fi
           conan remote auth --force -cc core:non_interactive=True viamconan
 
       - name: Build dependency graph (conan create)
