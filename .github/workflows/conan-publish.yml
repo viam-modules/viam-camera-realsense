@@ -1,18 +1,13 @@
 name: Publish conan packages
 
-# Publishes module-side Conan dependencies (librealsense, libusb,
-# and optionally viam-camera-realsense itself) to the viamconan
-# remote so cloud builds get cache hits instead of rebuilding from
-# source. Matrix targets the same debian:bookworm + arch combinations
-# that Viam's cloud builder uses (see meta.json `distro` field).
+# Publishes librealsense/libusb binaries to viamconan so cloud builds hit cache instead of rebuilding.
+# Run manually when the librealsense or libusb version changes.
 
 on:
-  # Manual only — fire from the Actions tab (or `gh workflow run`) when
-  # librealsense/libusb versions change and need re-publishing.
   workflow_dispatch:
     inputs:
       upload_module:
-        description: "Also upload viam-camera-realsense/* (off by default — only needed if consumers will pull it from Conan)"
+        description: "Also upload viam-camera-realsense/* (off by default)"
         type: boolean
         default: false
 
@@ -34,11 +29,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container:
       image: ${{ matrix.image }}
-    # Job-level so every step that touches the remote (build + upload) has
-    # credentials. Conan auto-uses CONAN_LOGIN_USERNAME_<REMOTE> /
-    # CONAN_PASSWORD_<REMOTE> to authenticate, so no step needs an explicit
-    # login and uploads never fall back to an interactive prompt (EOFs in CI).
-    # The remote URL itself is added by `make setup` (bin/setup.sh).
     env:
       CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
       CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
@@ -57,17 +47,14 @@ jobs:
         run: make setup
 
       - name: Verify viamconan auth (fail fast before the long build)
-        # Credentials come from the job-level env. This step just forces an
-        # auth handshake so bad creds fail here in seconds, not after the build.
         run: |
           . ./venv/bin/activate
           conan remote auth --force -cc core:non_interactive=True viamconan
 
       - name: Build dependency graph (conan create)
+        # Same flags as the Makefile so published package_ids match the cloud builder's.
         run: |
           . ./venv/bin/activate
-          # Same flags the Makefile uses for module.tar.gz, ensuring the
-          # package_ids we publish are what the cloud builder asks for.
           conan create . \
             -o "&:with_tests=False" \
             -s:a build_type=Release \
