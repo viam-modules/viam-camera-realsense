@@ -18,12 +18,14 @@
         "libudev/system#6aaa8ab03cabc6f3131bac21b7ce1e8a%1771480982.91",
         "librealsense/2.57.7#a2bf5dda425f60a205062c29dfb50a88%1776544567.211",
         "libjpeg-turbo/2.1.5#3c1b164ff9640f77b93b29ce78b275c1%1771480815.552",
+        "libiconv/1.17#1e65319e945f2d31941a9d28cc13c058%1767915472.238",
         "libcurl/8.9.1#ff74a2d353fcf9afd372370dcaebb66a%1771480809.633",
         "libbacktrace/cci.20210118#a7691bfccd8caaf66309df196790a5a1%1767915403.378",
         "grpc/1.72.0#716982a6240893b25ccedd8de6108462%1769627228.784",
         "c-ares/1.34.6#545240bb1c40e2cacd4362d6b8967650%1770059815.568",
         "bzip2/1.0.8#00b4a4658791c1f06914e087f0e792f5%1768277099.91",
-        "boost/1.90.0#d5e8defe7355494953be18524a7f135b%1768277519.639",
+        "boost/1.91.0#ea540ca2133d831b560036aa24dece3c%1779143123.044",
+        "boost/1.90.0#d5e8defe7355494953be18524a7f135b",
         "abseil/20250127.0#faefa3bbf31b5c32933e328d72e42cfe%1771480555.401"
     ],
     "build_requires": [
@@ -52,9 +54,6 @@
         "xtensor/[>=0.24.3 <0.27.0]": [
             "xtensor/0.26.0"
         ],
-        "boost/[>=1.74.0]": [
-            "boost/1.90.0"
-        ],
         "grpc/[>=1.48.4]": [
             "grpc/1.72.0"
         ],
@@ -62,6 +61,7 @@
             "protobuf/5.27.0"
         ],
         "xtensor/[>=0.24.3]": [
+            "xtensor/0.26.0",
             "xtensor/[>=0.24.3 <0.27.0]"
         ],
         "protobuf/5.27.0": [
@@ -69,10 +69,10 @@
             "protobuf/5.27.0"
         ],
         "zlib/[>=1.2.11 <2]": [
-            "zlib/1.3.1"
+            "zlib/1.3.1#b8bc2603263cf7eccbd6e17e66b0ed76"
         ],
         "abseil/[>=20240116.1 <=20250127.0]": [
-            "abseil/20250127.0"
+            "abseil/20250127.0#faefa3bbf31b5c32933e328d72e42cfe"
         ],
         "openssl/[>=1.1 <4]": [
             "openssl/3.6.0"
@@ -82,7 +82,7 @@
             "re2/20230301"
         ],
         "abseil/[>=20230802.1 <=20250127.0]": [
-            "abseil/20250127.0"
+            "abseil/20250127.0#faefa3bbf31b5c32933e328d72e42cfe"
         ]
     },
     "config_requires": []
