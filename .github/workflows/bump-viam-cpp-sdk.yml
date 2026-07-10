@@ -36,7 +36,7 @@ jobs:
           tag="$(gh release view --repo viamrobotics/viam-cpp-sdk --json tagName --jq .tagName)"
           latest="${tag#releases/v}"
           # Currently pinned version in conanfile.py, e.g. viam-cpp-sdk/0.31.0
-          current="$(grep -oE 'viam-cpp-sdk/[0-9]+\.[0-9]+\.[0-9]+' conanfile.py | head -1 | cut -d/ -f2)"
+          current="$(conan inspect . --format json | jq .version)"
           echo "latest=$latest"   >> "$GITHUB_OUTPUT"
           echo "current=$current" >> "$GITHUB_OUTPUT"
           # Only bump forward (never downgrade).
