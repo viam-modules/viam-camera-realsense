@@ -29,7 +29,7 @@
 #include <boost/thread/synchronized_value.hpp>
 namespace realsense {
 static const std::unordered_set<std::string> SUPPORTED_CAMERA_MODELS = {
-    "D415", "D435", "D435I"};
+    "D405", "D415", "D435", "D435I"};
 static constexpr std::uint64_t MAX_FRAME_AGE_MS =
     1e3; // time until a frame is considered stale, in miliseconds (equal to 1
 static constexpr size_t MAX_GRPC_MESSAGE_SIZE =
@@ -844,6 +844,18 @@ public:
       // X = 20 (centerline->left imager) + color->depth baseline.
       return {viam::sdk::GeometryConfig(viam::sdk::pose{35, 0, -8.9},
                                         viam::sdk::box({99, 23, 20}), "box")};
+    }
+    if (model && (*model == "D405")) {
+      // D405: 42 (w) x 42 (h) x 23 (d) mm, datasheet 337029-017 Table 3-54.
+      // The D405 has no dedicated RGB sensor: the color stream comes from
+      // the left stereo imager, so the color->depth translation is ~0 and
+      // the origin is the left imager itself.
+      // X = 9 (mount centerline->left imager, Table 4-20); the imagers sit
+      // on the housing's horizontal centerline, so y = 0.
+      // Z = 23/2 - 3.7 (depth start point behind front glass, Table 4-16)
+      //   = 7.8 mm.
+      return {viam::sdk::GeometryConfig(viam::sdk::pose{9, 0, -7.8},
+                                        viam::sdk::box({42, 42, 23}), "box")};
     }
     // Default: D435 / D435i geometry.
     // D435: 90 (w) x 25 (h) x 25 (d) mm. Z = 25/2 - 4.2 = 8.3 mm.
