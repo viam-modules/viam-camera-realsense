@@ -93,14 +93,14 @@ The following methods of the Viam camera API are supported:
 
 The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is anchored at the depth left imager** for `extrinsic_parameters`.
 
-> **Note:** the bounding-box geometries returned by `get_geometries` are anchored at the **color (RGB) sensor**, not the depth left imager, since `get_properties` reports color intrinsics and the poses callers derive from the images are in the color frame. This differs from the `extrinsic_parameters` reference frame described below, and from the `GetPointCloud` output (which is in the depth frame). If you compose geometries and point clouds in the same frame, account for the ~14.7 mm (D435/D435i) color→depth baseline.
+> **Note:** the bounding-box geometries returned by `get_geometries` are anchored at the **color (RGB) sensor**, not the depth left imager, since `get_properties` reports color intrinsics and the poses callers derive from the images are in the color frame. This differs from the `extrinsic_parameters` reference frame described below, and from the `GetPointCloud` output (which is in the depth frame). If you compose geometries and point clouds in the same frame, account for the ~14.7 mm (D435/D435i) color→depth baseline. The D405 has no dedicated RGB sensor — its color stream comes from the depth left imager — so on that model the color and depth frames share an origin and the baseline is ~0.
 
 `get_properties` returns color intrinsics whenever `color` is configured (depth intrinsics otherwise), regardless of `sensors` list order. `extrinsic_parameters` is always the transform from the intrinsics sensor's frame to the depth left imager (the camera reference frame). With the default `["color", "depth"]` config this is the color→depth transform; when only depth is configured — or only one sensor is configured — extrinsics are identity (zero translation).
 
 | Field | Contents |
 | ----- | -------- |
 | `intrinsic_parameters` | `fx`, `fy`, `ppx`, `ppy` for the color sensor when configured, otherwise depth. |
-| `extrinsic_parameters.translation` | Transform from the intrinsics sensor's frame to the depth left imager (camera reference frame), in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i when color is configured (color→depth direction); identity when only depth is configured. |
+| `extrinsic_parameters.translation` | Transform from the intrinsics sensor's frame to the depth left imager (camera reference frame), in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i when color is configured (color→depth direction); ~identity on the D405 (color is served by the left imager); identity when only depth is configured. |
 | `extrinsic_parameters.orientation` | Identity — the sub-degree rotation between depth and color is treated as zero. |
 
 With the default config (`["color", "depth"]`), if you derive a pose from color-stream intrinsics (e.g. an AprilTag detector or any PnP solver), the resulting pose is in the **color sensor frame**. To express it in the camera reference frame — which is what Viam composes against other components and the world frame — add `extrinsic_parameters.translation`:
@@ -378,14 +378,16 @@ Or, if you aren't using the Viam app to manage your machine's configuration, mod
 
 Support for specific hardware is known for the following devices. The table is not complete and subject to change.
 
-| Devices               | D415 | D435 | D435i | D455 |
-|-----------------------|------|------|-------|------|
-| RPi 4B/5 Trixie       |      |  X   |   X   |      |
-| RPi 4B/5 Bookworm     |      |  X   |   X   |      |
-| RPi 4B Bullseye       |      |  X   |       |      |
-| Orin Nano JetPack 5.1 |      |  X   |   X   |  X   |
-| UP 4000               |      |  X   |       |      |
-| macOS                 |      |      |  (1)  |      |
+| Devices               | D405 | D415 | D435 | D435i | D455 |
+|-----------------------|------|------|------|-------|------|
+| RPi 4B/5 Trixie       |      |      |  X   |   X   |      |
+| RPi 4B/5 Bookworm     |      |      |  X   |   X   |      |
+| RPi 4B Bullseye       |      |      |  X   |       |      |
+| Orin Nano JetPack 5.1 |      |      |  X   |   X   |  X   |
+| UP 4000               |      |      |  X   |       |      |
+| macOS                 |      |      |      |  (1)  |      |
+
+D405 support is implemented (the module accounts for its single-sensor design, where the color stream is served by the depth left imager, and its 0.1 mm default depth units) but has not yet been validated on the platforms above.
 
 (1) macOS support is experimental and based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense. May have stability issues. Firmware updates are not supported on macOS.
 
