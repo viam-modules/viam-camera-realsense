@@ -18,20 +18,39 @@ namespace realsense {
 namespace device {
 class PointCloudFilter {
 public:
-  PointCloudFilter() : pointcloud_(std::make_shared<rs2::pointcloud>()) {}
+  PointCloudFilter()
+      : pointcloud_(std::make_shared<rs2::pointcloud>()),
+        align_to_color_(std::make_shared<rs2::align>(RS2_STREAM_COLOR)) {}
   std::pair<rs2::points, rs2::video_frame> process(rs2::frameset frameset) {
-    auto depth_frame = frameset.get_depth_frame();
-    if (!depth_frame) {
+    // Validate both streams are present first so we can surface a helpful
+    // message (align_to_color_->process below would otherwise throw a generic
+    // error when the color stream is missing).
+    if (!frameset.get_depth_frame()) {
       throw std::runtime_error("No depth frame in frameset");
     }
-    auto color_frame = frameset.get_color_frame();
-    if (!color_frame) {
+    if (!frameset.get_color_frame()) {
       throw std::runtime_error(
           "No color frame in frameset — point clouds require both color and "
           "depth streams. Possible causes: \"color\" is not listed in the "
           "sensors config, or the camera is not receiving enough USB bandwidth "
           "(try a different cable or port).");
     }
+
+    // Register depth to the color frame before deprojecting. calculate()
+    // produces vertices in the coordinate frame of the depth map it is given;
+    // on a RealSense the depth/left-IR sensor is physically offset (~15 mm)
+    // from the color sensor. Because get_properties() reports COLOR intrinsics
+    // and downstream consumers (e.g. the detections-to-segments vision service)
+    // project cloud points through those intrinsics WITHOUT applying extrinsics
+    // — assuming the cloud is already registered to the color frame — a cloud
+    // left in the depth frame is shifted by the depth<->color baseline (~30 px
+    // horizontally at 0.5 m), causing 2D bounding boxes to select the wrong 3D
+    // points. Aligning to color first makes calculate() emit vertices in the
+    // color frame and reduces the texture mapping to identity.
+    auto aligned = align_to_color_->process(frameset);
+    auto depth_frame = aligned.get_depth_frame();
+    auto color_frame = aligned.get_color_frame();
+
     pointcloud_->map_to(color_frame);
     auto points = pointcloud_->calculate(depth_frame);
     return std::make_pair(points, color_frame);
@@ -39,6 +58,7 @@ public:
 
 private:
   std::shared_ptr<rs2::pointcloud> pointcloud_;
+  std::shared_ptr<rs2::align> align_to_color_;
 };
 
 template <typename DeviceT = rs2::device, typename PipeT = rs2::pipeline,
