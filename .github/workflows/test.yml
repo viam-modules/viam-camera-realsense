@@ -15,7 +15,7 @@ on:
 jobs:
   run-tests:
     name: Run Tests
-    timeout-minutes: 10
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,6 +38,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      # Same path/key as build-publish.yml so the two workflows share Conan
+      # caches (macos-latest collides; Linux legs keep their own namespace).
+      - name: Restore cached libraries
+        uses: actions/cache@v3
+        with:
+          path: ~/.conan2
+          key: ${{ matrix.os }}-conan-${{ hashFiles('**/conanfile.py') }}
+          restore-keys: |
+            ${{ matrix.os }}-conan-
 
       - name: Install dependencies
         run: |

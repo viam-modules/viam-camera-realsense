@@ -20,7 +20,7 @@ jobs:
         include:
           - os: ubuntu-latest
             make_target: docker-amd64-ci
-          - os: buildjet-16vcpu-ubuntu-2204-arm
+          - os: github-linux-arm64-8core
             make_target: docker-arm64-ci
 
     steps:

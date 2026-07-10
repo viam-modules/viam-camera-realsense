@@ -14,6 +14,11 @@ on:
         default: main
         description: realsense module branch to run on
   pull_request:
+  # Build on main (no artifact upload / publish) to seed a main-scoped Conan
+  # cache that PR and release runs can restore.
+  push:
+    branches:
+      - main
 
 
 permissions:

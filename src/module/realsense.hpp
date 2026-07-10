@@ -7,6 +7,7 @@
 #include "sensors.hpp"
 #include "time.hpp"
 #include "utils.hpp"
+#include "watchdog.hpp"
 #include "zip_utils.hpp"
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
@@ -186,12 +187,6 @@ struct RsResourceConfig {
       : serial_number(serial_number), resource_name(resource_name),
         sensors(sensors), width(width), height(height),
         align_color_depth(align_color_depth) {}
-  sensors::SensorType getMainSensor() const {
-    if (sensors.empty()) {
-      throw std::invalid_argument("sensors list is empty");
-    }
-    return sensors[0];
-  }
 };
 
 struct DeviceFunctions {
@@ -276,6 +271,10 @@ public:
         << "Realsense constructor end " << requested_serial_number;
   }
   ~Realsense() {
+    // Stop the watchdog FIRST so its thread joins before we touch
+    // device_/latest_frameset_. Otherwise a watchdog-triggered restart
+    // could race with destructor teardown.
+    watchdog_.reset();
     if (device_) {
       { // Begin scope for device_guard lock
         auto device_guard = device_->synchronize();
@@ -297,6 +296,23 @@ public:
   void reconfigure(const viam::sdk::Dependencies &deps,
                    const viam::sdk::ResourceConfig &cfg) override {
     VIAM_RESOURCE_LOG(info) << "[reconfigure] reconfigure start";
+    // Pause the watchdog for the duration of reconfigure so it can't
+    // race with operator-initiated stop/start of the pipeline. RAII
+    // guard pauses on construction and resumes on destruction (incl.
+    // exception paths); pause()/resume() are noexcept.
+    struct WatchdogPauseGuard {
+      watchdog::StaleFrameWatchdog<rs2::frameset> *w;
+      explicit WatchdogPauseGuard(
+          watchdog::StaleFrameWatchdog<rs2::frameset> *w)
+          : w(w) {
+        if (w)
+          w->pause();
+      }
+      ~WatchdogPauseGuard() {
+        if (w)
+          w->resume();
+      }
+    } watchdog_pause_guard{watchdog_.get()};
     if (not physical_camera_assigned_) {
       VIAM_RESOURCE_LOG(error)
           << "[reconfigure] cannot reconfigure a device that "
@@ -877,38 +893,39 @@ public:
         // Calculate extrinsics from stream to reference stream
         p.extrinsic_parameters =
             realsense::extrinsics::get_extrinsics(stream, ref_stream);
-        /*
-       Disabling distortion parameters for now, when this is reenabled, we need
-       to make sure that get_properties works well through the SDK. A way to do
-       this is to create a python script and query camera.get_properties and
-       make sure it doesn't throw an error. This is related to this ticker:
-       https://viam.atlassian.net/browse/RSDK-12408
 
-       Which errors when creatng a new distorter here:
-       https://github.com/viamrobotics/rdk/blob/062f15b372240c332fa309760da8f607c5af6c9a/components/camera/client.go#L315
+        switch (props.model) {
+        case RS2_DISTORTION_BROWN_CONRADY:
+        case RS2_DISTORTION_MODIFIED_BROWN_CONRADY:
+          p.distortion_parameters.model = "brown_conrady";
+          break;
+        case RS2_DISTORTION_INVERSE_BROWN_CONRADY:
+          p.distortion_parameters.model = "inverse_brown_conrady";
+          break;
+        default:
+          p.distortion_parameters.model = "";
+          break;
+        }
 
-       There is another fundamental aspect to this, the distorer presumably
-       distorts images using the distortion models supperted here:
-       https://github.com/viamrobotics/rdk/blob/e97069d07515d7e5961ba5ac2ef660619a2d6dda/rimage/transform/distorter.go#L10
-       Tghe consists of BrownConradyDistortionType and
-       KannalaBrandtDistortionType. But realsense reports a InverseBrownConrady
-       as its distortion model, which aparently does the inverse operation, take
-       a distorted image and undistort it. We need to figure out how to handle
-       this.
+        // RealSense reports coeffs in OpenCV order [k1, k2, p1, p2, k3], but
+        // rdk's (Inverse)BrownConrady distorter expects [k1, k2, k3, p1, p2]
+        // (all radial terms, then tangential). Reorder to match rdk's contract.
+        if (not p.distortion_parameters.model.empty()) {
+          p.distortion_parameters.parameters = {
+              props.coeffs[0], // RadialK1     (k1)
+              props.coeffs[1], // RadialK2     (k2)
+              props.coeffs[4], // RadialK3     (k3)
+              props.coeffs[2], // TangentialP1 (p1)
+              props.coeffs[3], // TangentialP2 (p2)
+          };
+        }
 
-        */
-        // p.distortion_parameters.model =
-        // rs2_distortion_to_string(props.model); for (auto const &coeff :
-        // props.coeffs)
-        //   p.distortion_parameters.parameters.push_back(coeff);
-
-        // std::stringstream coeffs_stream;
-        // for (size_t i = 0; i < p.distortion_parameters.parameters.size();
-        // ++i) {
-        //   if (i > 0)
-        //     coeffs_stream << ", ";
-        //   coeffs_stream << p.distortion_parameters.parameters[i];
-        // }
+        std::stringstream coeffs_stream;
+        for (size_t i = 0; i < p.distortion_parameters.parameters.size(); ++i) {
+          if (i > 0)
+            coeffs_stream << ", ";
+          coeffs_stream << p.distortion_parameters.parameters[i];
+        }
 
         VIAM_RESOURCE_LOG(debug)
             << "[get_properties] properties: ["
@@ -917,11 +934,10 @@ public:
             << "focal_x: " << p.intrinsic_parameters.focal_x_px << ", "
             << "focal_y: " << p.intrinsic_parameters.focal_y_px << ", "
             << "center_x: " << p.intrinsic_parameters.center_x_px << ", "
-            << "center_y: " << p.intrinsic_parameters.center_y_px << "]";
-        // << "distortion_model: " << p.distortion_parameters.model << ", "
-        // << "distortion_coeffs: [" << coeffs_stream.str() << "]" << "]";
+            << "center_y: " << p.intrinsic_parameters.center_y_px << ", "
+            << "distortion_model: " << p.distortion_parameters.model << ", "
+            << "distortion_coeffs: [" << coeffs_stream.str() << "]" << "]";
       };
-      rs2_intrinsics props;
       viam::sdk::Camera::properties response{};
       { // Begin scope for my_dev lock
         auto my_dev = device_->synchronize();
@@ -934,26 +950,42 @@ public:
         }
 
         auto profile = my_dev->pipe->get_active_profile();
-        auto depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
-                                .as<rs2::video_stream_profile>();
-        auto color_stream = profile.get_stream(RS2_STREAM_COLOR)
-                                .as<rs2::video_stream_profile>();
-
-        if (config_->getMainSensor() == sensors::SensorType::color) {
-          if (not color_stream) {
-            throw std::runtime_error("color stream is not available");
-          }
-          auto props = color_stream.get_intrinsics();
-          auto ref_stream = depth_stream ? depth_stream : color_stream;
-          fillResp(response, props, color_stream, ref_stream);
-        } else if (config_->getMainSensor() == sensors::SensorType::depth) {
-          if (not depth_stream) {
-            throw std::runtime_error("depth stream is not available");
-          }
-          auto props = depth_stream.get_intrinsics();
-          auto ref_stream = color_stream ? color_stream : depth_stream;
-          fillResp(response, props, depth_stream, ref_stream);
+        // Fetch streams defensively: a stream absent from the active profile
+        // (e.g. sensors: ["depth"] has no color stream) throws rather than
+        // returning an invalid profile, so we catch and leave unset.
+        rs2::video_stream_profile depth_stream, color_stream;
+        try {
+          depth_stream = profile.get_stream(RS2_STREAM_DEPTH)
+                             .as<rs2::video_stream_profile>();
+        } catch (const std::exception &e) {
+          VIAM_RESOURCE_LOG(debug)
+              << "[get_properties] depth stream not in active profile: "
+              << e.what();
         }
+        try {
+          color_stream = profile.get_stream(RS2_STREAM_COLOR)
+                             .as<rs2::video_stream_profile>();
+        } catch (const std::exception &e) {
+          VIAM_RESOURCE_LOG(debug)
+              << "[get_properties] color stream not in active profile: "
+              << e.what();
+        }
+
+        // The camera reference frame is always the depth left imager, matching
+        // get_geometries. Intrinsics come from color when configured (the
+        // stream most callers derive poses from), otherwise depth. Extrinsics
+        // are therefore intrinsics_stream -> depth, which is identity whenever
+        // depth is the intrinsics stream or only one sensor is configured.
+        const rs2::video_stream_profile &intrinsics_stream =
+            color_stream ? color_stream : depth_stream;
+        if (not intrinsics_stream) {
+          throw std::runtime_error(
+              "neither color nor depth stream is available");
+        }
+        const rs2::video_stream_profile &ref_stream =
+            depth_stream ? depth_stream : color_stream;
+        auto props = intrinsics_stream.get_intrinsics();
+        fillResp(response, props, intrinsics_stream, ref_stream);
       } // End scope for my_dev lock
 
       VIAM_RESOURCE_LOG(debug) << "[get_properties] end";
@@ -967,10 +999,33 @@ public:
   std::vector<viam::sdk::GeometryConfig>
   get_geometries(const viam::sdk::ProtoStruct &extra) override {
     // Geometries are model-specific. The pose is the offset from the camera
-    // reference origin (depth left imager) to the center of the bounding box,
-    // and the box dimensions match the physical module size in mm. See
-    // https://github.com/viam-modules/viam-camera-realsense/pull/75 for the
-    // derivation of the D435/D435i values.
+    // reference origin (the RGB/color sensor) to the center of the bounding
+    // box, and the box dimensions {x, y, z} match the physical module size in
+    // mm. The camera optical frame is +X right, +Y down, +Z forward (out of
+    // the lens), so x = width, y = height, z = depth.
+    //
+    // The origin is the color sensor because get_properties reports color
+    // intrinsics and the images/derived poses callers work with are in the
+    // color frame. Box dimensions and the depth-imager placement come from the
+    // Intel RealSense D400-Series Datasheet (337029-005); the color sensor's
+    // position is then derived from the color->depth extrinsics.
+    //   - Module dimensions: Table 3-43 (D415), Table 3-44 (D435/D435i).
+    //   - The depth left imager is offset from the module centerline (the box
+    //     center) per Table 4-15 (17.5 mm for D435/D435i, 20 mm for D415), on
+    //     the -X side: the right imager is one stereo baseline (50 mm D435,
+    //     55 mm D415) further along +X, which would fall off the module edge
+    //     if the left imager were on the +X side.
+    //   - The color sensor sits a further ~14.7 mm along -X from the depth left
+    //     imager for D435/D435i (color->depth extrinsics ~= {-14.7, 0, 0} mm),
+    //     so it is ~32.2 mm in -X from the box center, with no Y/Z component.
+    //     The offset from the origin (color sensor) to the box center is
+    //     therefore +X (positive): +32.2 mm for D435/D435i.
+    //   - Z offset: the color sensor shares the depth origin's Z plane, which
+    //     sits behind the front cover glass per Table 4-13 (4.2 mm for
+    //     D435/D435i, 1.1 mm for D415). The glass is the front face of the box,
+    //     so the box center is (depth/2 - recession) behind the origin. The
+    //     imagers are on the housing's horizontal centerline (Figure 4-6), and
+    //     the color->depth extrinsics have no Y component, so y = 0.
     // NOTE: when adding support for additional RealSense camera models,
     // update this switch accordingly.
     std::optional<std::string> model;
@@ -981,14 +1036,15 @@ public:
       }
     }
     if (model && (*model == "D415")) {
-      // D415 module dimensions per Intel datasheet: 99 x 20 x 23 mm.
-      // The depth left imager sits near the left edge of the front face,
-      // mirroring the D435 layout offset by the difference in module size.
-      return {viam::sdk::GeometryConfig(viam::sdk::pose{-22, 0, -11.5},
-                                        viam::sdk::box({99, 20, 23}), "box")};
+      // D415: 99 (w) x 23 (h) x 20 (d) mm. Z = 20/2 - 1.1 = 8.9 mm.
+      // X = 20 (centerline->left imager) + color->depth baseline.
+      return {viam::sdk::GeometryConfig(viam::sdk::pose{35, 0, -8.9},
+                                        viam::sdk::box({99, 23, 20}), "box")};
     }
     // Default: D435 / D435i geometry.
-    return {viam::sdk::GeometryConfig(viam::sdk::pose{-17.5, 0, -12.5},
+    // D435: 90 (w) x 25 (h) x 25 (d) mm. Z = 25/2 - 4.2 = 8.3 mm.
+    // X = 17.5 (centerline->left imager) + 14.7 (color->depth baseline) = 32.2.
+    return {viam::sdk::GeometryConfig(viam::sdk::pose{32.2, 0, -8.3},
                                       viam::sdk::box({90, 25, 25}), "box")};
   }
 
@@ -1188,6 +1244,57 @@ public:
     deviceChangedCallback(info);
   }
 
+  // Constructs the stale-frame watchdog. Called once on first successful
+  // device initialization in assign_and_initialize_device. The watchdog
+  // lives for the rest of the Realsense lifetime; reconfigure-driven
+  // pipeline transitions use pause()/resume() rather than recreating it.
+  void start_watchdog() {
+    if (watchdog_) {
+      return; // already running, nothing to do
+    }
+    auto restart_fn = [this]() -> bool {
+      // Serialize the stop/start against do_command (e.g. firmware update),
+      // which also rebuilds the pipeline.
+      std::lock_guard<std::mutex> guard(do_command_mutex_);
+      if (is_recovery_mode_.get() || !device_) {
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] skip restart: recovery mode or no device";
+        return false;
+      }
+      auto cfg = config_.get();
+      VIAM_RESOURCE_LOG(warn)
+          << "[watchdog] restarting rs2::pipeline after sustained "
+          << "staleness on serial " << cfg.serial_number;
+      if (!device_funcs_.stopDevice(device_, this->logger_)) {
+        VIAM_RESOURCE_LOG(error) << "[watchdog] stopDevice failed";
+        return false;
+      }
+      try {
+        device_funcs_.startDevice(cfg.serial_number, device_, latest_frameset_,
+                                  MAX_FRAME_AGE_MS, cfg, this->logger_);
+        VIAM_RESOURCE_LOG(info)
+            << "[watchdog] pipeline restart succeeded on " << cfg.serial_number;
+        return true;
+      } catch (const std::exception &e) {
+        VIAM_RESOURCE_LOG(error)
+            << "[watchdog] startDevice threw during restart: " << e.what();
+        return false;
+      }
+    };
+    auto recovery_check = [this]() { return is_recovery_mode_.get(); };
+    // Read latest_frameset_ on every poll — captures `this` so we always
+    // see the freshest shared_ptr value Realsense holds (frameCallback
+    // reassigns the pointer per frame). Empty frameset when none yet.
+    auto get_fs = [this]() -> rs2::frameset {
+      return latest_frameset_ ? latest_frameset_->get() : rs2::frameset{};
+    };
+    watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
+        std::move(get_fs), std::move(recovery_check), std::move(restart_fn),
+        this->logger_);
+    VIAM_RESOURCE_LOG(info)
+        << "[watchdog] constructed for serial " << config_->serial_number;
+  }
+
 private:
   boost::synchronized_value<RsResourceConfig> config_;
   std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> device_;
@@ -1205,6 +1312,12 @@ private:
 
   DeviceFunctions device_funcs_;
   std::shared_ptr<RealsenseContext<SynchronizedContextT>> realsense_ctx_;
+
+  // Stale-frame watchdog: restarts the rs2::pipeline once a frame is stale
+  // (older than stale_threshold_ms, default 10s) for 3 consecutive polls
+  // (debounce) — see watchdog::Tunables. Declared LAST so its thread joins
+  // first in ~Realsense; paused during reconfigure/firmware/device-change.
+  std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {
     std::cout << "[deviceChangedCallback] Device connection status changed"
@@ -1575,7 +1688,7 @@ private:
                                   config_copy, this->logger_);
         physical_camera_assigned_ = true;
         is_recovery_mode_ = false;
-        is_recovery_mode_ = false;
+        start_watchdog();
         return true;
       } catch (const std::exception &e) {
         VIAM_RESOURCE_LOG(error) << "[assign_and_initialize_device] Failed to "

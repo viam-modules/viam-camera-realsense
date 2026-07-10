@@ -6,10 +6,15 @@
 namespace realsense {
 namespace time {
 inline double getNowMs() {
-  auto now = std::chrono::high_resolution_clock::now();
+  // Must use system_clock (Unix-epoch domain) to match librealsense frame
+  // timestamps under RS2_OPTION_GLOBAL_TIME_ENABLED. NOTE: do NOT use
+  // high_resolution_clock here — on libc++ (macOS) it aliases steady_clock,
+  // whose epoch is ~process start, so frame-age math (now - frame_ts) would be
+  // hugely negative and rate-limit window math would underflow.
+  auto now = std::chrono::system_clock::now();
   auto now_ms =
       std::chrono::duration<double, std::milli>(now.time_since_epoch())
-          .count(); // System time (ms)
+          .count(); // Unix time (ms)
 
   return now_ms;
 }

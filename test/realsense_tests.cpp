@@ -573,7 +573,7 @@ TEST_F(RealsenseTest, GetGeometriesReturnsExpectedGeometry) {
   EXPECT_EQ(geometries.size(), 1);
   EXPECT_EQ(geometries,
             std::vector<viam::sdk::GeometryConfig>{viam::sdk::GeometryConfig(
-                viam::sdk::pose{-17.5, 0, -12.5}, viam::sdk::box({90, 25, 25}),
+                viam::sdk::pose{32.2, 0, -8.3}, viam::sdk::box({90, 25, 25}),
                 "box")});
 }
 

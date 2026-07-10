@@ -6,3 +6,6 @@ build
 venv
 .venv
 .VIAM_RELOAD_ARCHIVE.tar.gz
+compile_commands.json
+.cache
+CMakeUserPresets.json
