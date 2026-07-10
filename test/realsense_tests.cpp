@@ -409,6 +409,73 @@ TEST_F(RealsenseTest, ValidateRejectsAlignColorDepthWithoutBothSensors) {
                std::invalid_argument);
 }
 
+// -------- Scalar tuning-parameter validation tests --------
+// Each verifies that validate() rejects one bad tuning attribute. Types are
+// covered where different from range, one per parameter to keep it lean.
+namespace {
+ResourceConfig makeTuningConfig(std::string const &test_name,
+                                std::string const &key, ProtoValue value) {
+  auto attributes = ProtoStruct{};
+  attributes[key] = std::move(value);
+  return ResourceConfig("rdk:component:camera", "", test_name, attributes, "",
+                        Model("viam", "camera", "realsense"), LinkConfig{},
+                        log_level::info);
+}
+} // namespace
+
+TEST_F(RealsenseTest, ValidateRejectsLaserPowerOutOfRange) {
+  auto cfg = makeTuningConfig(test_name_, "laser_power", 500.0);
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateRejectsDepthEmitterNonBool) {
+  auto cfg =
+      makeTuningConfig(test_name_, "depth_emitter_enabled", std::string("on"));
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateRejectsUnknownVisualPreset) {
+  auto cfg = makeTuningConfig(test_name_, "depth_visual_preset",
+                              std::string("Cinematic"));
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateRejectsDepthExposureOutOfRange) {
+  auto cfg = makeTuningConfig(test_name_, "depth_exposure_us", 999999.0);
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateRejectsDepthAutoExposureNonBool) {
+  auto cfg =
+      makeTuningConfig(test_name_, "depth_auto_exposure", std::string("yes"));
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateRejectsDepthGainOutOfRange) {
+  auto cfg = makeTuningConfig(test_name_, "depth_gain", 500.0);
+  EXPECT_THROW(Realsense<SimpleMockContext>::validate(cfg),
+               std::invalid_argument);
+}
+
+TEST_F(RealsenseTest, ValidateAcceptsValidTuningParams) {
+  auto attributes = ProtoStruct{};
+  attributes["laser_power"] = 150.0;
+  attributes["depth_emitter_enabled"] = true;
+  attributes["depth_visual_preset"] = std::string("high_accuracy");
+  attributes["depth_exposure_us"] = 8500.0;
+  attributes["depth_auto_exposure"] = false;
+  attributes["depth_gain"] = 16.0;
+  ResourceConfig cfg("rdk:component:camera", "", test_name_, attributes, "",
+                     Model("viam", "camera", "realsense"), LinkConfig{},
+                     log_level::info);
+  EXPECT_NO_THROW(Realsense<SimpleMockContext>::validate(cfg));
+}
+
 TEST_F(RealsenseTest, ValidateAcceptsAlignColorDepthWithDefaultSensors) {
   // No `sensors` attribute means both color and depth are enabled by default,
   // which is fine for align_color_depth.

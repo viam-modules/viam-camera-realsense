@@ -48,6 +48,12 @@ The following attributes are available for `viam:camera:realsense` cameras:
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If this field is omitted or is an empty string, the module will use the first RealSense camera it detects. |
 | `align_color_depth` | bool | Optional | When `true`, depth frames returned by `GetImages` are spatially aligned to the color frame using librealsense's [`rs2::align`](https://github.com/IntelRealSense/librealsense/blob/master/wrappers/python/examples/align-depth2color.py) filter. After alignment, `depth_image[v, u]` corresponds to the same physical point as `color_image[v, u]` (the depth grid is resampled to the color frame). This is required for any consumer that combines a 2D mask drawn on the color image with depth values (e.g. SAM2-based segmentation pipelines). Defaults to `false` to preserve the historical behavior of returning the raw, unaligned streams. Both `color` and `depth` must be present in the `sensors` list when this is enabled. Does not affect `GetPointCloud` (the point cloud is already deprojected from depth and color-mapped via `rs2::pointcloud`). |
+| `laser_power` | number | Optional | IR projector power for the depth stream, in the range `[0, 360]`. Lower values reduce specular saturation on glossy/light surfaces; higher values improve depth fill on textureless ones. If omitted, the camera keeps its factory/firmware default. |
+| `depth_emitter_enabled` | bool | Optional | Enables or disables the IR projector emitter. Useful for stereo-only operation or when an external IR source is used. If omitted, the camera keeps its current setting. |
+| `depth_visual_preset` | string | Optional | Loads a built-in depth tuning preset. One of: `default`, `hand`, `high_accuracy`, `high_density`, `medium_density`, `remove_ir_pattern`. The preset is applied **before** any individual depth knobs below, so per-option overrides win when both are set. |
+| `depth_exposure_us` | number | Optional | Manual depth-sensor exposure in microseconds, in the range `[1, 200000]`. Setting this implicitly disables auto-exposure on the depth stream. If omitted, the camera keeps its current exposure behavior. |
+| `depth_auto_exposure` | bool | Optional | Enables (`true`) or disables (`false`) auto-exposure on the depth sensor. If both `depth_auto_exposure` and `depth_exposure_us` are set, manual exposure wins and a warning is logged. |
+| `depth_gain` | number | Optional | Manual depth-sensor gain in the range `[0, 248]`. If omitted, the camera keeps its current gain. |
 
 ## Example configuration:
 
@@ -312,6 +318,41 @@ If automatic recovery fails, you can manually recover using Intel's tools, more 
 - **One at a time**: Only update one camera at a time if you have multiple devices
 - **Check logs**: Module logs provide detailed progress and error information
 - **Verify device name**: A camera in recovery mode will appear with a `-recovery` suffix in its name
+
+### Runtime Depth Sensor Tuning
+
+The depth sensor knobs documented in the [Attributes](#attributes) table can also be adjusted at runtime via `do_command`, without restarting the module. This is useful for A/B-testing tuning values without redeploying the configuration.
+
+Each command takes exactly one key. The supported commands are:
+
+| Command | Value Type | Description |
+| ------- | ---------- | ----------- |
+| `set_laser_power` | number | IR projector power, `[0, 360]`. |
+| `set_depth_emitter` | bool | Enable/disable the IR emitter. |
+| `set_depth_visual_preset` | string | Load a built-in preset (same values as the `depth_visual_preset` attribute). |
+| `set_depth_exposure_us` | number | Manual exposure in microseconds. |
+| `set_depth_auto_exposure` | bool | Enable/disable auto-exposure on the depth sensor. |
+| `set_depth_gain` | number | Manual gain, `[0, 248]`. |
+| `get_depth_options` | any | Read back the current depth-sensor option values. |
+
+> [!NOTE]
+> Runtime overrides are **not persisted**: the next reconfigure (or pipeline restart) re-applies the values from the resource config. To make a change permanent, also update the matching attribute on the component.
+
+#### Example using Python SDK
+
+```python
+# Lower the IR projector to reduce specular saturation
+await camera.do_command({"set_laser_power": 60})
+
+# Switch to the built-in high-accuracy preset
+await camera.do_command({"set_depth_visual_preset": "high_accuracy"})
+
+# Read back the current depth-sensor settings
+state = await camera.do_command({"get_depth_options": ""})
+# -> {"sensor_present": True, "laser_power": 60.0, "visual_preset": "high_accuracy", ...}
+```
+
+Each `set_*` command returns a `ProtoStruct` with `success` (bool) plus either the applied `option` / `value` or an `error` string. `get_depth_options` returns a `sensor_present` flag plus the current value of every option the depth sensor exposes (`visual_preset` is returned as a string for symmetry with the SET path).
 
 ### Locally install the module
 
