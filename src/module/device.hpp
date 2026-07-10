@@ -22,6 +22,12 @@ public:
       : pointcloud_(std::make_shared<rs2::pointcloud>()),
         align_to_color_(std::make_shared<rs2::align>(RS2_STREAM_COLOR)) {}
   std::pair<rs2::points, rs2::video_frame> process(rs2::frameset frameset) {
+    // This body only runs against a live RealSense: every statement operates on
+    // librealsense frame/align/pointcloud objects that cannot be constructed or
+    // driven without hardware, so it is unreachable in the (camera-less) CI test
+    // suite and is excluded from coverage. Validated on-device via the alignment
+    // probe instead.
+    // LCOV_EXCL_START
     // Validate both streams are present first so we can surface a helpful
     // message (align_to_color_->process below would otherwise throw a generic
     // error when the color stream is missing).
@@ -54,6 +60,7 @@ public:
     pointcloud_->map_to(color_frame);
     auto points = pointcloud_->calculate(depth_frame);
     return std::make_pair(points, color_frame);
+    // LCOV_EXCL_STOP
   }
 
 private:
