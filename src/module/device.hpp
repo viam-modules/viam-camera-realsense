@@ -24,13 +24,12 @@ public:
   std::pair<rs2::points, rs2::video_frame> process(rs2::frameset frameset) {
     // This body only runs against a live RealSense: every statement operates on
     // librealsense frame/align/pointcloud objects that cannot be constructed or
-    // driven without hardware, so it is unreachable in the (camera-less) CI test
-    // suite and is excluded from coverage. Validated on-device via the alignment
-    // probe instead.
-    // LCOV_EXCL_START
-    // Validate both streams are present first so we can surface a helpful
-    // message (align_to_color_->process below would otherwise throw a generic
-    // error when the color stream is missing).
+    // driven without hardware, so it is unreachable in the (camera-less) CI
+    // test suite and is excluded from coverage. Validated on-device via the
+    // alignment probe instead. LCOV_EXCL_START Validate both streams are
+    // present first so we can surface a helpful message
+    // (align_to_color_->process below would otherwise throw a generic error
+    // when the color stream is missing).
     if (!frameset.get_depth_frame()) {
       throw std::runtime_error("No depth frame in frameset");
     }
