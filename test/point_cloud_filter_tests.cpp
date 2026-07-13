@@ -136,6 +136,22 @@ TEST(PointCloudFilterTest, CalculateUsesAlignedDepthFrame) {
   h.filter.process(input);
 }
 
+TEST(PointCloudFilterTest, MapToUsesAlignedColorFrame) {
+  Harness h;
+  FakeFrameSet input; // kOriginal
+  FakeFrameSet aligned;
+  aligned.color.tag = FrameTag::kAligned;
+  aligned.depth.tag = FrameTag::kAligned;
+
+  EXPECT_CALL(*h.align, process(_)).WillOnce(Return(aligned));
+  // map_to() must receive the ALIGNED color frame, not the original.
+  EXPECT_CALL(*h.pc, map_to(::testing::Field(&FakeVideoFrame::tag,
+                                             FrameTag::kAligned)));
+  EXPECT_CALL(*h.pc, calculate(_)).WillOnce(Return(FakePoints{}));
+
+  h.filter.process(input);
+}
+
 } // namespace test
 } // namespace device
 } // namespace realsense
