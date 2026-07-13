@@ -26,10 +26,11 @@ public:
     // librealsense frame/align/pointcloud objects that cannot be constructed or
     // driven without hardware, so it is unreachable in the (camera-less) CI
     // test suite and is excluded from coverage. Validated on-device via the
-    // alignment probe instead. LCOV_EXCL_START The sole caller (get_point_cloud)
-    // already validates the depth frame, so we only check the color stream here
-    // to surface a helpful message (align_to_color_->process below would
-    // otherwise throw a generic error when the color stream is missing).
+    // alignment probe instead. LCOV_EXCL_START The sole caller
+    // (get_point_cloud) already validates the depth frame, so we only check the
+    // color stream here to surface a helpful message (align_to_color_->process
+    // below would otherwise throw a generic error when the color stream is
+    // missing).
     if (!frameset.get_color_frame()) {
       throw std::runtime_error(
           "No color frame in frameset — point clouds require both color and "
