@@ -85,6 +85,57 @@ TEST(PointCloudFilterTest, ColorFrameMissing_ThrowsHelpfulMessage) {
   }
 }
 
+TEST(PointCloudFilterTest, AlignsToColorBeforeDeprojecting) {
+  Harness h;
+  FakeFrameSet input;
+  input.color.tag = FrameTag::kOriginal;
+  input.depth.tag = FrameTag::kOriginal;
+
+  FakeFrameSet aligned;
+  aligned.color.tag = FrameTag::kAligned;
+  aligned.depth.tag = FrameTag::kAligned;
+
+  InSequence seq; // enforce align -> map_to -> calculate ordering
+  EXPECT_CALL(*h.align, process(_)).WillOnce(Return(aligned));
+  EXPECT_CALL(*h.pc, map_to(_));
+  EXPECT_CALL(*h.pc, calculate(_)).WillOnce(Return(FakePoints{}));
+
+  h.filter.process(input);
+}
+
+TEST(PointCloudFilterTest, ReturnsAlignedColorFrame_NotOriginal) {
+  Harness h;
+  FakeFrameSet input; // both tags default to kOriginal
+  FakeFrameSet aligned;
+  aligned.color.tag = FrameTag::kAligned;
+  aligned.depth.tag = FrameTag::kAligned;
+
+  EXPECT_CALL(*h.align, process(_)).WillOnce(Return(aligned));
+  EXPECT_CALL(*h.pc, map_to(_));
+  EXPECT_CALL(*h.pc, calculate(_)).WillOnce(Return(FakePoints{}));
+
+  auto result = h.filter.process(input);
+  // result.second is the emitted color video frame; it must be the ALIGNED one.
+  EXPECT_EQ(result.second.tag, FrameTag::kAligned);
+}
+
+TEST(PointCloudFilterTest, CalculateUsesAlignedDepthFrame) {
+  Harness h;
+  FakeFrameSet input; // kOriginal
+  FakeFrameSet aligned;
+  aligned.color.tag = FrameTag::kAligned;
+  aligned.depth.tag = FrameTag::kAligned;
+
+  EXPECT_CALL(*h.align, process(_)).WillOnce(Return(aligned));
+  EXPECT_CALL(*h.pc, map_to(_));
+  // calculate() must receive the ALIGNED depth frame, not the original.
+  EXPECT_CALL(*h.pc, calculate(::testing::Field(&FakeDepthFrame::tag,
+                                                FrameTag::kAligned)))
+      .WillOnce(Return(FakePoints{}));
+
+  h.filter.process(input);
+}
+
 } // namespace test
 } // namespace device
 } // namespace realsense
