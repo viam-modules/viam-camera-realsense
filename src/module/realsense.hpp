@@ -11,7 +11,6 @@
 #include "zip_utils.hpp"
 #include <viam/sdk/components/camera.hpp>
 #include <viam/sdk/config/resource.hpp>
-#include <viam/sdk/resource/reconfigurable.hpp>
 
 #include <librealsense2/rs.hpp>
 
@@ -213,18 +212,13 @@ struct DeviceFunctions {
       std::uint64_t, realsense::RsResourceConfig const &,
       viam::sdk::LogSource &)>
       startDevice;
-  std::function<void(
-      std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
-      realsense::RsResourceConfig const &, viam::sdk::LogSource &)>
-      reconfigureDevice;
   std::function<bool(std::shared_ptr<rs2::device>, std::string &current,
                      std::string &recommended)>
       getFirmwareVersions;
 };
 
 template <typename SynchronizedContextT>
-class Realsense final : public viam::sdk::Camera,
-                        public viam::sdk::Reconfigurable {
+class Realsense final : public viam::sdk::Camera {
 public:
   Realsense(viam::sdk::Dependencies deps, viam::sdk::ResourceConfig cfg,
             std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx,
@@ -292,105 +286,6 @@ public:
     device_funcs_.stopDevice(device_, this->logger_);
     device_funcs_.destroyDevice(device_, this->logger_);
     VIAM_RESOURCE_LOG(info) << "[destructor] Realsense destructor end";
-  }
-  void reconfigure(const viam::sdk::Dependencies &deps,
-                   const viam::sdk::ResourceConfig &cfg) override {
-    VIAM_RESOURCE_LOG(info) << "[reconfigure] reconfigure start";
-    // Pause the watchdog for the duration of reconfigure so it can't
-    // race with operator-initiated stop/start of the pipeline. RAII
-    // guard pauses on construction and resumes on destruction (incl.
-    // exception paths); pause()/resume() are noexcept.
-    struct WatchdogPauseGuard {
-      watchdog::StaleFrameWatchdog<rs2::frameset> *w;
-      explicit WatchdogPauseGuard(
-          watchdog::StaleFrameWatchdog<rs2::frameset> *w)
-          : w(w) {
-        if (w)
-          w->pause();
-      }
-      ~WatchdogPauseGuard() {
-        if (w)
-          w->resume();
-      }
-    } watchdog_pause_guard{watchdog_.get()};
-    if (not physical_camera_assigned_) {
-      VIAM_RESOURCE_LOG(error)
-          << "[reconfigure] cannot reconfigure a device that "
-             "does not have a physical device assigned";
-      throw std::runtime_error("cannot reconfigure a device that does not have "
-                               "a physical device assigned");
-    }
-    if (not device_) {
-      VIAM_RESOURCE_LOG(error) << "[reconfigure] device is null";
-      throw std::runtime_error("device is null");
-    }
-
-    std::string prev_serial_number;
-    { // Begin scope for device_guard lock
-      auto device_guard = device_->synchronize();
-      prev_serial_number = device_guard->serial_number;
-    } // End scope for device_guard lock
-
-    VIAM_RESOURCE_LOG(error)
-        << "[reconfigure] stopping device " << prev_serial_number;
-    if (not device_funcs_.stopDevice(device_, this->logger_)) {
-      VIAM_RESOURCE_LOG(error)
-          << "[reconfigure] failed to stop device " << prev_serial_number;
-      throw std::runtime_error("failed to stop device " + prev_serial_number);
-    }
-
-    config_ = configure(deps, cfg);
-    auto device_list = realsense_ctx_->query_devices();
-
-    /*
-    If the user explicitly set a serial number, and it is different from the
-    serial number of our current physical device, we need to destroy the
-    previous device and create a new one.
-
-    In all other cases (same serial number, or no serial number set), we reuse
-    the existing device.
-    */
-    std::string requested_serial_number = config_->serial_number;
-    if (not requested_serial_number.empty() and
-        prev_serial_number != requested_serial_number) {
-      if (device_) {
-        { // Begin scope for device_guard lock
-          auto device_guard = device_->synchronize();
-          { // Begin scope for serials_guard lock
-            auto serials_guard = assigned_serials_->synchronize();
-            serials_guard->erase(device_guard->serial_number);
-          } // End scope for serials_guard lock
-        } // End scope for device_guard lock
-      }
-      VIAM_RESOURCE_LOG(error)
-          << "[reconfigure] destroying device " << prev_serial_number;
-      if (not device_funcs_.destroyDevice(device_, this->logger_)) {
-        VIAM_RESOURCE_LOG(error)
-            << "[reconfigure] failed to destroy device " << prev_serial_number;
-        throw std::runtime_error("failed to destroy device " +
-                                 prev_serial_number);
-      }
-      physical_camera_assigned_ = false;
-
-      if (not assign_and_initialize_device(device_list)) {
-        VIAM_RESOURCE_LOG(error) << "[reconfigure] failed to start device "
-                                 << config_->serial_number;
-        throw std::runtime_error("failed to start device " +
-                                 config_->serial_number);
-      }
-      physical_camera_assigned_ = true;
-    } else {
-      realsense::RsResourceConfig config_copy = config_.get();
-      VIAM_RESOURCE_LOG(info)
-          << "[reconfigure] same serial number, reusing device "
-          << prev_serial_number;
-      device_funcs_.reconfigureDevice(device_, config_copy, this->logger_);
-      device_funcs_.startDevice(config_copy.serial_number, device_,
-                                latest_frameset_, MAX_FRAME_AGE_MS, config_copy,
-                                this->logger_);
-    }
-
-    VIAM_RESOURCE_LOG(info) << "[reconfigure] Realsense reconfigure end";
   }
 
   DoCommand get_do_command(const viam::sdk::ProtoStruct &command) const {
@@ -639,6 +534,18 @@ public:
       response["error"] = std::string("Command failed: ") + e.what();
       return response;
     }
+  }
+
+  viam::sdk::ProtoStruct get_status() override {
+    viam::sdk::ProtoStruct status;
+    status["physical_camera_assigned"] = physical_camera_assigned_.get();
+    status["is_recovery_mode"] = is_recovery_mode_.get();
+    if (device_) {
+      auto device_guard = device_->synchronize();
+      status["serial_number"] = device_guard->serial_number;
+      status["streaming"] = device_guard->started;
+    }
+    return status;
   }
 
   viam::sdk::Camera::image_collection
@@ -1246,8 +1153,7 @@ public:
 
   // Constructs the stale-frame watchdog. Called once on first successful
   // device initialization in assign_and_initialize_device. The watchdog
-  // lives for the rest of the Realsense lifetime; reconfigure-driven
-  // pipeline transitions use pause()/resume() rather than recreating it.
+  // lives for the rest of the Realsense lifetime.
   void start_watchdog() {
     if (watchdog_) {
       return; // already running, nothing to do
@@ -1316,7 +1222,7 @@ private:
   // Stale-frame watchdog: restarts the rs2::pipeline once a frame is stale
   // (older than stale_threshold_ms, default 10s) for 3 consecutive polls
   // (debounce) — see watchdog::Tunables. Declared LAST so its thread joins
-  // first in ~Realsense; paused during reconfigure/firmware/device-change.
+  // first in ~Realsense.
   std::unique_ptr<watchdog::StaleFrameWatchdog<rs2::frameset>> watchdog_;
 
   void deviceChangedCallback(rs2::event_information &info) {
@@ -1816,18 +1722,6 @@ private:
               return device::startDevice(serial, device, latest_frameset,
                                          maxFrameSetFrameMs, viamConfig,
                                          logger);
-            },
-        .reconfigureDevice =
-            [](std::shared_ptr<
-                   boost::synchronized_value<device::ViamRSDevice<>>>
-                   device,
-               realsense::RsResourceConfig const &viamConfig,
-               viam::sdk::LogSource &logger) {
-              device::reconfigureDevice<
-                  realsense::RsResourceConfig, device::ViamRSDevice<>,
-                  rs2::device, rs2::config, rs2::color_sensor,
-                  rs2::depth_sensor, rs2::video_stream_profile>(
-                  device, viamConfig, logger);
             },
         .getFirmwareVersions = [](std::shared_ptr<rs2::device> dev,
                                   std::string &current,

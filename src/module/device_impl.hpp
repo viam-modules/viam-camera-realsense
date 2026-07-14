@@ -735,39 +735,6 @@ void startDevice(
       << "[startDevice]  device started " << serialNumber;
 }
 
-template <typename ViamConfigT, typename ViamDeviceT, typename DeviceT,
-          typename ConfigT, typename ColorSensorT, typename DepthSensorT,
-          typename VideoStreamProfileT>
-void reconfigureDevice(
-    std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
-    ViamConfigT const &viamConfig, viam::sdk::LogSource &logger) {
-  if (dev == nullptr) {
-    VIAM_DEVICE_LOG(logger, error) << "[reconfigureDevice] device is null";
-    throw std::runtime_error("device is null");
-  }
-
-  { // Begin scope for device_guard lock
-    auto device_guard = dev->synchronize();
-    auto new_config = createConfig<DeviceT, ConfigT, ColorSensorT, DepthSensorT,
-                                   VideoStreamProfileT, ViamConfigT>(
-        device_guard->device, viamConfig, logger);
-    if (new_config == nullptr) {
-      VIAM_DEVICE_LOG(logger, error)
-          << "[reconfigureDevice] failed to create new config";
-      throw std::runtime_error("failed to create new config");
-    }
-
-    if (device_guard->started) {
-      VIAM_DEVICE_LOG(logger, error)
-          << "[reconfigureDevice] cannot reconfigure a started device";
-      throw std::runtime_error("cannot reconfigure a started device");
-    }
-
-    device_guard->config = new_config;
-    VIAM_DEVICE_LOG(logger, info) << "[reconfigureDevice] device reconfigured";
-  } // End scope for device_guard lock
-}
-
 template <typename ViamDeviceT>
 bool stopDevice(std::shared_ptr<boost::synchronized_value<ViamDeviceT>> &dev,
                 viam::sdk::LogSource &logger) noexcept {

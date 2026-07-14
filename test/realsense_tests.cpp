@@ -78,11 +78,6 @@ public:
        std::shared_ptr<boost::synchronized_value<rs2::frameset>> &,
        std::uint64_t, const realsense::RsResourceConfig &),
       ());
-  MOCK_METHOD(
-      void, reconfigureDevice,
-      (std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
-       realsense::RsResourceConfig const &),
-      ());
   MOCK_METHOD(bool, getFirmwareVersions,
               (std::shared_ptr<rs2::device>, std::string &, std::string &), ());
 };
@@ -132,14 +127,6 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
               viam::sdk::LogSource &) {
             mock->startDevice(serial, device, latest_frameset, maxFrameAgeMs,
                               viamConfig);
-          },
-      .reconfigureDevice =
-          [mock](
-              std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
-                  device,
-              realsense::RsResourceConfig const &viamConfig,
-              viam::sdk::LogSource &) {
-            mock->reconfigureDevice(device, viamConfig);
           },
       .getFirmwareVersions = [mock](std::shared_ptr<rs2::device> dev,
                                     std::string &current,
@@ -208,13 +195,6 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
               auto locked_device = device->synchronize();
               locked_device->started = true;
             }
-          },
-      .reconfigureDevice =
-          [](std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
-                 device,
-             realsense::RsResourceConfig const &viamConfig,
-             viam::sdk::LogSource &) {
-            std::cout << "Mock: reconfigureDevice called" << std::endl;
           },
       .getFirmwareVersions = [](std::shared_ptr<rs2::device>, std::string &,
                                 std::string &) -> bool {
@@ -620,161 +600,6 @@ TEST(RealsenseTemplateTest, CanInstantiateWithRealContext) {
   // If this compiles, the template instantiation works
   static_assert(
       std::is_same_v<decltype(RealRealsense::model), viam::sdk::Model>);
-}
-
-TEST_F(RealsenseTest, ReconfigureWithSameSerialNumber_StrictOrdering) {
-  using ::testing::_;
-  using ::testing::InSequence;
-  using ::testing::Return;
-
-  auto mock_device_funcs = std::make_shared<MockDeviceFunctions>();
-
-  // Create mock devices that the mocks will return
-  auto mock_device_1 = std::make_shared<device::ViamRSDevice<>>();
-  mock_device_1->serial_number = "test_device_123456";
-  mock_device_1->started = false;
-  mock_device_1->device = nullptr;
-
-  auto mock_device_2 = std::make_shared<device::ViamRSDevice<>>();
-  mock_device_2->serial_number = "test_device_123456";
-  mock_device_2->started = false;
-  mock_device_2->device = nullptr;
-
-  {
-    InSequence seq;
-
-    // Constructor sequence
-    EXPECT_CALL(*mock_device_funcs, printDeviceInfo(_)).Times(1);
-    EXPECT_CALL(*mock_device_funcs, createDevice("test_device_123456", _, _, _))
-        .Times(1)
-        .WillOnce(Return(mock_device_1)); // Return a valid mock device
-    EXPECT_CALL(*mock_device_funcs,
-                startDevice("test_device_123456", _, _, _, _))
-        .Times(1);
-
-    // Reconfigure sequence
-    EXPECT_CALL(*mock_device_funcs, stopDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mock_device_funcs, reconfigureDevice(_, _))
-        .Times(1)
-        .WillOnce(Return());
-    EXPECT_CALL(*mock_device_funcs,
-                startDevice("test_device_123456", _, _, _, _))
-        .Times(1);
-
-    EXPECT_CALL(*mock_device_funcs, stopDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mock_device_funcs, destroyDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-  }
-
-  auto isolated_context =
-      std::make_shared<boost::synchronized_value<SimpleMockContext>>();
-  {
-    auto locked_context = isolated_context->synchronize();
-    locked_context->add_device("test_device_123456");
-  }
-  auto isolated_realsense_context = std::make_shared<
-      RealsenseContext<boost::synchronized_value<SimpleMockContext>>>(
-      isolated_context);
-
-  auto assigned_serials = std::make_shared<
-      boost::synchronized_value<std::unordered_set<std::string>>>();
-
-  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
-      test_deps_, *test_config_, isolated_realsense_context,
-      createMockDeviceFunctionsWithOrder(mock_device_funcs), assigned_serials);
-
-  EXPECT_NO_THROW({ camera.reconfigure(test_deps_, *test_config_); });
-}
-
-TEST_F(RealsenseTest, ReconfigureWithNewSerialNumber_StrictOrdering) {
-  using ::testing::_;
-  using ::testing::InSequence;
-  using ::testing::Return;
-
-  auto mock_device_funcs = std::make_shared<MockDeviceFunctions>();
-
-  // Create mock devices that the mocks will return
-  auto mock_device_1 = std::make_shared<device::ViamRSDevice<>>();
-  mock_device_1->serial_number = "test_device_123456";
-  mock_device_1->started = false;
-  mock_device_1->device = nullptr;
-
-  auto mock_device_2 = std::make_shared<device::ViamRSDevice<>>();
-  mock_device_2->serial_number = "new_device_789";
-  mock_device_2->started = false;
-  mock_device_2->device = nullptr;
-
-  {
-    InSequence seq;
-
-    // Constructor sequence
-    EXPECT_CALL(*mock_device_funcs, printDeviceInfo(_)).Times(1);
-    EXPECT_CALL(*mock_device_funcs, createDevice("test_device_123456", _, _, _))
-        .Times(1)
-        .WillOnce(Return(mock_device_1)); // Return a valid mock device
-    EXPECT_CALL(*mock_device_funcs,
-                startDevice("test_device_123456", _, _, _, _))
-        .Times(1);
-
-    // Reconfigure sequence
-    EXPECT_CALL(*mock_device_funcs, stopDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mock_device_funcs, destroyDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mock_device_funcs, printDeviceInfo(_)).Times(1);
-    EXPECT_CALL(*mock_device_funcs, createDevice("new_device_789", _, _, _))
-        .Times(1)
-        .WillOnce(Return(mock_device_2)); // Return a valid mock device
-    EXPECT_CALL(*mock_device_funcs, startDevice("new_device_789", _, _, _, _))
-        .Times(1);
-
-    EXPECT_CALL(*mock_device_funcs, stopDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mock_device_funcs, destroyDevice(_))
-        .Times(1)
-        .WillOnce(Return(true));
-  }
-
-  auto isolated_context =
-      std::make_shared<boost::synchronized_value<SimpleMockContext>>();
-  {
-    auto locked_context = isolated_context->synchronize();
-    locked_context->add_device("test_device_123456");
-  }
-  auto isolated_realsense_context = std::make_shared<
-      RealsenseContext<boost::synchronized_value<SimpleMockContext>>>(
-      isolated_context);
-
-  auto assigned_serials = std::make_shared<
-      boost::synchronized_value<std::unordered_set<std::string>>>();
-
-  Realsense<boost::synchronized_value<SimpleMockContext>> camera(
-      test_deps_, *test_config_, isolated_realsense_context,
-      createMockDeviceFunctionsWithOrder(mock_device_funcs), assigned_serials);
-
-  {
-    auto locked_context = isolated_context->synchronize();
-    locked_context->replace_device("test_device_123456", "new_device_789");
-  }
-
-  auto new_attributes = ProtoStruct{};
-  new_attributes["serial_number"] = "new_device_789";
-  ProtoList sensors = {"color", "depth"};
-  new_attributes["sensors"] = sensors;
-
-  ResourceConfig new_config(
-      "rdk:component:camera", "", "new_camera", new_attributes, "",
-      Model("viam", "camera", "realsense"), LinkConfig{}, log_level::info);
-
-  EXPECT_NO_THROW({ camera.reconfigure(test_deps_, new_config); });
 }
 
 TEST_F(RealsenseTest,
