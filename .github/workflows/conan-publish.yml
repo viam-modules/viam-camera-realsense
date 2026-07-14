@@ -5,11 +5,6 @@ name: Publish conan packages
 
 on:
   workflow_dispatch:
-    inputs:
-      upload_module:
-        description: "Also upload viam-camera-realsense/* (off by default)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -67,9 +62,3 @@ jobs:
           . ./venv/bin/activate
           conan upload "librealsense/*" -r viamconan -c
           conan upload "libusb/*" -r viamconan -c
-
-      - name: Upload module recipe + binary (optional)
-        if: inputs.upload_module
-        run: |
-          . ./venv/bin/activate
-          conan upload "viam-camera-realsense/*" -r viamconan -c
