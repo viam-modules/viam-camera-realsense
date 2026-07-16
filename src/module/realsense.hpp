@@ -208,9 +208,8 @@ struct DeviceFunctions {
   std::function<void(
       std::string const &,
       std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
-      std::shared_ptr<boost::synchronized_value<rs2::frameset>> &,
-      std::uint64_t, realsense::RsResourceConfig const &,
-      viam::sdk::LogSource &)>
+      boost::synchronized_value<rs2::frameset> &, std::uint64_t,
+      realsense::RsResourceConfig const &, viam::sdk::LogSource &)>
       startDevice;
   std::function<bool(std::shared_ptr<rs2::device>, std::string &current,
                      std::string &recommended)>
@@ -578,13 +577,15 @@ public:
         }
       }
 
-      if (not latest_frameset_) {
+      // get() copies the frameset under the synchronized_value's lock, so it
+      // is race-free wrt frameCallback's locked assignment.
+      auto fs = latest_frameset_.get();
+      if (not fs) {
         VIAM_RESOURCE_LOG(error) << "[get_images] no frameset available";
         throw std::runtime_error("no frameset available");
       }
       VIAM_RESOURCE_LOG(debug) << "[get_images] start";
       std::string serial_number = config_->serial_number;
-      auto fs = latest_frameset_->get();
 
       // Optionally align depth to color so that depth_np[v, u] and
       // color_np[v, u] refer to the same physical point. The IR/depth and
@@ -711,12 +712,14 @@ public:
         VIAM_RESOURCE_LOG(error) << "[get_point_cloud] " << error_msg;
         throw std::runtime_error(error_msg);
       }
-      if (not latest_frameset_) {
+      // get() copies the frameset under the synchronized_value's lock, so it
+      // is race-free wrt frameCallback's locked assignment.
+      auto fs = latest_frameset_.get();
+      if (not fs) {
         VIAM_RESOURCE_LOG(error) << "[get_point_cloud] no frameset available";
         throw std::runtime_error("no frameset available");
       }
       VIAM_RESOURCE_LOG(debug) << "[get_point_cloud] start";
-      auto fs = latest_frameset_->get();
 
       double nowMs = time::getNowMs();
 
@@ -1188,12 +1191,10 @@ public:
       }
     };
     auto recovery_check = [this]() { return is_recovery_mode_.get(); };
-    // Read latest_frameset_ on every poll — captures `this` so we always
-    // see the freshest shared_ptr value Realsense holds (frameCallback
-    // reassigns the pointer per frame). Empty frameset when none yet.
-    auto get_fs = [this]() -> rs2::frameset {
-      return latest_frameset_ ? latest_frameset_->get() : rs2::frameset{};
-    };
+    // Read latest_frameset_ on every poll. get() copies under the
+    // synchronized_value's lock (race-free wrt frameCallback); returns an
+    // empty frameset until the first frame arrives.
+    auto get_fs = [this]() -> rs2::frameset { return latest_frameset_.get(); };
     watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
         std::move(get_fs), std::move(recovery_check), std::move(restart_fn),
         this->logger_);
@@ -1204,7 +1205,7 @@ public:
 private:
   boost::synchronized_value<RsResourceConfig> config_;
   std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> device_;
-  std::shared_ptr<boost::synchronized_value<rs2::frameset>> latest_frameset_;
+  boost::synchronized_value<rs2::frameset> latest_frameset_;
   std::shared_ptr<boost::synchronized_value<std::unordered_set<std::string>>>
       assigned_serials_;
   boost::synchronized_value<bool> physical_camera_assigned_;
@@ -1714,8 +1715,7 @@ private:
             [](const std::string &serial,
                std::shared_ptr<
                    boost::synchronized_value<device::ViamRSDevice<>>> &device,
-               std::shared_ptr<boost::synchronized_value<rs2::frameset>>
-                   &latest_frameset,
+               boost::synchronized_value<rs2::frameset> &latest_frameset,
                std::uint64_t maxFrameSetFrameMs,
                realsense::RsResourceConfig const &viamConfig,
                viam::sdk::LogSource &logger) {

@@ -313,10 +313,9 @@ void printDeviceInfo(DeviceT const &dev, viam::sdk::LogSource &logger) {
 /********************** CALLBACKS ************************/
 
 template <typename FrameT, typename FrameSetT, typename ViamConfigT>
-void frameCallback(
-    FrameT const &frame, std::uint64_t const maxFrameAgeMs,
-    std::shared_ptr<boost::synchronized_value<FrameSetT>> &frame_set_,
-    ViamConfigT const &viamConfig) {
+void frameCallback(FrameT const &frame, std::uint64_t const maxFrameAgeMs,
+                   boost::synchronized_value<FrameSetT> &frame_set_,
+                   ViamConfigT const &viamConfig) {
   // With callbacks, all synchronized stream will arrive in a single
   // frameset
   int expected_frame_count = viamConfig.sensors.size();
@@ -376,7 +375,9 @@ void frameCallback(
     }
   }
 
-  frame_set_ = std::make_shared<boost::synchronized_value<FrameSetT>>(frameset);
+  // Publish under the synchronized_value's lock; get_images/get_point_cloud/
+  // watchdog read it concurrently through the same lock.
+  frame_set_ = frameset;
 }
 
 /************************ STREAM PROFILES ************************/
@@ -699,12 +700,11 @@ createDevice(std::string const &serial_number, std::shared_ptr<DeviceT> dev,
 
 /********************** STREAMING LIFECYCLE ************************/
 template <typename ViamDeviceT, typename FrameSetT, typename ViamConfigT>
-void startDevice(
-    std::string const &serialNumber,
-    std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
-    std::shared_ptr<boost::synchronized_value<FrameSetT>> &frameSetStorage,
-    std::uint64_t const maxFrameAgeMs, ViamConfigT const &viamConfig,
-    viam::sdk::LogSource &logger) {
+void startDevice(std::string const &serialNumber,
+                 std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
+                 boost::synchronized_value<FrameSetT> &frameSetStorage,
+                 std::uint64_t const maxFrameAgeMs,
+                 ViamConfigT const &viamConfig, viam::sdk::LogSource &logger) {
   VIAM_DEVICE_LOG(logger, info)
       << "[startDevice] starting device " << serialNumber;
   if (not dev) {

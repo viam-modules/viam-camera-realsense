@@ -90,10 +90,9 @@ void deviceChangedCallback(
     std::uint64_t maxFrameAgeMs);
 
 template <typename FrameT, typename FrameSetT, typename ViamConfigT>
-void frameCallback(
-    FrameT const &frame, std::uint64_t const maxFrameAgeMs,
-    boost::synchronized_value<std::shared_ptr<FrameSetT>> &frame_set_,
-    ViamConfigT const &viamConfig);
+void frameCallback(FrameT const &frame, std::uint64_t const maxFrameAgeMs,
+                   boost::synchronized_value<FrameSetT> &frame_set_,
+                   ViamConfigT const &viamConfig);
 
 /********************** DEVICE LIFECYCLE ************************/
 template <typename ViamConfigT, typename ViamDeviceT = ViamRSDevice<>,
@@ -112,11 +111,11 @@ bool destroyDevice(
 
 /********************** STREAMING LIFECYCLE ************************/
 template <typename ViamDeviceT, typename FrameSetT, typename ViamConfigT>
-void startDevice(
-    std::string const &serialNumber,
-    std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
-    std::shared_ptr<boost::synchronized_value<FrameSetT>> &frame_set_storage,
-    std::uint64_t const maxFrameAgeMs, ViamConfigT const &viamConfig);
+void startDevice(std::string const &serialNumber,
+                 std::shared_ptr<boost::synchronized_value<ViamDeviceT>> dev,
+                 boost::synchronized_value<FrameSetT> &frame_set_storage,
+                 std::uint64_t const maxFrameAgeMs,
+                 ViamConfigT const &viamConfig);
 
 template <typename ViamDeviceT>
 bool stopDevice(
