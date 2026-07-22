@@ -231,5 +231,13 @@ encodeRGBPointsToPCD(std::pair<rs2::points, rs2::video_frame> &&data,
   return pcdBytes;
 }
 
+// TEMP: never-called probe to verify codecov/patch is informational.
+// Revert before merge.
+int codecovPatchProbe(int x) {
+  int doubled = x * 2;
+  int shifted = doubled + 1;
+  return shifted;
+}
+
 } // namespace encoding
 } // namespace realsense
