@@ -89,5 +89,6 @@ jobs:
           # Token is optional for public repos, but recommended for reliability
           # If uploads fail, ensure CODECOV_TOKEN is set in repository secrets
           token: ${{ secrets.CODECOV_TOKEN || '' }}
-          fail_ci_if_error: true
+          # Coverage is report-only: an upload failure should not fail CI
+          fail_ci_if_error: false
           verbose: true
