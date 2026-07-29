@@ -710,8 +710,7 @@ void startDevice(
   if (not dev) {
     std::ostringstream buffer;
     buffer << "[startDevice] unable to start device " << serialNumber
-           << " since "
-           << "viam device wrapper does not exist";
+           << " since " << "viam device wrapper does not exist";
     throw std::runtime_error(buffer.str());
   }
   { // Begin scope for dev_ptr lock
