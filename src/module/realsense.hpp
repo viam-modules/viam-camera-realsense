@@ -787,8 +787,7 @@ public:
       }
       auto fillResp = [this](viam::sdk::Camera::properties &p,
                              rs2_intrinsics const &props,
-                             const rs2::stream_profile &stream,
-                             const rs2::stream_profile &ref_stream) {
+                             const rs2::stream_profile &reference_stream) {
         p.supports_pcd = true;
         p.intrinsic_parameters.width_px = props.width;
         p.intrinsic_parameters.height_px = props.height;
@@ -797,9 +796,10 @@ public:
         p.intrinsic_parameters.center_x_px = props.ppx;
         p.intrinsic_parameters.center_y_px = props.ppy;
 
-        // Calculate extrinsics from stream to reference stream
+        // Identity: the point cloud is emitted in the same frame these
+        // intrinsics describe. See extrinsics::get_reported_extrinsics.
         p.extrinsic_parameters =
-            realsense::extrinsics::get_extrinsics(stream, ref_stream);
+            realsense::extrinsics::get_reported_extrinsics(reference_stream);
 
         switch (props.model) {
         case RS2_DISTORTION_BROWN_CONRADY:
@@ -878,21 +878,23 @@ public:
               << e.what();
         }
 
-        // The camera reference frame is always the depth left imager, matching
-        // get_geometries. Intrinsics come from color when configured (the
-        // stream most callers derive poses from), otherwise depth. Extrinsics
-        // are therefore intrinsics_stream -> depth, which is identity whenever
-        // depth is the intrinsics stream or only one sensor is configured.
-        const rs2::video_stream_profile &intrinsics_stream =
+        // The camera reference frame is the color imager when color is
+        // configured (the stream most callers derive poses from), otherwise
+        // depth. Everything this resource reports is expressed in that one
+        // frame: the intrinsics below, the point cloud get_point_cloud() emits
+        // (it aligns depth to color before deprojecting — see
+        // device::PointCloudFilter), and the box pose from get_geometries().
+        // Extrinsics are therefore identity; see
+        // extrinsics::get_reported_extrinsics for why publishing the real
+        // depth<->color baseline here double-corrects consumers.
+        const rs2::video_stream_profile &reference_stream =
             color_stream ? color_stream : depth_stream;
-        if (not intrinsics_stream) {
+        if (not reference_stream) {
           throw std::runtime_error(
               "neither color nor depth stream is available");
         }
-        const rs2::video_stream_profile &ref_stream =
-            depth_stream ? depth_stream : color_stream;
-        auto props = intrinsics_stream.get_intrinsics();
-        fillResp(response, props, intrinsics_stream, ref_stream);
+        auto props = reference_stream.get_intrinsics();
+        fillResp(response, props, reference_stream);
       } // End scope for my_dev lock
 
       VIAM_RESOURCE_LOG(debug) << "[get_properties] end";
@@ -915,7 +917,11 @@ public:
     // intrinsics and the images/derived poses callers work with are in the
     // color frame. Box dimensions and the depth-imager placement come from the
     // Intel RealSense D400-Series Datasheet (337029-005); the color sensor's
-    // position is then derived from the color->depth extrinsics.
+    // position is then derived from the color->depth extrinsics. Those are the
+    // physical baseline librealsense reports for the model, used here only to
+    // place the box at build time — not the identity extrinsics get_properties
+    // publishes (see extrinsics::get_reported_extrinsics). The poses below are
+    // constants; nothing here reads extrinsics at runtime.
     //   - Module dimensions: Table 3-43 (D415), Table 3-44 (D435/D435i).
     //   - The depth left imager is offset from the module centerline (the box
     //     center) per Table 4-15 (17.5 mm for D435/D435i, 20 mm for D415), on
