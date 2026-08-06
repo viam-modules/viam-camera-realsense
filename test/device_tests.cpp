@@ -104,6 +104,9 @@ public:
 // SimpleStreamProfile: Wrapper that can convert to SimpleVideoStreamProfile
 class SimpleStreamProfile {
 public:
+  // All fake profiles are video profiles.
+  template <typename T> bool is() const { return true; }
+
   template <typename T> T as() const {
     return T{format_, width_, height_, fps_, stream_index_};
   }
@@ -293,6 +296,21 @@ TEST_F(DeviceTest, GetCameraModel_D415Device_ReturnsD415) {
   // Verify
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result.value(), "D415");
+}
+
+TEST_F(DeviceTest, GetCameraModel_D405Device_ReturnsD405) {
+  // Setup expectations
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_NAME))
+      .WillOnce(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_NAME))
+      .WillOnce(Return("Intel RealSense D405"));
+
+  // Execute
+  auto result = getCameraModel(mock_device_);
+
+  // Verify
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result.value(), "D405");
 }
 
 TEST_F(DeviceTest, GetCameraModel_UnsupportedDevice_ReturnsNullopt) {
@@ -1060,23 +1078,24 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_ColorSensor_DisablesOption) {
       << "Should not log errors for successful operation";
 }
 
-TEST_F(DeviceTest, DisableAutoExposurePriority_DepthSensor_DoesNothing) {
+TEST_F(DeviceTest, DisableAutoExposurePriority_OptionUnsupported_DoesNothing) {
   test_utils::LogCaptureFixture log_capture;
   viam::sdk::LogSource logger;
 
   MockSensor mock_sensor;
-  mock_sensor.set_sensor_type(false, true); // Depth sensor
+  mock_sensor.set_sensor_type(false, true); // Stereo sensor (e.g. D405)
 
-  // Setup expectations - should not call set_option for depth sensor
-  EXPECT_CALL(mock_sensor, supports(_)).Times(0);
+  // Sensor does not expose the auto-exposure priority option
+  EXPECT_CALL(mock_sensor, supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
+      .WillOnce(Return(false));
   EXPECT_CALL(mock_sensor, set_option(_, _)).Times(0);
 
   // Execute
   disableAutoExposurePriority(mock_sensor, logger);
 
-  // Verify no logs (function returns early for non-color sensors)
+  // Verify no logs (function returns early if option not supported)
   auto all_logs = log_capture.get_records();
-  EXPECT_EQ(all_logs.size(), 0) << "Should not log for non-color sensors";
+  EXPECT_EQ(all_logs.size(), 0) << "Should not log when option not supported";
 }
 
 TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
@@ -1103,33 +1122,6 @@ TEST_F(DeviceTest, DisableAutoExposurePriority_SetOptionFails_LogsWarning) {
               ::testing::HasSubstr("Failed to disable Auto-Exposure Priority"));
   EXPECT_THAT(warning_logs[0].message,
               ::testing::HasSubstr("Option not supported"));
-}
-
-TEST_F(DeviceTest, DisableAutoExposurePriority_UnknownSensorType_LogsError) {
-  test_utils::LogCaptureFixture log_capture;
-  viam::sdk::LogSource logger;
-
-  MockSensor mock_sensor;
-  mock_sensor.set_sensor_type(
-      false, false); // Unknown sensor (neither color nor depth)
-
-  // Execute - should log error for unknown sensor type
-  disableAutoExposurePriority(mock_sensor, logger);
-
-  // Verify error log for unknown sensor
-  auto error_logs = log_capture.get_error_logs();
-  ASSERT_GE(error_logs.size(), 1) << "Should log error for unknown sensor type";
-
-  // Check that at least one error mentions the failure
-  bool found_error = false;
-  for (const auto &log : error_logs) {
-    if (log.message.find("Failed to get sensor type") != std::string::npos ||
-        log.message.find("Invalid sensor type") != std::string::npos) {
-      found_error = true;
-      break;
-    }
-  }
-  EXPECT_TRUE(found_error) << "Should log error for unknown sensor type";
 }
 
 TEST_F(DeviceTest,
@@ -1322,6 +1314,175 @@ TEST_F(DeviceTest,
       << "Should log that auto-exposure was disabled for color";
   EXPECT_TRUE(found_matching_profiles_log)
       << "Should log that matching profiles were found";
+}
+
+// D405 topology: a single stereo sensor serves both the color and the depth
+// streams and does not cast to rs2::color_sensor.
+TEST_F(DeviceTest, CreateSwD2CAlignConfig_D405SingleSensor_ServesBothStreams) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  auto mock_device = std::make_shared<SimpleDevice>();
+
+  SimpleSensor stereo_sensor;
+  stereo_sensor.set_sensor_type(false, true); // Depth sensor only
+
+  SimpleStreamProfile color_profile;
+  color_profile.format_ = RS2_FORMAT_RGB8;
+  color_profile.width_ = 640;
+  color_profile.height_ = 480;
+  color_profile.fps_ = 30;
+  color_profile.stream_index_ = 0;
+
+  SimpleStreamProfile depth_profile;
+  depth_profile.format_ = RS2_FORMAT_Z16;
+  depth_profile.width_ = 640;
+  depth_profile.height_ = 480;
+  depth_profile.fps_ = 30;
+  depth_profile.stream_index_ = 0;
+
+  stereo_sensor.set_stream_profiles({color_profile, depth_profile});
+
+  // Global timestamp is enabled once for the single sensor; the sensor
+  // serves color, so auto-exposure priority is disabled on it too.
+  EXPECT_CALL(*stereo_sensor.mock(), supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+      .Times(1)
+      .WillOnce(Return(true));
+  EXPECT_CALL(*stereo_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+      .Times(1);
+  EXPECT_CALL(*stereo_sensor.mock(),
+              supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
+      .Times(1)
+      .WillOnce(Return(true));
+  EXPECT_CALL(*stereo_sensor.mock(),
+              set_option(RS2_OPTION_AUTO_EXPOSURE_PRIORITY, 0.0f))
+      .Times(1);
+
+  mock_device->set_sensors({stereo_sensor});
+
+  RsResourceConfig viam_config("d405_serial", "test_camera",
+                               {realsense::sensors::SensorType::color,
+                                realsense::sensors::SensorType::depth},
+                               std::optional<int>{640},
+                               std::optional<int>{480});
+
+  auto result =
+      createSwD2CAlignConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                             rs2::depth_sensor, SimpleVideoStreamProfile,
+                             RsResourceConfig>(mock_device, viam_config,
+                                               logger);
+
+  EXPECT_NE(result, nullptr)
+      << "createSwD2CAlignConfig should build a config from a single sensor "
+         "serving both streams";
+
+  auto all_logs = log_capture.get_records();
+  bool found_matching_profiles_log = false;
+  for (const auto &log : all_logs) {
+    if (log.message.find("Found matching color and depth stream profiles") !=
+        std::string::npos) {
+      found_matching_profiles_log = true;
+    }
+  }
+  EXPECT_TRUE(found_matching_profiles_log)
+      << "Should log that matching profiles were found";
+}
+
+TEST_F(DeviceTest, CreateSingleSensorConfig_D405ColorFromStereoSensor) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  auto mock_device = std::make_shared<SimpleDevice>();
+
+  SimpleSensor stereo_sensor;
+  stereo_sensor.set_sensor_type(false, true); // Depth sensor only
+
+  SimpleStreamProfile color_profile;
+  color_profile.format_ = RS2_FORMAT_RGB8;
+  color_profile.width_ = 640;
+  color_profile.height_ = 480;
+  color_profile.fps_ = 30;
+  color_profile.stream_index_ = 0;
+
+  SimpleStreamProfile depth_profile;
+  depth_profile.format_ = RS2_FORMAT_Z16;
+  depth_profile.width_ = 640;
+  depth_profile.height_ = 480;
+  depth_profile.fps_ = 30;
+  depth_profile.stream_index_ = 0;
+
+  stereo_sensor.set_stream_profiles({depth_profile, color_profile});
+
+  EXPECT_CALL(*stereo_sensor.mock(), supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+      .Times(1)
+      .WillOnce(Return(true));
+  EXPECT_CALL(*stereo_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+      .Times(1);
+
+  mock_device->set_sensors({stereo_sensor});
+
+  RsResourceConfig viam_config(
+      "d405_serial", "test_camera", {realsense::sensors::SensorType::color},
+      std::optional<int>{640}, std::optional<int>{480});
+
+  // Request a color-only config even though no sensor casts to
+  // rs2::color_sensor.
+  auto result =
+      createSingleSensorConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                               SimpleVideoStreamProfile, RsResourceConfig>(
+          mock_device, viam_config, logger);
+
+  EXPECT_NE(result, nullptr) << "createSingleSensorConfig should find the "
+                                "color stream on the stereo sensor";
+}
+
+TEST_F(DeviceTest, CreateSwD2CAlignConfig_NoColorProfiles_ReturnsNullptr) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  auto mock_device = std::make_shared<SimpleDevice>();
+
+  SimpleSensor depth_only_sensor;
+  depth_only_sensor.set_sensor_type(false, true);
+
+  SimpleStreamProfile depth_profile;
+  depth_profile.format_ = RS2_FORMAT_Z16;
+  depth_profile.width_ = 640;
+  depth_profile.height_ = 480;
+  depth_profile.fps_ = 30;
+  depth_profile.stream_index_ = 0;
+  depth_only_sensor.set_stream_profiles({depth_profile});
+
+  EXPECT_CALL(*depth_only_sensor.mock(),
+              supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+      .Times(1)
+      .WillOnce(Return(true));
+  EXPECT_CALL(*depth_only_sensor.mock(),
+              set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, 1.0f))
+      .Times(1);
+  // No color profiles served, so auto-exposure priority is never touched.
+  EXPECT_CALL(*depth_only_sensor.mock(),
+              supports(RS2_OPTION_AUTO_EXPOSURE_PRIORITY))
+      .Times(0);
+
+  mock_device->set_sensors({depth_only_sensor});
+
+  RsResourceConfig viam_config("test_serial", "test_camera",
+                               {realsense::sensors::SensorType::color,
+                                realsense::sensors::SensorType::depth},
+                               std::optional<int>{640},
+                               std::optional<int>{480});
+
+  auto result =
+      createSwD2CAlignConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                             rs2::depth_sensor, SimpleVideoStreamProfile,
+                             RsResourceConfig>(mock_device, viam_config,
+                                               logger);
+
+  EXPECT_EQ(result, nullptr)
+      << "Should return nullptr, not crash, when no color stream exists";
 }
 
 } // namespace test

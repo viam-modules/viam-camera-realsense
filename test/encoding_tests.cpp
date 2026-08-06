@@ -212,6 +212,62 @@ TEST_F(EncodingTest, EncodeDepthRAW_VariousDepthRanges) {
   EXPECT_EQ(max_result.bytes, expected_max_depth_values);
 }
 
+TEST_F(EncodingTest, EncodeDepthRAW_D405DepthUnitsRescaledToMillimeters) {
+  // The D405 defaults to 0.1 mm depth units (100 µm), so raw values must be
+  // rescaled to the millimeters that image/vnd.viam.dep encodes.
+  std::vector<uint8_t> depth_bytes{
+      0x64, 0x00, // 100 raw units   -> 10 mm
+      0x39, 0x30, // 12345 raw units -> 1234.5 -> 1235 mm (rounded)
+      0xFF, 0xFF  // 65535 raw units -> 6553.5 -> 6554 mm
+  };
+  std::vector<uint8_t> expected_values{
+      0x44, 0x45, 0x50, 0x54, 0x48, 0x4d, 0x41, 0x50, // "DEPTHMAP"
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, // Width: 3
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // Height: 1
+      0x00, 0x0A,                                     // Depth pixel 1: 10
+      0x04, 0xD3,                                     // Depth pixel 2: 1235
+      0x19, 0x9A                                      // Depth pixel 3: 6554
+  };
+
+  auto result = encodeDepthRAWToResponse(depth_bytes.data(), 3, 1, 0.1f);
+  EXPECT_EQ(result.source_name, "depth");
+  EXPECT_EQ(result.mime_type, "image/vnd.viam.dep");
+  EXPECT_EQ(result.bytes, expected_values);
+}
+
+TEST_F(EncodingTest, EncodeDepthRAW_ScaleSaturatesAtUint16Max) {
+  // Values that overflow uint16 after rescaling saturate at 65535 rather
+  // than wrapping.
+  std::vector<uint8_t> depth_bytes{0x40, 0x9C}; // 40000 = 0x9C40
+  std::vector<uint8_t> expected_values{
+      0x44, 0x45, 0x50, 0x54, 0x48, 0x4d, 0x41, 0x50, // "DEPTHMAP"
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // Width: 1
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // Height: 1
+      0xFF, 0xFF                                      // 80000 mm -> 65535
+  };
+
+  auto result = encodeDepthRAWToResponse(depth_bytes.data(), 1, 1, 2.0f);
+  EXPECT_EQ(result.bytes, expected_values);
+}
+
+TEST_F(EncodingTest, EncodeDepthRAW_UnitScaleMatchesDefault) {
+  // An explicit 1 mm/unit scale must produce the same bytes as the default.
+  auto scaled = encodeDepthRAWToResponse(test_depth_data_.data(), test_width_,
+                                         test_height_, 1.0f);
+  auto unscaled = encodeDepthRAWToResponse(test_depth_data_.data(), test_width_,
+                                           test_height_);
+  EXPECT_EQ(scaled.bytes, unscaled.bytes);
+}
+
+TEST_F(EncodingTest, EncodeDepthRAW_InvalidScaleThrows) {
+  EXPECT_THROW(
+      {
+        encodeDepthRAWToResponse(test_depth_data_.data(), test_width_,
+                                 test_height_, 0.0f);
+      },
+      std::runtime_error);
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

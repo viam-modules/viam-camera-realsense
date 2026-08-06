@@ -9,9 +9,12 @@
 namespace realsense {
 namespace encoding {
 
-viam::sdk::Camera::raw_image encodeDepthRAWToResponse(const std::uint8_t *data,
-                                                      const uint width,
-                                                      const uint height);
+// mm_per_unit converts raw depth values to millimeters (the unit of
+// image/vnd.viam.dep). Most D400 cameras use 1 mm depth units, but the D405
+// defaults to 0.1 mm units, so raw values must be rescaled.
+viam::sdk::Camera::raw_image
+encodeDepthRAWToResponse(const std::uint8_t *data, const uint width,
+                         const uint height, const float mm_per_unit = 1.0f);
 
 viam::sdk::Camera::raw_image encodeJPEGToResponse(const std::uint8_t *data,
                                                   const uint width,

@@ -1,5 +1,9 @@
 #include "encoding.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include <turbojpeg.h>
 #include <viam/sdk/log/logging.hpp>
 
@@ -11,7 +15,8 @@ namespace encoding {
 
 std::vector<std::uint8_t> encodeDepthRAW(const std::uint8_t *data,
                                          const uint64_t width,
-                                         const uint64_t height) {
+                                         const uint64_t height,
+                                         const float mm_per_unit) {
   if (data == nullptr) {
     throw std::runtime_error("[encodeDepthRAW] data pointer is null");
   }
@@ -19,18 +24,31 @@ std::vector<std::uint8_t> encodeDepthRAW(const std::uint8_t *data,
   if (width == 0 || height == 0) {
     throw std::runtime_error("[encodeDepthRAW] invalid dimensions");
   }
+  if (mm_per_unit <= 0.0f) {
+    throw std::runtime_error("[encodeDepthRAW] invalid depth scale");
+  }
   viam::sdk::Camera::depth_map m =
       xt::xarray<uint16_t>::from_shape({height, width});
-  std::copy(reinterpret_cast<const uint16_t *>(data),
-            reinterpret_cast<const uint16_t *>(data) + height * width,
-            m.begin());
+  const uint16_t *src = reinterpret_cast<const uint16_t *>(data);
+  if (std::abs(mm_per_unit - 1.0f) < 1e-6f) {
+    std::copy(src, src + height * width, m.begin());
+  } else {
+    // Rescale raw depth units to millimeters, saturating at the uint16 max.
+    std::transform(
+        src, src + height * width, m.begin(), [mm_per_unit](uint16_t v) {
+          const long mm = std::lround(v * mm_per_unit);
+          return static_cast<uint16_t>(std::min(
+              mm, static_cast<long>(std::numeric_limits<uint16_t>::max())));
+        });
+  }
 
   return viam::sdk::Camera::encode_depth_map(m);
 }
 
 viam::sdk::Camera::raw_image encodeDepthRAWToResponse(const std::uint8_t *data,
                                                       const uint width,
-                                                      const uint height) {
+                                                      const uint height,
+                                                      const float mm_per_unit) {
   if (data == nullptr) {
     throw std::runtime_error("[encodeDepthRAWToResponse] data pointer is null");
   }
@@ -41,7 +59,7 @@ viam::sdk::Camera::raw_image encodeDepthRAWToResponse(const std::uint8_t *data,
   viam::sdk::Camera::raw_image response{};
   response.source_name = "depth";
   response.mime_type = "image/vnd.viam.dep";
-  response.bytes = encodeDepthRAW(data, width, height);
+  response.bytes = encodeDepthRAW(data, width, height, mm_per_unit);
   return response;
 }
 
@@ -126,8 +144,20 @@ encodeDepthFrameToResponse(rs2::depth_frame const &frame) {
     throw std::runtime_error("[encodeDepthFrameToResponse] frame profile is "
                              "not a video stream profile");
   }
+  // image/vnd.viam.dep values are millimeters. Most D400 cameras use 1 mm
+  // depth units so the raw values pass through unchanged, but the D405
+  // defaults to 0.1 mm units and must be rescaled.
+  float mm_per_unit = 1.0f;
+  try {
+    const float meters_per_unit = frame.get_units();
+    if (meters_per_unit > 0.0f) {
+      mm_per_unit = meters_per_unit * 1000.0f;
+    }
+  } catch (const std::exception &) {
+    // Fall back to 1 mm units if the device does not report depth units.
+  }
   return encodeDepthRAWToResponse(data, stream_profile.width(),
-                                  stream_profile.height());
+                                  stream_profile.height(), mm_per_unit);
 }
 
 struct PointXYZRGB {
