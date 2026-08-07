@@ -43,7 +43,7 @@ The following attributes are available for `viam:camera:realsense` cameras:
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
-| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list containing the strings `color` and/or `depth`. List order does not affect `get_properties`: it returns color intrinsics whenever `color` is configured (depth intrinsics otherwise) and always anchors `extrinsic_parameters` to the depth left imager — see [Frame origin and `extrinsic_parameters`](#frame-origin-and-extrinsic_parameters). Use [`GetImages`](https://docs.viam.com/components/camera/#getimages) to retrieve images from all listed sensors simultaneously. Defaults to `["color", "depth"]` if omitted. |
+| `sensors` | list | Optional | The RealSense data streams you want your robot to sense from. A list containing the strings `color` and/or `depth`. List order does not affect `get_properties`: it returns color intrinsics whenever `color` is configured (depth intrinsics otherwise), and `extrinsic_parameters` is always identity — see [Frame origin and `extrinsic_parameters`](#frame-origin-and-extrinsic_parameters). Use [`GetImages`](https://docs.viam.com/components/camera/#getimages) to retrieve images from all listed sensors simultaneously. Defaults to `["color", "depth"]` if omitted. |
 | `width_px` | int | Optional | The width of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `height_px` | int | Optional | The height of the output images in pixels. If the RealSense cannot produce the requested resolution, the component will fail to be built. |
 | `serial_number` | string | Optional | The serial number of the specific RealSense camera to use. To find your camera's serial number, the serial number of each plugged-in and available RealSense camera will be logged on module startup. You can also find device information using the [RealSense SDK directly](https://github.com/IntelRealSense/librealsense/blob/master/tools/enumerate-devices/readme.md). If this field is omitted or is an empty string, the module will use the first RealSense camera it detects. |
@@ -91,35 +91,25 @@ The following methods of the Viam camera API are supported:
 
 #### Frame origin and `extrinsic_parameters`
 
-The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is anchored at the depth left imager** for `extrinsic_parameters`.
+The RealSense D4xx series has multiple imagers at slightly different positions on the device. The **camera frame origin is the color (RGB) sensor** whenever `color` is configured, and the depth left imager otherwise.
 
-> **Note:** the bounding-box geometries returned by `get_geometries` are anchored at the **color (RGB) sensor**, not the depth left imager, since `get_properties` reports color intrinsics and the poses callers derive from the images are in the color frame. This differs from the `extrinsic_parameters` reference frame described below, and from the `GetPointCloud` output (which is in the depth frame). If you compose geometries and point clouds in the same frame, account for the ~14.7 mm (D435/D435i) color→depth baseline.
+Everything this module reports lives in that single frame:
 
-`get_properties` returns color intrinsics whenever `color` is configured (depth intrinsics otherwise), regardless of `sensors` list order. `extrinsic_parameters` is always the transform from the intrinsics sensor's frame to the depth left imager (the camera reference frame). With the default `["color", "depth"]` config this is the color→depth transform; when only depth is configured — or only one sensor is configured — extrinsics are identity (zero translation).
+- `get_properties` returns that sensor's intrinsics — color when configured, depth otherwise — regardless of `sensors` list order.
+- `GetPointCloud` emits its vertices in the same frame: depth is registered to the color frame with `rs2::align` before it is deprojected.
+- `get_geometries` anchors its bounding box at the color sensor.
+
+Because the point cloud and the reported intrinsics already share a frame, **`extrinsic_parameters` is identity**.
 
 | Field | Contents |
 | ----- | -------- |
 | `intrinsic_parameters` | `fx`, `fy`, `ppx`, `ppy` for the color sensor when configured, otherwise depth. |
-| `extrinsic_parameters.translation` | Transform from the intrinsics sensor's frame to the depth left imager (camera reference frame), in millimeters. Approximately `{-14.7, 0, 0}` mm for D435/D435i when color is configured (color→depth direction); identity when only depth is configured. |
+| `extrinsic_parameters.translation` | Zero. The point cloud is already registered to the frame the intrinsics describe. |
 | `extrinsic_parameters.orientation` | Identity — the sub-degree rotation between depth and color is treated as zero. |
 
-With the default config (`["color", "depth"]`), if you derive a pose from color-stream intrinsics (e.g. an AprilTag detector or any PnP solver), the resulting pose is in the **color sensor frame**. To express it in the camera reference frame — which is what Viam composes against other components and the world frame — add `extrinsic_parameters.translation`:
+Project a point cloud vertex straight through `intrinsic_parameters`; do not apply an extrinsic offset first. Likewise, a pose you derive from the color stream (e.g. an AprilTag detector or any PnP solver) is already in the camera frame that Viam composes against the world frame and other components — no correction needed.
 
-```python
-props = await camera.get_properties()
-ox = props.extrinsic_parameters.translation.x  # mm
-oy = props.extrinsic_parameters.translation.y  # mm
-oz = props.extrinsic_parameters.translation.z  # mm
-
-# pose_t is the detector's translation output in meters, in the color frame.
-pose_in_camera_frame_mm = (
-    pose_t[0] * 1000 + ox,
-    pose_t[1] * 1000 + oy,
-    pose_t[2] * 1000 + oz,
-)
-```
-
-Skipping this step produces an offset in X equal to the color-to-depth baseline (roughly 15 mm on D435/D435i), visible as soon as the camera frame is composed against the world frame or other components.
+> **Upgrading from 0.22.4:** that release registered the point cloud to the color frame but still reported the ~15 mm color→depth baseline in `extrinsic_parameters.translation`. Consumers that subtract the translation before projecting — including the RDK's `camera.Properties.PointToPixel` — re-applied a baseline `rs2::align` had already removed, shifting every projected point horizontally by `fx · T / Z` (about 22 px at 0.63 m on a D435). If you added `extrinsic_parameters.translation` to color-derived poses to work around this, remove that step.
 
 #### `GetImages` source names
 
