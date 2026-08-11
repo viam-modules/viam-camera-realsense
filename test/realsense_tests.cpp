@@ -75,8 +75,8 @@ public:
       void, startDevice,
       (const std::string &,
        std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>> &,
-       std::shared_ptr<boost::synchronized_value<rs2::frameset>> &,
-       std::uint64_t, const realsense::RsResourceConfig &),
+       boost::synchronized_value<rs2::frameset> &, std::uint64_t,
+       const realsense::RsResourceConfig &),
       ());
   MOCK_METHOD(bool, getFirmwareVersions,
               (std::shared_ptr<rs2::device>, std::string &, std::string &), ());
@@ -120,8 +120,7 @@ createMockDeviceFunctionsWithOrder(std::shared_ptr<MockDeviceFunctions> mock) {
               const std::string &serial,
               std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                   &device,
-              std::shared_ptr<boost::synchronized_value<rs2::frameset>>
-                  &latest_frameset,
+              boost::synchronized_value<rs2::frameset> &latest_frameset,
               std::uint64_t maxFrameAgeMs,
               const realsense::RsResourceConfig &viamConfig,
               viam::sdk::LogSource &) {
@@ -185,8 +184,7 @@ DeviceFunctions createFullyMockedDeviceFunctions() {
           [](const std::string &serial,
              std::shared_ptr<boost::synchronized_value<device::ViamRSDevice<>>>
                  &device,
-             std::shared_ptr<boost::synchronized_value<rs2::frameset>>
-                 &latest_frameset,
+             boost::synchronized_value<rs2::frameset> &latest_frameset,
              std::uint64_t maxFrameAgeMs,
              const realsense::RsResourceConfig &viamConfig,
              viam::sdk::LogSource &) {
