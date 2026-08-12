@@ -14,12 +14,9 @@ on:
         default: main
         description: realsense module branch to run on
   pull_request:
-  # Build on main (no artifact upload / publish) to seed a main-scoped Conan
-  # cache that PR and release runs can restore.
   push:
     branches:
       - main
-
 
 permissions:
   id-token: write
@@ -34,12 +31,12 @@ jobs:
         include:
           - os: ubuntu-22.04-arm
             container:
-              image: ubuntu:22.04
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
             artifact-name: module-arm64
             platform: linux/arm64
           - os: ubuntu-22.04
             container:
-              image: ubuntu:22.04
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
             artifact-name: module-amd64
             platform: linux/amd64
           - os: macos-latest
@@ -55,32 +52,20 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: echo "CHECKOUT_REF=${{ inputs.ref }}" >> $GITHUB_ENV
 
-      - name: Test var set
-        run: echo $CHECKOUT_REF
-
       - name: Check out code
         uses: actions/checkout@v3
         with:
           ref: ${{ env.CHECKOUT_REF }}
 
-      - name: Restore cached libraries
-        uses: actions/cache@v3
-        with:
-          path: ~/.conan2
-          key: ${{ matrix.os }}-conan-${{ hashFiles('**/conanfile.py') }}
-          restore-keys: |
-            ${{ matrix.os }}-conan-
-
-      - name: Install dependencies
+      - name: Install conan (macOS)
+        if: runner.os == 'macOS'
         run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            apt-get update && apt-get install -y make sudo
-          fi
-          make setup
+          brew install cmake ninja pkg-config conan
+          conan profile detect || true
+          conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0 --force
 
       - name: Build
-        run: |
-          make module.tar.gz
+        run: ./bin/build.sh
 
       - name: Upload module artifact
         if: github.event_name == 'release' || github.event_name == 'pull_request'

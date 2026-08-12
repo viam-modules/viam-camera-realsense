@@ -1,15 +1,9 @@
-import os
-import tarfile
 import re
-import json
-from tempfile import TemporaryDirectory
 
 from conan import ConanFile
-from conan.api.output import ConanOutput
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.files import copy, load
-from conan.internal.deploy import _flatten_directory
 
 class ViamRealsense(ConanFile):
     name = "viam-camera-realsense"
@@ -71,26 +65,9 @@ class ViamRealsense(ConanFile):
         cmake = CMake(self)
         cmake.install()
 
+        # CPack assembles module.tar.gz from the CMake install rules
+        cmake.build(target="package")
+        copy(self, "module.tar.gz", src=self.build_folder, dst=self.package_folder)
+
     def deploy(self):
-        with TemporaryDirectory(dir=self.deploy_folder) as tmp_dir:
-            self.output.debug(f"Creating temporary directory {tmp_dir}")
-
-            self.output.info("Deploying necessary files to module.tar.gz")
-
-            # Copy the main binary to bin/
-            copy(self, "viam-camera-realsense", src=self.package_folder, dst=tmp_dir)
-
-            # Copy meta.json to root
-            copy(self, "meta.json", src=self.package_folder, dst=tmp_dir)
-
-            # Copy udev rules and install scripts
-            for pat in ["*.sh", "99-realsense-libusb.rules"]:
-                copy(self, pat, src=self.package_folder, dst=tmp_dir)
-
-            self.output.info("Creating module.tar.gz")
-            with tarfile.open(os.path.join(self.deploy_folder, "module.tar.gz"), "w|gz") as tar:
-                tar.add(tmp_dir, arcname=".", recursive=True)
-
-                self.output.info("module.tar.gz contents:")
-                for mem in tar.getmembers():
-                    self.output.info(mem.name)
+        copy(self, "module.tar.gz", src=self.package_folder, dst=self.deploy_folder)

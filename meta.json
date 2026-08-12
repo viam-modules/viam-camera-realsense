@@ -18,8 +18,8 @@
     }
   ],
   "build": {
-    "setup": "make setup",
-    "build": "make module.tar.gz",
+    "setup": "./bin/setup.sh",
+    "build": "PATH=$PWD/venv/bin:$PATH ./bin/build.sh",
     "path": "module.tar.gz",
     "arch": [
       "linux/amd64",

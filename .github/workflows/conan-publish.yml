@@ -16,49 +16,31 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-22.04
-            image: debian:bookworm
-            platform: linux/amd64
           - runner: ubuntu-22.04-arm
-            image: debian:bookworm
-            platform: linux/arm64
     runs-on: ${{ matrix.runner }}
     container:
-      image: ${{ matrix.image }}
+      image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
     env:
       CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
       CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
 
     steps:
-      - name: Install make + sudo (container is minimal)
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            make sudo git ca-certificates
-
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Run setup (installs conan + adds viamconan remote)
-        run: make setup
-
       - name: Verify viamconan auth (fail fast before the long build)
-        run: |
-          . ./venv/bin/activate
-          conan remote auth --force -cc core:non_interactive=True viamconan
+        run: conan remote auth --force -cc core:non_interactive=True viamconan
 
       - name: Build dependency graph (conan create)
-        # Same flags as the Makefile so published package_ids match the cloud builder's.
+        # Same profile as bin/build.sh so published package_ids match the cloud builder's.
         run: |
-          . ./venv/bin/activate
           conan create . \
             -o "&:with_tests=False" \
-            -s:a build_type=Release \
-            -s:a compiler.cppstd=17 \
+            -pr:a ./etc/conan/module.profile \
             --lockfile conan.lock \
             --build=missing
 
       - name: Upload librealsense and libusb binaries
         run: |
-          . ./venv/bin/activate
           conan upload "librealsense/*" -r viamconan -c
           conan upload "libusb/*" -r viamconan -c

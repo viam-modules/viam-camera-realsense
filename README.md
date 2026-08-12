@@ -413,23 +413,51 @@ If you see errors like `[serve] Realsense module is not running as root`:
 
 ## Building the module
 
-### Setup
+Builds use [Conan](https://conan.io) for dependencies and CMake for everything
+else. Get `conan` (2.x) on your `PATH` however you prefer (`pipx install conan`,
+a venv, `brew install conan`), then make sure a default profile and the viam
+remote exist:
+
 ```
-make setup
-```
-### Build the module tarball
-```
-make module.tar.gz
+conan profile detect
+conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0
 ```
 
-### Test the module
+`./bin/setup.sh` does all of the above for you (system packages included), using
+a `./venv` virtualenv for conan; activate it (or prefix `PATH=$PWD/venv/bin:$PATH`)
+before running the commands below.
+
+All conan commands take the checked-in profile so settings match CI and the
+cloud builder.
+
+### Build the module tarball
 ```
-make test
+./bin/build.sh
+```
+
+### Build and test
+```
+conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
+conan build . -o "&:with_tests=True" --output-folder=build-conan --build=none -pr:a ./etc/conan/module.profile
+cd build-conan/build/Release && . ./generators/conanrun.sh && ctest --output-on-failure
+```
+
+### Coverage
+```
+conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
+cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
+cmake --build --preset conan-release
+. build-conan/build/Release/generators/conanrun.sh && cmake --build --preset conan-release --target coverage
+```
+
+### Lint
+```
+./bin/lint.sh
 ```
 
 ### Clean up
 ```
-make clean
+rm -rf build-conan module.tar.gz
 ```
 
 ## Using within a Frame System
