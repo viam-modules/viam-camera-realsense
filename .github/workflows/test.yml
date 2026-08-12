@@ -4,6 +4,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 on:
+  workflow_dispatch:
   # PRs for pre-merge validation; main pushes update baseline coverage
   pull_request:
   push:
