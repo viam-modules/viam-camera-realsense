@@ -14,12 +14,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # bookworm binaries serve the cloud builder (meta.json distro);
+        # jammy binaries serve the CI/release legs.
         include:
           - runner: ubuntu-22.04
+            image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
           - runner: ubuntu-22.04-arm
+            image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+          - runner: ubuntu-22.04
+            image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
+          - runner: ubuntu-22.04-arm
+            image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
     runs-on: ${{ matrix.runner }}
     container:
-      image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+      image: ${{ matrix.image }}
     env:
       CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
       CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}

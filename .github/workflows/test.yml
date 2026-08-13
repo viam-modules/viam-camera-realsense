@@ -22,12 +22,12 @@ jobs:
         include:
           - os: github-linux-arm64-8core
             container:
-              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/arm64
             coverage: false
           - os: ubuntu-latest
             container:
-              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/amd64
             coverage: true
           - os: macos-latest
@@ -52,13 +52,13 @@ jobs:
       - name: Install Conan dependencies
         run: conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
 
-      # bin/lint.sh prefers clang-format-19; the image ships bookworm's 14,
+      # bin/lint.sh prefers clang-format-19; the image ships jammy's 14,
       # which formats differently.
       - name: Install clang-format-19 (Linux)
         if: runner.os == 'Linux'
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor > /usr/share/keyrings/llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-19 main" > /etc/apt/sources.list.d/llvm19.list
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main" > /etc/apt/sources.list.d/llvm19.list
           apt-get update && apt-get install -y clang-format-19
 
       - name: Lint
