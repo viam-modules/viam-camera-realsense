@@ -30,7 +30,7 @@ jobs:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/amd64
             coverage: true
-          - os: macos-latest
+          - os: macos-26
             coverage: false
 
     container: ${{ matrix.container }}
