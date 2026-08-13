@@ -37,7 +37,6 @@ jobs:
           conan create . \
             -o "&:with_tests=False" \
             -pr:a ./etc/conan/module.profile \
-            --lockfile conan.lock \
             --build=missing
 
       - name: Upload librealsense and libusb binaries
