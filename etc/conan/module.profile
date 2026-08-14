@@ -6,7 +6,8 @@ include(default)
 build_type=Release
 compiler.cppstd=17
 {% if platform.system() == "Darwin" %}
-os.version=14.0
+{# os.version deliberately unset until the SDK's pinned publish workflow
+   ships binaries with os.version=14.0 — it participates in the package_id #}
 arch=armv8
 compiler=apple-clang
 compiler.version=21
