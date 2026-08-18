@@ -38,7 +38,7 @@ void enableGlobalTimestamp(SensorT &sensor, viam::sdk::LogSource &logger) {
           << "[enableGlobalTimestamp] Enabled Global Timestamp for sensor: "
           << sensors::sensor_type_to_string(sensor_type, logger);
     } catch (const std::exception &e) {
-      VIAM_DEVICE_LOG(logger, error)
+      VIAM_DEVICE_LOG(logger, warn)
           << "[enableGlobalTimestamp] Failed to enable Global Timestamp: "
           << e.what();
     }
