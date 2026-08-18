@@ -436,15 +436,21 @@ cloud builder.
 ```
 
 ### Build and test
+Tests are off by default. Pass `-o "&:with_tests=True"` once, on `conan install`;
+it is baked into the generated CMake presets, so the build and test steps below
+don't need it repeated.
+
 ```
-conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
-conan build . -o "&:with_tests=True" --output-folder=build-conan --build=none -pr:a ./etc/conan/module.profile
-ctest --test-dir build-conan/build/Release --output-on-failure
+conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/module.profile
+cmake --preset conan-release
+cmake --build --preset conan-release
+ctest --test-dir build/Release --output-on-failure
 ```
 
 ### Coverage
+Reuses the `conan install` from above; only the configure step changes.
+
 ```
-conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
 cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
 cmake --build --preset conan-release
 cmake --build --preset conan-release --target coverage
@@ -457,7 +463,7 @@ cmake --build --preset conan-release --target coverage
 
 ### Clean up
 ```
-rm -rf build-conan module.tar.gz
+rm -rf build module.tar.gz
 ```
 
 ## Using within a Frame System

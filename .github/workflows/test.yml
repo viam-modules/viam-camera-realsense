@@ -50,7 +50,7 @@ jobs:
         run: conan profile show -pr:a ./etc/conan/module.profile
 
       - name: Install Conan dependencies
-        run: conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
+        run: conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/module.profile
 
       # bin/lint.sh prefers clang-format-19; the image ships jammy's 14,
       # which formats differently.
@@ -74,17 +74,15 @@ jobs:
       - name: Build and run tests
         if: matrix.coverage != true
         run: |
-          conan build . -o "&:with_tests=True" --output-folder=build-conan --build=none -pr:a ./etc/conan/module.profile
-          ctest --test-dir build-conan/build/Release --output-on-failure
+          cmake --preset conan-release
+          cmake --build --preset conan-release
+          ctest --test-dir build/Release --output-on-failure
 
       - name: Install lcov (coverage leg)
         if: matrix.coverage == true
         run: apt-get update && apt-get install -y lcov
 
-      # The coverage cmake target runs ctest + lcov; configure with the
-      # coverage option instead of `conan build` so the flag stays a pure
-      # CMake concern.
-      - name: Build and run tests with coverage (coverage leg)
+      - name: Build and run tests with coverage
         if: matrix.coverage == true
         run: |
           cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
@@ -95,7 +93,7 @@ jobs:
         if: matrix.coverage == true
         uses: codecov/codecov-action@v5
         with:
-          files: ./build-conan/build/Release/coverage.info
+          files: ./build/Release/coverage.info
           flags: unittests
           token: ${{ secrets.CODECOV_TOKEN || '' }}
           # Report-only: an upload failure should not fail CI
