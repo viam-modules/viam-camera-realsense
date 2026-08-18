@@ -439,7 +439,7 @@ cloud builder.
 ```
 conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
 conan build . -o "&:with_tests=True" --output-folder=build-conan --build=none -pr:a ./etc/conan/module.profile
-cd build-conan/build/Release && . ./generators/conanrun.sh && ctest --output-on-failure
+ctest --test-dir build-conan/build/Release --output-on-failure
 ```
 
 ### Coverage
@@ -447,7 +447,7 @@ cd build-conan/build/Release && . ./generators/conanrun.sh && ctest --output-on-
 conan install . -o "&:with_tests=True" --output-folder=build-conan --build=missing -pr:a ./etc/conan/module.profile
 cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
 cmake --build --preset conan-release
-. build-conan/build/Release/generators/conanrun.sh && cmake --build --preset conan-release --target coverage
+cmake --build --preset conan-release --target coverage
 ```
 
 ### Lint
