@@ -12,6 +12,14 @@ include(cmake/simd_flags.cmake)
 
 option(VIAM_REALSENSE_ENABLE_TESTS "Enable unit tests" OFF)
 option(VIAM_REALSENSE_ENABLE_COVERAGE "Enable code coverage" OFF)
+option(VIAM_REALSENSE_ENABLE_ASAN "Enable ASAN/UBSan" OFF)
+
+# ASAN + UBSan build of the module library and the gtest suite. Dependencies
+# stay un-instrumented (prebuilt conan binaries); only our code is sanitized.
+if(VIAM_REALSENSE_ENABLE_ASAN)
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -O1 -g)
+    add_link_options(-fsanitize=address,undefined)
+endif()
 
 if(VIAM_REALSENSE_ENABLE_COVERAGE)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
