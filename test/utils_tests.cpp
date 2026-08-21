@@ -9,10 +9,12 @@ namespace {
 std::atomic<int> cleanup_call_count{0};
 std::atomic<int> cleanup_with_error_call_count{0};
 
-// Simple cleanup function that takes a pointer
+// Simple cleanup function that takes a pointer. Frees the resource like a
+// real C cleanup function would, so the tests are leak-free under ASAN/LSan.
 void mock_cleanup(int *ptr) {
   if (ptr) {
     cleanup_call_count++;
+    delete ptr;
   }
 }
 
@@ -20,6 +22,7 @@ void mock_cleanup(int *ptr) {
 void mock_cleanup_with_error(int *ptr, int *error_out) {
   if (ptr) {
     cleanup_with_error_call_count++;
+    delete ptr;
     if (error_out) {
       *error_out = 0; // Success
     }
