@@ -398,6 +398,15 @@ You can also look at the official RealSense troubleshooting guide [here](https:/
 
 The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on the Raspberry Pi for faster streaming and access to more resolution options.
 
+#### How to tell if you're on USB 2
+
+A USB 3 camera falls back to USB 2 when plugged into a USB 2 port, or into a USB 3 port with a USB 2 cable or hub. The module still runs on USB 2, but fewer resolutions and frame rates are available and depth streaming may be unreliable. At startup the module logs the detected connection:
+
+- `Device is connected via USB 3.2. Full resolution and frame rate options are available.`
+- `Device is connected via USB 2.1. USB 3.x is recommended for depth streaming...` (warning)
+
+The module only fails to start if the configured resolution is not available over the current connection. In that case the `Current device configuration not supported` error will mention USB 2. Fix the connection (USB 3 port and cable, no USB 2 hub) or lower the configured `width`/`height`.
+
 ## macOS Distribution Recommendation
 
 macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state.

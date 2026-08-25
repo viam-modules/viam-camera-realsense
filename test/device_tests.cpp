@@ -170,8 +170,18 @@ public:
     sensors_ = sensors;
   }
 
+  bool supports(rs2_camera_info info) const {
+    return info == RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR and
+           usb_type_.has_value();
+  }
+
+  const char *get_info(rs2_camera_info) const { return usb_type_->c_str(); }
+
+  void set_usb_type(const std::string &usb_type) { usb_type_ = usb_type; }
+
 private:
   std::vector<SimpleSensor> sensors_;
+  std::optional<std::string> usb_type_;
 };
 
 class MockConfig {
@@ -499,6 +509,106 @@ TEST_F(DeviceTest, PrintDeviceInfo_USBDescriptorUnsupported_NoWarning) {
   auto warn_logs = log_capture.get_warning_logs();
   EXPECT_EQ(warn_logs.size(), 0)
       << "Should not warn when USB type descriptor is not supported";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_USB3Connection_LogsConfirmation) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("3.2"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto info_logs = log_capture.get_logs_by_level(viam::sdk::log_level::info);
+  EXPECT_TRUE(anyLogContains(info_logs, "connected via USB 3.2"))
+      << "Should log an info confirmation of the USB 3 connection";
+  EXPECT_TRUE(anyLogContains(info_logs, "Full resolution"))
+      << "Confirmation should state full capabilities are available";
+}
+
+TEST_F(DeviceTest, PrintDeviceInfo_USBTypeUnknown_NoWarning) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  setAllDeviceInfoUnsupported(*mock_device_);
+
+  // Some platforms/firmware report "Unknown" — must not trigger the USB 2
+  // warning (telling the user to swap cables) nor the USB 3 confirmation.
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("Unknown"));
+
+  EXPECT_NO_THROW(printDeviceInfo(*mock_device_, logger));
+
+  auto warn_logs = log_capture.get_warning_logs();
+  EXPECT_EQ(warn_logs.size(), 0)
+      << "Should not warn when the USB type descriptor is unrecognized";
+
+  auto info_logs = log_capture.get_logs_by_level(viam::sdk::log_level::info);
+  EXPECT_FALSE(anyLogContains(info_logs, "Full resolution"))
+      << "Should not claim USB 3 capabilities for an unrecognized descriptor";
+}
+
+// Test getUsbConnectionType helper
+TEST_F(DeviceTest, GetUsbConnectionType_USB3_ReturnsUsb3) {
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("3.2"));
+
+  auto result = getUsbConnectionType(*mock_device_);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->first, UsbConnectionType::usb3);
+  EXPECT_EQ(result->second, "3.2");
+}
+
+TEST_F(DeviceTest, GetUsbConnectionType_USB2_ReturnsUsb2) {
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("2.1"));
+
+  auto result = getUsbConnectionType(*mock_device_);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->first, UsbConnectionType::usb2);
+  EXPECT_EQ(result->second, "2.1");
+}
+
+TEST_F(DeviceTest, GetUsbConnectionType_UnknownDescriptor_ReturnsUnknown) {
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return("Unknown"));
+
+  auto result = getUsbConnectionType(*mock_device_);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->first, UsbConnectionType::unknown);
+  EXPECT_EQ(result->second, "Unknown");
+}
+
+TEST_F(DeviceTest, GetUsbConnectionType_EmptyDescriptor_ReturnsUnknown) {
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(*mock_device_, get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(""));
+
+  auto result = getUsbConnectionType(*mock_device_);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->first, UsbConnectionType::unknown);
+}
+
+TEST_F(DeviceTest, GetUsbConnectionType_Unsupported_ReturnsNullopt) {
+  EXPECT_CALL(*mock_device_, supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR))
+      .WillRepeatedly(Return(false));
+
+  auto result = getUsbConnectionType(*mock_device_);
+  EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(DeviceTest, PrintDeviceInfo_OutdatedFirmware_LogsWarning) {
@@ -1326,6 +1436,81 @@ TEST_F(DeviceTest,
       << "Should log that auto-exposure was disabled for color";
   EXPECT_TRUE(found_matching_profiles_log)
       << "Should log that matching profiles were found";
+}
+
+// Helper: a SimpleDevice with one color sensor whose only stream profile
+// (1920x1080) cannot satisfy a 640x480 request — the shape of a USB 2
+// connection where high-res profiles exist but the requested one doesn't.
+static std::shared_ptr<SimpleDevice> makeDeviceWithoutMatchingProfile() {
+  auto device = std::make_shared<SimpleDevice>();
+  SimpleSensor color_sensor;
+  color_sensor.set_sensor_type(true, false);
+  EXPECT_CALL(*color_sensor.mock(), supports(_))
+      .Times(::testing::AnyNumber())
+      .WillRepeatedly(Return(false));
+  SimpleStreamProfile profile;
+  profile.format_ = RS2_FORMAT_RGB8;
+  profile.width_ = 1920;
+  profile.height_ = 1080;
+  profile.fps_ = 30;
+  profile.stream_index_ = 0;
+  color_sensor.set_stream_profiles({profile});
+  device->set_sensors({color_sensor});
+  return device;
+}
+
+TEST_F(DeviceTest, CreateConfig_NoMatchingProfileOnUSB2_ErrorMentionsUSB) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  auto device = makeDeviceWithoutMatchingProfile();
+  device->set_usb_type("2.1");
+
+  RsResourceConfig viam_config(
+      "test_serial", "test_camera", {realsense::sensors::SensorType::color},
+      std::optional<int>{640}, std::optional<int>{480});
+
+  try {
+    createConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                 rs2::depth_sensor, SimpleVideoStreamProfile, RsResourceConfig>(
+        device, viam_config, logger);
+    FAIL() << "createConfig should throw when no profile matches";
+  } catch (const std::runtime_error &e) {
+    std::string message = e.what();
+    EXPECT_NE(message.find("Current device configuration not supported"),
+              std::string::npos);
+    EXPECT_NE(message.find("USB 2.1"), std::string::npos)
+        << "Error should point at the USB 2 connection as a likely cause";
+  }
+
+  auto error_logs = log_capture.get_error_logs();
+  EXPECT_TRUE(anyLogContains(error_logs, "USB 2.1"))
+      << "Error log should mention the USB 2 connection";
+}
+
+TEST_F(DeviceTest, CreateConfig_NoMatchingProfileNoUSBInfo_PlainError) {
+  test_utils::LogCaptureFixture log_capture;
+  viam::sdk::LogSource logger;
+
+  // No USB type set — device does not report a descriptor
+  auto device = makeDeviceWithoutMatchingProfile();
+
+  RsResourceConfig viam_config(
+      "test_serial", "test_camera", {realsense::sensors::SensorType::color},
+      std::optional<int>{640}, std::optional<int>{480});
+
+  try {
+    createConfig<SimpleDevice, SimpleConfig, rs2::color_sensor,
+                 rs2::depth_sensor, SimpleVideoStreamProfile, RsResourceConfig>(
+        device, viam_config, logger);
+    FAIL() << "createConfig should throw when no profile matches";
+  } catch (const std::runtime_error &e) {
+    std::string message = e.what();
+    EXPECT_NE(message.find("Current device configuration not supported"),
+              std::string::npos);
+    EXPECT_EQ(message.find("USB"), std::string::npos)
+        << "Error should not speculate about USB when the type is unknown";
+  }
 }
 
 } // namespace test

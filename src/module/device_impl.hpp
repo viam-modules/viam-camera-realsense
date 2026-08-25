@@ -2,6 +2,7 @@
 
 #include "sensors.hpp"
 #include "time.hpp"
+#include "usb.hpp"
 #include "utils.hpp"
 
 #include <array>
@@ -265,15 +266,29 @@ void printDeviceInfo(DeviceT const &dev, viam::sdk::LogSource &logger) {
     }
     VIAM_DEVICE_LOG(logger, info) << info.str();
 
-    // Warn about USB 2.x connections — depth streaming requires USB 3.x
-    if (dev.supports(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR)) {
-      std::string usb_type = dev.get_info(RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR);
-      if (!usb_type.empty() && usb_type[0] != '3') {
+    // USB connection diagnostics — depth streaming requires USB 3.x. A USB 3
+    // camera plugged into a USB 2 port or through a USB 2 cable enumerates as
+    // "2.1", the most common cause of missing depth frames in the field.
+    if (auto usb = getUsbConnectionType(dev)) {
+      switch (usb->first) {
+      case UsbConnectionType::usb2:
         VIAM_DEVICE_LOG(logger, warn)
-            << "[printDeviceInfo] Device is connected via USB " << usb_type
+            << "[printDeviceInfo] Device is connected via USB " << usb->second
             << ". USB 3.x is recommended for depth streaming. "
                "Depth frames may be unavailable or unreliable at USB 2.x "
-               "speeds.";
+               "speeds. Check that the camera is plugged into a USB 3 port "
+               "using a USB 3 cable, with no USB 2 hub in between.";
+        break;
+      case UsbConnectionType::usb3:
+        VIAM_DEVICE_LOG(logger, info)
+            << "[printDeviceInfo] Device is connected via USB " << usb->second
+            << ". Full resolution and frame rate options are available.";
+        break;
+      case UsbConnectionType::unknown:
+        VIAM_DEVICE_LOG(logger, debug)
+            << "[printDeviceInfo] USB type descriptor not recognized: \""
+            << usb->second << "\". Cannot verify USB 3 connection.";
+        break;
       }
     }
 
@@ -538,7 +553,7 @@ template <typename DeviceT, typename ConfigT, typename ColorSensorT,
 std::shared_ptr<ConfigT> createConfig(std::shared_ptr<DeviceT> device,
                                       ViamConfigT const &viamConfig,
                                       viam::sdk::LogSource &logger) {
-  std::shared_ptr<rs2::config> config = nullptr;
+  std::shared_ptr<ConfigT> config = nullptr;
 
   if (utils::contains(sensors::SensorType::color, viamConfig.sensors) and
       utils::contains(sensors::SensorType::depth, viamConfig.sensors)) {
@@ -574,11 +589,18 @@ std::shared_ptr<ConfigT> createConfig(std::shared_ptr<DeviceT> device,
   }
   // We are not currently supporting only depth sensor
   if (config == nullptr) {
-    VIAM_DEVICE_LOG(logger, error)
-        << "[createConfig] Current device configuration not "
-           "supported";
-    throw std::runtime_error(
-        "Current device configuration not supported, check device logs");
+    std::string error_message = "Current device configuration not supported";
+    // USB 2 removes most resolution/frame-rate profiles, so a config that
+    // works on USB 3 can fail to match here — point the user at the cable.
+    auto usb = getUsbConnectionType(*device);
+    if (usb and usb->first == UsbConnectionType::usb2) {
+      error_message +=
+          ": device is connected via USB " + usb->second +
+          ", which limits the available resolutions and frame rates. Try a "
+          "USB 3 port and cable, or lower the configured resolution";
+    }
+    VIAM_DEVICE_LOG(logger, error) << "[createConfig] " << error_message;
+    throw std::runtime_error(error_message + ", check device logs");
   }
 
   return config;
