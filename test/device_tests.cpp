@@ -996,7 +996,7 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_UnsupportedSensor_DoesNothing) {
   EXPECT_EQ(all_logs.size(), 0) << "Should not log when option not supported";
 }
 
-TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
+TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsWarning) {
   test_utils::LogCaptureFixture log_capture;
   viam::sdk::LogSource logger;
 
@@ -1012,12 +1012,16 @@ TEST_F(DeviceTest, EnableGlobalTimestamp_SetOptionFails_LogsError) {
   // Execute
   enableGlobalTimestamp(mock_sensor, logger);
 
-  // Verify error log
-  auto error_logs = log_capture.get_error_logs();
-  ASSERT_EQ(error_logs.size(), 1) << "Should log error when set_option fails";
-  EXPECT_THAT(error_logs[0].message,
+  // Verify warning log (failure is benign, so it should not be an error)
+  auto warning_logs = log_capture.get_warning_logs();
+  ASSERT_EQ(warning_logs.size(), 1)
+      << "Should log warning when set_option fails";
+  EXPECT_THAT(warning_logs[0].message,
               ::testing::HasSubstr("Failed to enable Global Timestamp"));
-  EXPECT_THAT(error_logs[0].message, ::testing::HasSubstr("Hardware error"));
+  EXPECT_THAT(warning_logs[0].message, ::testing::HasSubstr("Hardware error"));
+
+  auto error_logs = log_capture.get_error_logs();
+  EXPECT_EQ(error_logs.size(), 0) << "Should not log at error level";
 }
 
 // Test disableAutoExposurePriority function
