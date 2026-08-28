@@ -52,6 +52,11 @@ public:
   void set_throw(bool t) { throw_.store(t); }
   int restart_calls() const { return restart_calls_.load(); }
 
+  void set_device_absent(bool a) { device_absent_.store(a); }
+  void set_reattach_result(bool ok) { reattach_result_.store(ok); }
+  void set_reattach_throw(bool t) { reattach_throw_.store(t); }
+  int reattach_calls() const { return reattach_calls_.load(); }
+
   StaleFrameWatchdog<FakeFrameSet>::FramesetGetter fs_getter() {
     return [this]() -> FakeFrameSet {
       if (throw_.load())
@@ -66,6 +71,21 @@ public:
     return [this]() {
       restart_calls_.fetch_add(1);
       return restart_result_.load();
+    };
+  }
+  StaleFrameWatchdog<FakeFrameSet>::DeviceAbsentFn device_absent() {
+    return [this]() { return device_absent_.load(); };
+  }
+  // Mirrors production: a successful reattach makes the device present again.
+  StaleFrameWatchdog<FakeFrameSet>::ReattachFn on_absent() {
+    return [this]() {
+      reattach_calls_.fetch_add(1);
+      if (reattach_throw_.load())
+        throw std::runtime_error("reattach boom");
+      const bool ok = reattach_result_.load();
+      if (ok)
+        device_absent_.store(false);
+      return ok;
     };
   }
 
@@ -99,6 +119,10 @@ private:
   std::atomic<bool> restart_result_{true};
   std::atomic<bool> throw_{false};
   std::atomic<int> restart_calls_{0};
+  std::atomic<bool> device_absent_{false};
+  std::atomic<bool> reattach_result_{true};
+  std::atomic<bool> reattach_throw_{false};
+  std::atomic<int> reattach_calls_{0};
 };
 
 // Fast tunables so each test runs in well under a second.
@@ -109,6 +133,7 @@ StaleFrameWatchdog<FakeFrameSet>::Tunables fast_tunables() {
   t.consecutive_polls_required = 3;
   t.post_restart_grace_ms = 40;
   t.max_restarts_per_hour = 3;
+  t.reattach_interval_ms = 20;
   return t;
 }
 
@@ -292,6 +317,125 @@ TEST(WatchdogTest, SurvivesGetFsException) {
   EXPECT_TRUE(wait_until([&] { return h.restart_calls() >= 1; }, kTimeout))
       << "watchdog thread should survive get_fs exceptions and resume "
          "detecting";
+}
+
+// --- device-absent / reattach ------------------------------------------------
+
+// The regression this path exists for: the camera drops off the bus after
+// construction, so there is no device to restart. The watchdog must
+// re-enumerate instead of giving up until the host reboots.
+TEST(WatchdogTest, ReattachesWhenDeviceAbsent) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  h.set_device_absent(true);
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  EXPECT_TRUE(wait_until([&] { return h.reattach_calls() >= 1; }, kTimeout));
+}
+
+// A restart cannot fix a missing device, so it must not be attempted — the
+// reattach path owns this case exclusively.
+TEST(WatchdogTest, DoesNotRestartWhileDeviceAbsent) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  h.set_device_absent(true);
+  h.set_reattach_result(false); // stays absent, so the state persists
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  ASSERT_TRUE(wait_until([&] { return h.reattach_calls() >= 3; }, kTimeout));
+  EXPECT_EQ(h.restart_calls(), 0);
+}
+
+// A device that dropped off before ever streaming has no frame to age, so the
+// stale path would never fire. Absence must be detected on its own.
+TEST(WatchdogTest, ReattachesWithNoFramesEverDelivered) {
+  Harness h;
+  h.set_mode(FrameMode::None);
+  h.set_device_absent(true);
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  EXPECT_TRUE(wait_until([&] { return h.reattach_calls() >= 1; }, kTimeout));
+}
+
+// Once reattached, the watchdog stops re-enumerating and goes back to
+// ordinary stale-frame duty.
+TEST(WatchdogTest, StopsReattachingOnceDevicePresent) {
+  Harness h;
+  h.set_mode(FrameMode::Fresh);
+  h.set_device_absent(true);
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  ASSERT_TRUE(wait_until([&] { return h.reattach_calls() >= 1; }, kTimeout));
+
+  const int after_success = h.reattach_calls();
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  EXPECT_EQ(h.reattach_calls(), after_success);
+}
+
+// A device in DFU mode also leaves device_ null; reattaching mid firmware
+// update would fight the update. Recovery mode wins.
+TEST(WatchdogTest, SkipsReattachDuringRecoveryMode) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  h.set_device_absent(true);
+  h.set_recovery(true);
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  EXPECT_EQ(h.reattach_calls(), 0);
+  EXPECT_EQ(h.restart_calls(), 0);
+}
+
+// Reattach runs on its own interval, not on every poll — each attempt is a
+// full bus enumeration.
+TEST(WatchdogTest, ReattachIsThrottledToItsInterval) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  h.set_device_absent(true);
+  h.set_reattach_result(false);
+  auto t = fast_tunables();
+  t.poll_interval_ms = 10;
+  t.reattach_interval_ms = 5000; // one attempt, then quiet
+  StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
+                                      h.on_stale(), make_logger(), t,
+                                      h.device_absent(), h.on_absent());
+  ASSERT_TRUE(wait_until([&] { return h.reattach_calls() >= 1; }, kTimeout));
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  EXPECT_EQ(h.reattach_calls(), 1);
+}
+
+// An exception out of the reattach callback must not kill the thread — it runs
+// rs2 enumeration, which throws on transient libusb errors.
+TEST(WatchdogTest, SurvivesReattachException) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  h.set_device_absent(true);
+  h.set_reattach_throw(true);
+  StaleFrameWatchdog<FakeFrameSet> wd(
+      h.fs_getter(), h.recovery_check(), h.on_stale(), make_logger(),
+      fast_tunables(), h.device_absent(), h.on_absent());
+  ASSERT_TRUE(wait_until([&] { return h.reattach_calls() >= 2; }, kTimeout));
+
+  // Thread is alive: stop throwing, and it must reattach for real and then
+  // resume ordinary stale-frame duty on the now-present device.
+  h.set_reattach_throw(false);
+  EXPECT_TRUE(wait_until([&] { return h.restart_calls() >= 1; }, kTimeout));
+}
+
+// Omitting both callbacks keeps the pre-existing stale-frame-only behavior.
+TEST(WatchdogTest, WorksWithoutReattachCallbacks) {
+  Harness h;
+  h.set_mode(FrameMode::Stale);
+  StaleFrameWatchdog<FakeFrameSet> wd(h.fs_getter(), h.recovery_check(),
+                                      h.on_stale(), make_logger(),
+                                      fast_tunables());
+  EXPECT_TRUE(wait_until([&] { return h.restart_calls() >= 1; }, kTimeout));
+  EXPECT_EQ(h.reattach_calls(), 0);
 }
 
 int main(int argc, char **argv) {

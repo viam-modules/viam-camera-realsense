@@ -1197,13 +1197,36 @@ public:
       }
     };
     auto recovery_check = [this]() { return is_recovery_mode_.get(); };
+    // deviceChangedCallback nulls device_ when the camera is removed. The
+    // watchdog checks this after recovery_check, so a DFU-mode device (which
+    // leaves device_ null too) reports recovery rather than absence.
+    auto device_absent = [this]() { return !device_; };
+    auto reattach = [this]() -> bool {
+      // do_command_mutex_ for the same reason restart_fn takes it: a firmware
+      // update rebuilds the device and must not race this. Then attach_mutex_,
+      // which is what deviceChangedCallback holds. Lock order is always
+      // do_command_mutex_ -> attach_mutex_, never the reverse.
+      std::lock_guard<std::mutex> guard(do_command_mutex_);
+      std::lock_guard<std::mutex> attach_guard(attach_mutex_);
+      if (device_) {
+        return true; // the device-change callback re-attached first
+      }
+      auto device_list = realsense_ctx_->query_devices();
+      if (device_list.size() == 0) {
+        return false;
+      }
+      // Re-enters start_watchdog() on success, which no-ops because watchdog_
+      // is already set (we are running on its thread).
+      return assign_and_initialize_device(device_list);
+    };
     // Read latest_frameset_ on every poll. get() copies under the
     // synchronized_value's lock (race-free wrt frameCallback); returns an
     // empty frameset until the first frame arrives.
     auto get_fs = [this]() -> rs2::frameset { return latest_frameset_.get(); };
     watchdog_ = std::make_unique<watchdog::StaleFrameWatchdog<rs2::frameset>>(
         std::move(get_fs), std::move(recovery_check), std::move(restart_fn),
-        this->logger_);
+        this->logger_, watchdog::StaleFrameWatchdog<rs2::frameset>::Tunables{},
+        std::move(device_absent), std::move(reattach));
     VIAM_RESOURCE_LOG(info)
         << "[watchdog] constructed for serial " << config_->serial_number;
   }
@@ -1223,6 +1246,13 @@ private:
   // This is critical for long-running operations like firmware updates
   std::mutex do_command_mutex_;
 
+  // Guards device attach/detach so librealsense's device-change thread and the
+  // watchdog reattach path cannot both run assign_and_initialize_device for
+  // the same serial. Kept separate from do_command_mutex_ so the callback
+  // thread never blocks behind a multi-minute firmware update.
+  // Lock order: do_command_mutex_ before attach_mutex_, never the reverse.
+  std::mutex attach_mutex_;
+
   DeviceFunctions device_funcs_;
   std::shared_ptr<RealsenseContext<SynchronizedContextT>> realsense_ctx_;
 
@@ -1235,6 +1265,12 @@ private:
   void deviceChangedCallback(rs2::event_information &info) {
     std::cout << "[deviceChangedCallback] Device connection status changed"
               << std::endl;
+
+    // Serialize against the watchdog's reattach path — both call
+    // assign_and_initialize_device, and for an explicitly configured serial
+    // the assigned_serials_ check does not stop two threads claiming the same
+    // camera. See attach_mutex_ for the lock order.
+    std::lock_guard<std::mutex> attach_guard(attach_mutex_);
 
     try {
       std::string const required_serial_number = config_->serial_number;

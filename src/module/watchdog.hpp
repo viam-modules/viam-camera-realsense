@@ -22,14 +22,22 @@ template <typename FrameSetT> class StaleFrameWatchdog;
 
 // StaleFrameWatchdog
 //
-// Background thread that polls the cached frameset (via FramesetGetter) and
-// invokes RestartFn to rebuild the rs2::pipeline once a frame stays stale for
-// consecutive_polls_required polls. Rate-limited (see Tunables).
+// Background thread that watches for the two ways a camera stops delivering
+// frames, each with its own remedy:
+//
+//   * the pipeline wedges while the device is still attached — invokes
+//     RestartFn to rebuild the rs2::pipeline once a frame stays stale for
+//     consecutive_polls_required polls. Rate-limited (see Tunables).
+//   * the device drops off the bus entirely — DeviceAbsentFn reports it and
+//     ReattachFn re-enumerates, retried every reattach_interval_ms until the
+//     camera comes back. A restart cannot help here: there is nothing to
+//     restart, and without this the resource stays alive-but-dead until the
+//     host reboots.
 //
 // Owned by Realsense: construct after the pipeline starts, destroy before it
 // tears down. pause()/resume() (thread-safe) let the owner suspend stale
-// checking across a deliberate pipeline transition. RestartFn owns whatever
-// locking serializes pipeline mutations.
+// checking across a deliberate pipeline transition. RestartFn and ReattachFn
+// own whatever locking serializes pipeline and device-lifecycle mutations.
 template <typename FrameSetT> class StaleFrameWatchdog {
 public:
   // Returns true if the restart was attempted and (best-effort) succeeded;
@@ -41,6 +49,12 @@ public:
   // Returns the current frameset. Called each poll so it always sees the
   // freshest cached value, regardless of how Realsense stores it internally.
   using FramesetGetter = std::function<FrameSetT()>;
+  // Returns true when there is no device to restart, i.e. the camera was
+  // unplugged (or dropped off USB) after the resource was constructed.
+  using DeviceAbsentFn = std::function<bool()>;
+  // Re-enumerates the bus and re-initializes the configured camera. Returns
+  // true once a device is attached again.
+  using ReattachFn = std::function<bool()>;
 
   // Defaults are production values; tests inject small intervals.
   struct Tunables {
@@ -49,13 +63,19 @@ public:
     int consecutive_polls_required = 3;           // debounce
     std::uint64_t post_restart_grace_ms = 10'000; // pipeline warm-up
     int max_restarts_per_hour = 6;                // restart-storm cap
+    std::uint64_t reattach_interval_ms = 5'000;   // bus re-enumeration cadence
   };
 
+  // device_absent/on_absent are optional: omit both to get stale-frame
+  // detection only.
   StaleFrameWatchdog(FramesetGetter get_fs, RecoveryCheckFn recovery_check,
                      RestartFn on_stale, viam::sdk::LogSource logger,
-                     Tunables tunables = {})
+                     Tunables tunables = {}, DeviceAbsentFn device_absent = {},
+                     ReattachFn on_absent = {})
       : get_fs_(std::move(get_fs)), recovery_check_(std::move(recovery_check)),
-        on_stale_(std::move(on_stale)), logger_(std::move(logger)),
+        on_stale_(std::move(on_stale)),
+        device_absent_(std::move(device_absent)),
+        on_absent_(std::move(on_absent)), logger_(std::move(logger)),
         tunables_(tunables) {
     thread_ = std::thread([this]() { loop(); });
   }
@@ -89,6 +109,8 @@ private:
   // Throttle the "rate-limited / operator intervention" error so a persistent
   // wedge signals once a minute instead of every poll.
   static constexpr std::uint64_t RATE_LIMITED_LOG_INTERVAL_MS = 60'000;
+  // Same idea for the "still no device" warning during a long outage.
+  static constexpr std::uint64_t REATTACH_LOG_INTERVAL_MS = 60'000;
 
   // Sleep for up to ms, but return immediately if running_ is cleared (e.g.
   // during ~StaleFrameWatchdog). Keeps shutdown/teardown from blocking on a
@@ -134,6 +156,17 @@ private:
     }
     if (recovery_check_ && recovery_check_()) {
       stale_count = 0;
+      return;
+    }
+
+    // Checked before frame age for two reasons: a pipeline restart cannot fix
+    // a missing device, and a device that dropped off the bus before it ever
+    // streamed has no frame to age — the stale path would never fire.
+    // Ordered after recovery_check_ so a device in DFU mode (which also has no
+    // streaming device) is never dragged out of the firmware-update flow.
+    if (device_absent_ && device_absent_()) {
+      stale_count = 0;
+      maybe_reattach();
       return;
     }
 
@@ -189,6 +222,56 @@ private:
     stale_count = 0;
   }
 
+  // Try to re-acquire a device, at most once per reattach_interval_ms.
+  //
+  // Deliberately not subject to the restart rate limit: an unplugged camera
+  // may reappear at any time, so this has to keep trying for as long as the
+  // resource lives. The interval (not the poll interval) bounds the cost,
+  // since each attempt is a full bus enumeration.
+  void maybe_reattach() {
+    if (!on_absent_) {
+      return;
+    }
+    auto now = static_cast<std::uint64_t>(time::getNowMs());
+    if (now - last_reattach_attempt_ms_ < tunables_.reattach_interval_ms) {
+      return;
+    }
+    last_reattach_attempt_ms_ = now;
+
+    bool ok = false;
+    try {
+      ok = on_absent_();
+    } catch (const std::exception &e) {
+      VIAM_SDK_LOG_IMPL(logger_, error)
+          << "[watchdog] reattach callback threw: " << e.what();
+    } catch (...) {
+      VIAM_SDK_LOG_IMPL(logger_, error)
+          << "[watchdog] reattach callback threw unknown exception";
+    }
+
+    if (ok) {
+      VIAM_SDK_LOG_IMPL(logger_, info)
+          << "[watchdog] device reattached after " << reattach_attempts_ + 1
+          << " attempt(s)";
+      reattach_attempts_ = 0;
+      last_reattach_log_ms_ = 0;
+      return;
+    }
+
+    // Signal the first failure immediately (so the cause of an outage is
+    // visible at once), then at most once a minute — a camera that stays
+    // unplugged must not fill the log at the reattach cadence.
+    if (reattach_attempts_ == 0 ||
+        now - last_reattach_log_ms_ > REATTACH_LOG_INTERVAL_MS) {
+      last_reattach_log_ms_ = now;
+      VIAM_SDK_LOG_IMPL(logger_, warn)
+          << "[watchdog] no device to stream from; reattach attempt "
+          << reattach_attempts_ + 1
+          << " found no matching camera — check the USB connection";
+    }
+    reattach_attempts_ += 1;
+  }
+
   // Returns true and writes the max age (in ms) of color/depth into
   // out_age_ms; returns false if no frame is currently available.
   bool compute_max_age_ms(double &out_age_ms) const {
@@ -241,6 +324,8 @@ private:
   FramesetGetter get_fs_;
   RecoveryCheckFn recovery_check_;
   RestartFn on_stale_;
+  DeviceAbsentFn device_absent_;
+  ReattachFn on_absent_;
   viam::sdk::LogSource logger_;
   Tunables tunables_;
 
@@ -256,6 +341,12 @@ private:
 
   // Loop-thread only; last time the rate-limited error was logged.
   std::uint64_t last_rate_limited_log_ms_{0};
+
+  // Loop-thread only (maybe_reattach); no lock needed. last_reattach_attempt_
+  // starts at 0 so the first absent poll attempts immediately.
+  std::uint64_t last_reattach_attempt_ms_{0};
+  std::uint64_t last_reattach_log_ms_{0};
+  int reattach_attempts_{0};
 
   std::thread thread_;
 };
