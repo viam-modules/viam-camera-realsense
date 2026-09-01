@@ -342,10 +342,6 @@ void frameCallback(FrameT const &frame, std::uint64_t const maxFrameAgeMs,
     return;
   }
 
-  // Align the frameset if align-to-color is enabled (which it is by default in
-  // our config)
-  // auto frameset = align ? align->process(initial_frameset) :
-  // initial_frameset;
   auto frameset = initial_frameset;
 
   double nowMs = time::getNowMs();

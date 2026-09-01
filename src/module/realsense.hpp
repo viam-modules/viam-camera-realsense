@@ -595,10 +595,26 @@ public:
       // is opt-in to preserve the historical behavior of returning the raw
       // unaligned streams.
       if (config_->align_color_depth) {
-        // librealsense's align filter is stateful; keep one per thread to
-        // avoid reallocating internal buffers on every call.
-        static thread_local rs2::align align_to_color(RS2_STREAM_COLOR);
-        fs = align_to_color.process(fs);
+        // librealsense's align filter caches state keyed to the stream
+        // profiles it has seen and is not thread safe, so an aligner must
+        // never be shared across cameras (upstream guidance is one rs2::align
+        // per pipeline; see librealsense#10565). Use this device's own
+        // aligner under the device lock — it is created in createDevice and
+        // rebuilt on reconnect, which also drops caches that would otherwise
+        // go stale when the pipeline restarts. This mirrors how
+        // get_point_cloud uses the per-device point_cloud_filter.
+        if (not device_) {
+          VIAM_RESOURCE_LOG(error)
+              << "[get_images] no device available to align depth to color";
+          throw std::runtime_error(
+              "no device available to align depth to color");
+        }
+        auto my_dev = device_->synchronize();
+        if (not my_dev->align) {
+          throw std::runtime_error(
+              "device has no aligner to align depth to color");
+        }
+        fs = my_dev->align->process(fs);
       }
 
       std::vector<sensors::SensorType> sensors = config_->sensors;
