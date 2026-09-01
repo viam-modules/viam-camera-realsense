@@ -16,21 +16,29 @@
 
 namespace realsense {
 namespace device {
+template <typename AlignT = rs2::align, typename PointCloudT = rs2::pointcloud,
+          typename FrameSetT = rs2::frameset>
 class PointCloudFilter {
 public:
+  // Production: constructs the real librealsense objects.
   PointCloudFilter()
-      : pointcloud_(std::make_shared<rs2::pointcloud>()),
-        align_to_color_(std::make_shared<rs2::align>(RS2_STREAM_COLOR)) {}
-  std::pair<rs2::points, rs2::video_frame> process(rs2::frameset frameset) {
-    // This body only runs against a live RealSense: every statement operates on
-    // librealsense frame/align/pointcloud objects that cannot be constructed or
-    // driven without hardware, so it is unreachable in the (camera-less) CI
-    // test suite and is excluded from coverage. Validated on-device via the
-    // alignment probe instead. LCOV_EXCL_START The sole caller
-    // (get_point_cloud) already validates the depth frame, so we only check the
-    // color stream here to surface a helpful message (align_to_color_->process
-    // below would otherwise throw a generic error when the color stream is
-    // missing).
+      : pointcloud_(std::make_shared<PointCloudT>()),
+        align_to_color_(std::make_shared<AlignT>(RS2_STREAM_COLOR)) {}
+
+  // Test seam: inject mock/fake align + pointcloud.
+  PointCloudFilter(std::shared_ptr<PointCloudT> pointcloud,
+                   std::shared_ptr<AlignT> align)
+      : pointcloud_(std::move(pointcloud)),
+        align_to_color_(std::move(align)) {}
+
+  // Return type is deduced so PointCloudFilter<> yields exactly
+  // std::pair<rs2::points, rs2::video_frame> (the unchanged caller contract),
+  // while a fake FrameSetT yields a pair of the fake frame types.
+  auto process(FrameSetT frameset) {
+    // Validate the color stream is present so we can surface a helpful message
+    // (align_to_color_->process below would otherwise throw a generic error
+    // when the color stream is missing). The sole production caller
+    // (get_point_cloud) already validates the depth frame.
     if (!frameset.get_color_frame()) {
       throw std::runtime_error(
           "No color frame in frameset — point clouds require both color and "
@@ -57,22 +65,22 @@ public:
     pointcloud_->map_to(color_frame);
     auto points = pointcloud_->calculate(depth_frame);
     return std::make_pair(points, color_frame);
-    // LCOV_EXCL_STOP
   }
 
 private:
-  std::shared_ptr<rs2::pointcloud> pointcloud_;
-  std::shared_ptr<rs2::align> align_to_color_;
+  std::shared_ptr<PointCloudT> pointcloud_;
+  std::shared_ptr<AlignT> align_to_color_;
 };
 
 template <typename DeviceT = rs2::device, typename PipeT = rs2::pipeline,
-          typename AligntT = rs2::align, typename ConfigT = rs2::config>
+          typename AligntT = rs2::align, typename ConfigT = rs2::config,
+          typename PointCloudFilterT = PointCloudFilter<>>
 struct ViamRSDevice {
   std::string serial_number{};
   std::shared_ptr<DeviceT> device{};
   bool started{false};
   std::shared_ptr<PipeT> pipe{};
-  std::shared_ptr<PointCloudFilter> point_cloud_filter{};
+  std::shared_ptr<PointCloudFilterT> point_cloud_filter{};
   std::shared_ptr<AligntT> align{};
   std::shared_ptr<ConfigT> config{};
 };

@@ -707,7 +707,8 @@ createDevice(std::string const &serial_number, std::shared_ptr<DeviceT> dev,
   my_dev->pipe = std::make_shared<std::decay_t<decltype(*my_dev->pipe)>>();
   my_dev->device = dev;
   my_dev->serial_number = serial_number;
-  my_dev->point_cloud_filter = std::make_shared<PointCloudFilter>();
+  my_dev->point_cloud_filter =
+      std::make_shared<std::decay_t<decltype(*my_dev->point_cloud_filter)>>();
   my_dev->align = std::make_shared<std::decay_t<decltype(*my_dev->align)>>(
       RS2_STREAM_COLOR);
   my_dev->config = config;

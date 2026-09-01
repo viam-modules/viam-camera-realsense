@@ -899,7 +899,7 @@ TEST_F(DeviceTest, DestroyDevice_ValidDevice_ReturnsTrue) {
     dev_guard->device = std::make_shared<rs2::device>();
     dev_guard->config = std::make_shared<rs2::config>();
     dev_guard->align = std::make_shared<rs2::align>(RS2_STREAM_COLOR);
-    dev_guard->point_cloud_filter = std::make_shared<PointCloudFilter>();
+    dev_guard->point_cloud_filter = std::make_shared<PointCloudFilter<>>();
   }
 
   // Execute
@@ -1004,7 +1004,7 @@ TEST_F(DeviceTest, DestroyDevice_StartedDevice_StopsAndDestroys) {
     dev_guard->device = std::make_shared<MockDevice>();
     dev_guard->config = std::make_shared<MockConfig>();
     dev_guard->align = std::make_shared<MockAlign>(RS2_STREAM_COLOR);
-    dev_guard->point_cloud_filter = std::make_shared<PointCloudFilter>();
+    dev_guard->point_cloud_filter = std::make_shared<PointCloudFilter<>>();
   }
 
   // Execute
