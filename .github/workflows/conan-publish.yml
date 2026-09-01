@@ -16,21 +16,27 @@ jobs:
       matrix:
         # bookworm binaries serve the cloud builder (meta.json distro);
         # jammy binaries serve the CI/release legs; macos-26 serves the mac
-        # test leg (toolchain pinned in etc/conan/module.profile).
+        # test leg (toolchain pinned in etc/conan/macos.profile). Linux legs
+        # use the images' baked default profile.
         include:
           - runner: ubuntu-22.04
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+            profile: default
           - runner: ubuntu-22.04-arm
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+            profile: default
           - runner: ubuntu-22.04
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
+            profile: default
           - runner: ubuntu-22.04-arm
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
+            profile: default
           - runner: macos-26
+            profile: ./etc/conan/macos.profile
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
     env:
@@ -56,7 +62,8 @@ jobs:
         run: |
           conan create . \
             -o "&:with_tests=False" \
-            -pr:a ./etc/conan/module.profile \
+            -pr:a ${{ matrix.profile }} \
+            -c tools.system.package_manager:mode=install \
             --build=missing
 
       - name: Upload module dependency binaries

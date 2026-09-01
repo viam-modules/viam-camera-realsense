@@ -20,18 +20,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux legs use the image's baked default profile; the mac leg
+          # takes the checked-in toolchain pin.
           - os: github-linux-arm64-8core
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/arm64
             coverage: false
+            profile: default
           - os: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/amd64
             coverage: true
+            profile: default
           - os: macos-26
             coverage: false
+            profile: ./etc/conan/macos.profile
 
     container: ${{ matrix.container }}
 
@@ -47,10 +52,13 @@ jobs:
           conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0 --force
 
       - name: Show conan profile
-        run: conan profile show -pr:a ./etc/conan/module.profile
+        run: conan profile show -pr:a ${{ matrix.profile }}
 
       - name: Install Conan dependencies
-        run: conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/module.profile
+        run: >
+          conan install . -o "&:with_tests=True" --build=missing
+          -pr:a ${{ matrix.profile }}
+          -c tools.system.package_manager:mode=install
 
       # bin/lint.sh prefers clang-format-19; the image ships jammy's 14,
       # which formats differently.

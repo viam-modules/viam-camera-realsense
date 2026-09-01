@@ -427,8 +427,10 @@ conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan
 a `./venv` virtualenv for conan; activate it (or prefix `PATH=$PWD/venv/bin:$PATH`)
 before running the commands below.
 
-All conan commands take the checked-in profile so settings match CI and the
-cloud builder.
+On macOS, conan commands take the checked-in toolchain profile
+(`-pr:a ./etc/conan/macos.profile`) so settings match CI. On Linux, build inside
+the `ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy` image, whose baked
+`default` profile is the toolchain of record — no extra flag needed.
 
 ### Build the module tarball
 ```
@@ -441,7 +443,7 @@ it is baked into the generated CMake presets, so the build and test steps below
 don't need it repeated.
 
 ```
-conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/module.profile
+conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/macos.profile
 cmake --preset conan-release
 cmake --build --preset conan-release
 ctest --test-dir build/Release --output-on-failure

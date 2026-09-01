@@ -7,11 +7,17 @@ set -euxo pipefail
 
 cd "$(dirname "$0")/.."
 
-PROFILE=./etc/conan/module.profile
+# Linux relies on the cpp-sdk-conan images' baked default profile.
+if [ "$(uname -s)" = "Darwin" ]; then
+    PROFILE=./etc/conan/macos.profile
+else
+    PROFILE=default
+fi
 
 conan create . \
     -o "&:with_tests=False" \
     -pr:a "${PROFILE}" \
+    -c tools.system.package_manager:mode=install \
     --build=missing
 
 conan install --requires=viam-camera-realsense/0.0.1 \
