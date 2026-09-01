@@ -15,26 +15,26 @@ jobs:
   run-tests:
     name: Run Tests
     timeout-minutes: 30
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           # Linux legs use the image's baked default profile; the mac leg
           # takes the checked-in toolchain pin.
-          - os: github-linux-arm64-8core
+          - runner: github-linux-arm64-8core
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/arm64
             coverage: false
             profile: default
-          - os: ubuntu-latest
+          - runner: ubuntu-latest
             container:
               image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/amd64
             coverage: true
             profile: default
-          - os: macos-26
+          - runner: macos-26
             coverage: false
             profile: ./etc/conan/macos.profile
 
