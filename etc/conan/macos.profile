@@ -6,8 +6,8 @@ include(default)
 [settings]
 build_type=Release
 compiler.cppstd=17
-# os.version deliberately unset until the SDK's pinned publish workflow
-# ships binaries with os.version=14.0 -- it participates in the package_id.
+# set to match SDK's version
+os.version=14.0
 arch=armv8
 compiler=apple-clang
 compiler.version=21

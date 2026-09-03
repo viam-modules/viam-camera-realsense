@@ -400,7 +400,7 @@ The module takes advantage of faster USB ports. Use the (blue) USB 3.0 port on t
 
 ## macOS Distribution Recommendation
 
-macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state.
+macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state. Binaries are built for Apple silicon on macOS 14 (Sonoma) or newer.
 
 **Note**: Firmware updates are not currently supported on macOS.
 
