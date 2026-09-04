@@ -4,10 +4,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 on:
-  # Run on all pull requests for pre-merge validation and coverage reporting
+  workflow_dispatch:
+  # PRs for pre-merge validation; main pushes update baseline coverage
   pull_request:
-  # Run on pushes to main to update the baseline coverage after merge
-  # This populates the Codecov dashboard and updates the coverage badge
   push:
     branches:
       - main
@@ -16,22 +15,28 @@ jobs:
   run-tests:
     name: Run Tests
     timeout-minutes: 30
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: github-linux-arm64-8core
+          # Linux legs use the image's baked default profile; the mac leg
+          # takes the checked-in toolchain pin.
+          - runner: github-linux-arm64-8core
             container:
-              image: ghcr.io/viam-modules/viam-camera-realsense:arm64
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/arm64
             coverage: false
-          - os: ubuntu-latest
+            profile: default
+          - runner: ubuntu-latest
             container:
-              image: ghcr.io/viam-modules/viam-camera-realsense:amd64
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
               options: --platform linux/amd64
             coverage: true
-          - os: macos-latest
+            profile: default
+          - runner: macos-26
             coverage: false
+            profile: ./etc/conan/macos.profile
 
     container: ${{ matrix.container }}
 
@@ -39,56 +44,66 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Same path/key as build-publish.yml so the two workflows share Conan
-      # caches (macos-latest collides; Linux legs keep their own namespace).
-      - name: Restore cached libraries
-        uses: actions/cache@v3
-        with:
-          path: ~/.conan2
-          key: ${{ matrix.os }}-conan-${{ hashFiles('**/conanfile.py') }}
-          restore-keys: |
-            ${{ matrix.os }}-conan-
-
-      - name: Install dependencies
+      - name: Install conan (macOS)
+        if: runner.os == 'macOS'
         run: |
-          make setup
-          test -f ./venv/bin/activate && . ./venv/bin/activate && conan profile show
+          brew install cmake ninja pkg-config conan
+          conan profile detect || true
+          conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0 --force
+
+      - name: Show conan profile
+        run: conan profile show -pr:a ${{ matrix.profile }}
 
       - name: Install Conan dependencies
+        run: >
+          conan install . -o "&:with_tests=True" --build=missing
+          -pr:a ${{ matrix.profile }}
+          -c tools.system.package_manager:mode=install
+
+      # bin/lint.sh prefers clang-format-19; the image ships jammy's 14,
+      # which formats differently.
+      - name: Install clang-format-19 (Linux)
+        if: runner.os == 'Linux'
         run: |
-          make conan-install-test
+          curl -fsSL --retry 5 --retry-all-errors https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor > /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main" > /etc/apt/sources.list.d/llvm19.list
+          apt-get update && apt-get install -y clang-format-19
 
       - name: Lint
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          make lint
+          ./bin/lint.sh
           if ! git diff --quiet; then
-            echo -e "\033[31mError: lint make target produced changes. Please run 'make lint' locally and commit the results.\033[0m"
+            echo -e "\033[31mError: lint produced changes. Please run './bin/lint.sh' locally and commit the results.\033[0m"
             git diff
             exit 1
           fi
 
-      - name: Install lcov (Linux amd64 only)
-        if: matrix.coverage == true
-        run: sudo apt-get update && sudo apt-get install -y lcov
-
-      - name: Build and run tests with coverage (Linux amd64 only)
-        if: matrix.coverage == true
-        run: make test-coverage
-
-      - name: Build and run tests (other platforms)
+      - name: Build and run tests
         if: matrix.coverage != true
-        run: make test
+        run: |
+          cmake --preset conan-release
+          cmake --build --preset conan-release
+          ctest --test-dir build/Release --output-on-failure
+
+      - name: Install lcov (coverage leg)
+        if: matrix.coverage == true
+        run: apt-get update && apt-get install -y lcov
+
+      - name: Build and run tests with coverage
+        if: matrix.coverage == true
+        run: |
+          cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
+          cmake --build --preset conan-release
+          cmake --build --preset conan-release --target coverage
 
       - name: Upload coverage reports to Codecov
         if: matrix.coverage == true
         uses: codecov/codecov-action@v5
         with:
-          files: ./build-conan/coverage.info
+          files: ./build/Release/coverage.info
           flags: unittests
-          # Token is optional for public repos, but recommended for reliability
-          # If uploads fail, ensure CODECOV_TOKEN is set in repository secrets
           token: ${{ secrets.CODECOV_TOKEN || '' }}
-          # Coverage is report-only: an upload failure should not fail CI
+          # Report-only: an upload failure should not fail CI
           fail_ci_if_error: false
           verbose: true

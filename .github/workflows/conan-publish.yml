@@ -14,51 +14,62 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # bookworm binaries serve the cloud builder (meta.json distro);
+        # jammy binaries serve the CI/release legs; macos-26 serves the mac
+        # test leg (toolchain pinned in etc/conan/macos.profile). Linux legs
+        # use the images' baked default profile.
         include:
           - runner: ubuntu-22.04
-            image: debian:bookworm
-            platform: linux/amd64
+            container:
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+            profile: default
           - runner: ubuntu-22.04-arm
-            image: debian:bookworm
-            platform: linux/arm64
+            container:
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-debian:bookworm
+            profile: default
+          - runner: ubuntu-22.04
+            container:
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
+            profile: default
+          - runner: ubuntu-22.04-arm
+            container:
+              image: ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy
+            profile: default
+          - runner: macos-26
+            profile: ./etc/conan/macos.profile
     runs-on: ${{ matrix.runner }}
-    container:
-      image: ${{ matrix.image }}
+    container: ${{ matrix.container }}
     env:
       CONAN_LOGIN_USERNAME_VIAMCONAN: ${{ secrets.CONAN_USERNAME }}
       CONAN_PASSWORD_VIAMCONAN: ${{ secrets.CONAN_PASSWORD }}
 
     steps:
-      - name: Install make + sudo (container is minimal)
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            make sudo git ca-certificates
-
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Run setup (installs conan + adds viamconan remote)
-        run: make setup
+      - name: Install conan (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja pkg-config conan
+          conan profile detect || true
+          conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0 --force
 
       - name: Verify viamconan auth (fail fast before the long build)
-        run: |
-          . ./venv/bin/activate
-          conan remote auth --force -cc core:non_interactive=True viamconan
+        run: conan remote auth --force -cc core:non_interactive=True viamconan
 
       - name: Build dependency graph (conan create)
-        # Same flags as the Makefile so published package_ids match the cloud builder's.
+        # Same profile as bin/build.sh so published package_ids match the cloud builder's.
         run: |
-          . ./venv/bin/activate
           conan create . \
             -o "&:with_tests=False" \
-            -s:a build_type=Release \
-            -s:a compiler.cppstd=17 \
-            --lockfile conan.lock \
+            -pr:a ${{ matrix.profile }} \
+            -c tools.system.package_manager:mode=install \
             --build=missing
 
-      - name: Upload librealsense and libusb binaries
+      - name: Upload module dependency binaries
+        # Realsense-only deps the SDK's publish can never provide; the server
+        # skips revisions it already has.
         run: |
-          . ./venv/bin/activate
-          conan upload "librealsense/*" -r viamconan -c
-          conan upload "libusb/*" -r viamconan -c
+          for pkg in librealsense libusb libjpeg-turbo libcurl libzip lz4 zstd xz_utils; do
+            conan upload "$pkg/*" -r viamconan -c
+          done

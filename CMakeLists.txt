@@ -18,6 +18,18 @@ if(VIAM_REALSENSE_ENABLE_COVERAGE)
         add_compile_options(--coverage -O0 -g)
         add_link_options(--coverage)
     endif()
+
+    # Runs ctest + lcov. Build the `all` target first; this target does not
+    # depend on the test binaries.
+    find_program(LCOV_EXECUTABLE lcov REQUIRED)
+    add_custom_target(coverage
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        COMMAND ${LCOV_EXECUTABLE} --capture --directory . --output-file coverage.info
+        COMMAND ${LCOV_EXECUTABLE} --remove coverage.info /usr/* */test/* */_deps/* */.conan2/* --output-file coverage.info
+        COMMAND ${LCOV_EXECUTABLE} --list coverage.info
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        VERBATIM
+    )
 endif()
 
 if (APPLE)
@@ -61,13 +73,17 @@ target_link_libraries(viamrealsense
 add_executable(viam-camera-realsense src/module/main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 
-install(TARGETS 
-    viamrealsense 
-    viam-camera-realsense 
-    DESTINATION .)
+install(TARGETS viam-camera-realsense DESTINATION .)
 install(FILES meta.json 99-realsense-libusb.rules DESTINATION .)
 install(PROGRAMS first_run.sh install_udev_rules.sh DESTINATION .)
 
+# `cmake --build <dir> --target package` assembles module.tar.gz from the
+# install rules above.
+set(CPACK_PACKAGE_NAME "viam-camera-realsense")
+set(CPACK_PACKAGE_FILE_NAME "module")
+set(CPACK_GENERATOR "TGZ")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
+include(CPack)
 
 if (VIAM_REALSENSE_ENABLE_TESTS)
     enable_testing()

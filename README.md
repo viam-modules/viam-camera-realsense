@@ -409,7 +409,7 @@ The module only fails to start if the configured resolution is not available ove
 
 ## macOS Distribution Recommendation
 
-macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state.
+macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state. Binaries are built for Apple silicon on macOS 14 (Sonoma) or newer.
 
 **Note**: Firmware updates are not currently supported on macOS.
 
@@ -422,23 +422,59 @@ If you see errors like `[serve] Realsense module is not running as root`:
 
 ## Building the module
 
-### Setup
+Builds use [Conan](https://conan.io) for dependencies and CMake for everything
+else. Get `conan` (2.x) on your `PATH` however you prefer (`pipx install conan`,
+a venv, `brew install conan`), then make sure a default profile and the viam
+remote exist:
+
 ```
-make setup
-```
-### Build the module tarball
-```
-make module.tar.gz
+conan profile detect
+conan remote add viamconan https://viam.jfrog.io/artifactory/api/conan/viamconan --index 0
 ```
 
-### Test the module
+`./bin/setup.sh` does all of the above for you (system packages included), using
+a `./venv` virtualenv for conan; activate it (or prefix `PATH=$PWD/venv/bin:$PATH`)
+before running the commands below.
+
+On macOS, conan commands take the checked-in toolchain profile
+(`-pr:a ./etc/conan/macos.profile`) so settings match CI. On Linux, build inside
+the `ghcr.io/viamrobotics/cpp-sdk-conan-ubuntu:jammy` image, whose baked
+`default` profile is the toolchain of record — no extra flag needed.
+
+### Build the module tarball
 ```
-make test
+./bin/build.sh
+```
+
+### Build and test
+Tests are off by default. Pass `-o "&:with_tests=True"` once, on `conan install`;
+it is baked into the generated CMake presets, so the build and test steps below
+don't need it repeated.
+
+```
+conan install . -o "&:with_tests=True" --build=missing -pr:a ./etc/conan/macos.profile
+cmake --preset conan-release
+cmake --build --preset conan-release
+ctest --test-dir build/Release --output-on-failure
+```
+
+### Coverage
+Reuses the `conan install` from above; only the configure step changes.
+
+```
+cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
+cmake --build --preset conan-release
+cmake --build --preset conan-release --target coverage
+```
+
+### Lint
+```
+./bin/lint.sh
 ```
 
 ### Clean up
 ```
-make clean
+rm -rf build module.tar.gz
 ```
 
 ## Using within a Frame System

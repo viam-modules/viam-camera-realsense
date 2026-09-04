@@ -16,7 +16,9 @@ if [[ ${OS} == "linux" ]]; then
 
     # Add Kitware repository for up-to-date CMake if on Ubuntu
     # This is required for the publish step to work
-    if lsb_release -is | grep -q "Ubuntu"; then
+    # Skip if any kitware source already exists (e.g. cpp-sdk-conan images):
+    # a second list with a different Signed-By keyring makes apt error out.
+    if lsb_release -is | grep -q "Ubuntu" && ! grep -Rqs "apt.kitware.com" /etc/apt/sources.list.d/; then
         sudo wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
         sudo echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
         sudo apt-get update
