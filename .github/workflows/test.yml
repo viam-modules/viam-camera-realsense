@@ -89,6 +89,11 @@ jobs:
             exit 1
           fi
 
+      # The coverage configure below needs lcov present (find_program REQUIRED).
+      - name: Install lcov (coverage leg)
+        if: matrix.coverage == true
+        run: apt-get update && apt-get install -y lcov
+
       - name: Build
         run: |
           cmake --preset conan-release ${{ matrix.coverage && '-DVIAM_REALSENSE_ENABLE_COVERAGE=ON' || '' }}
@@ -104,10 +109,6 @@ jobs:
       - name: Run integration tests
         if: runner.os == 'Linux' && (env.TESTS == 'all' || env.TESTS == 'integration')
         run: ./bin/integration-tests.sh
-
-      - name: Install lcov (coverage leg)
-        if: matrix.coverage == true
-        run: apt-get update && apt-get install -y lcov
 
       # Reports on the ctest runs above; the coverage target does not run tests.
       - name: Coverage report
