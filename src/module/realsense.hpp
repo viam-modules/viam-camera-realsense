@@ -113,6 +113,14 @@ public:
   // Restore the default devices changed callback
   void restoreDevicesChangedCallback() { setupCallback(); }
 
+  // Pipelines stream on this context (see device::PipelineFactory). Copying an
+  // rs2::context shares the underlying handle, so the pipeline sees the same
+  // devices and device-change subscription the module does.
+  std::shared_ptr<rs2::pipeline> makePipeline() const {
+    auto rs_context = rs_context_->synchronize();
+    return std::make_shared<rs2::pipeline>(*rs_context);
+  }
+
 private:
   std::shared_ptr<SynchronizedContextT> rs_context_;
   boost::synchronized_value<
@@ -224,7 +232,7 @@ public:
             std::shared_ptr<
                 boost::synchronized_value<std::unordered_set<std::string>>>
                 assigned_serials)
-      : Realsense(deps, cfg, ctx, createDefaultDeviceFunctions(),
+      : Realsense(deps, cfg, ctx, createDefaultDeviceFunctions(ctx),
                   assigned_serials) {}
   Realsense(viam::sdk::Dependencies deps, viam::sdk::ResourceConfig cfg,
             std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx,
@@ -754,13 +762,16 @@ public:
       time::throwIfTooOld(nowMs, depth_frame.get_timestamp(), MAX_FRAME_AGE_MS,
                           "no recent depth frame: check USB connection");
 
+      // Size from the profile rather than get_data_size(): frames whose
+      // pixels live outside librealsense (software devices) report a data
+      // size of 0 while stride * height is correct.
       if (color_frame.get_data() == nullptr or
-          color_frame.get_data_size() == 0) {
-        throw std::runtime_error("[get_image] color data is null");
+          color_frame.get_stride_in_bytes() * color_frame.get_height() == 0) {
+        throw std::runtime_error("[get_point_cloud] color data is null");
       }
 
       if (depth_frame.get_data() == nullptr or
-          depth_frame.get_data_size() == 0) {
+          depth_frame.get_stride_in_bytes() * depth_frame.get_height() == 0) {
         throw std::runtime_error("[get_point_cloud] depth data is null");
       }
 
@@ -1740,7 +1751,13 @@ private:
 
     return native_config;
   }
-  static DeviceFunctions createDefaultDeviceFunctions() {
+
+public:
+  // The DeviceFunctions production runs with. Public so tests can drive the
+  // real device lifecycle (createDevice/startDevice/stopDevice/destroyDevice)
+  // against a software device on a test context.
+  static DeviceFunctions createDefaultDeviceFunctions(
+      std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx) {
     return DeviceFunctions{
         .stopDevice =
             [](std::shared_ptr<
@@ -1759,15 +1776,17 @@ private:
               device::printDeviceInfo(dev, logger);
             },
         .createDevice =
-            [](std::string const &serial, std::shared_ptr<rs2::device> dev_ptr,
-               std::unordered_set<std::string> const &supported_models,
-               realsense::RsResourceConfig const &config,
-               viam::sdk::LogSource &logger) {
+            [ctx](std::string const &serial,
+                  std::shared_ptr<rs2::device> dev_ptr,
+                  std::unordered_set<std::string> const &supported_models,
+                  realsense::RsResourceConfig const &config,
+                  viam::sdk::LogSource &logger) {
               return device::createDevice<
                   realsense::RsResourceConfig, device::ViamRSDevice<>,
                   rs2::device, rs2::config, rs2::color_sensor,
                   rs2::depth_sensor, rs2::video_stream_profile>(
-                  serial, dev_ptr, supported_models, config, logger);
+                  serial, dev_ptr, supported_models, config, logger,
+                  [ctx] { return ctx->makePipeline(); });
             },
         .startDevice =
             [](const std::string &serial,

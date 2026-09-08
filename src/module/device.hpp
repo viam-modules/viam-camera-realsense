@@ -68,6 +68,7 @@ private:
 template <typename DeviceT = rs2::device, typename PipeT = rs2::pipeline,
           typename AligntT = rs2::align, typename ConfigT = rs2::config>
 struct ViamRSDevice {
+  using pipeline_type = PipeT;
   std::string serial_number{};
   std::shared_ptr<DeviceT> device{};
   bool started{false};
