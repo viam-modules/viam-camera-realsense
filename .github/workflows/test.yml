@@ -93,33 +93,29 @@ jobs:
           fi
 
       - name: Build
-        if: matrix.coverage != true
         run: |
-          cmake --preset conan-release
+          cmake --preset conan-release ${{ matrix.coverage && '-DVIAM_REALSENSE_ENABLE_COVERAGE=ON' || '' }}
           cmake --build --preset conan-release
 
       - name: Run unit tests
-        if: matrix.coverage != true && env.TESTS != 'integration'
+        if: env.TESTS != 'integration'
         run: ctest --test-dir build/Release --output-on-failure -LE integration
 
       # End to end against a librealsense software device (test/integration_tests.cpp).
       # Linux only: the module ships for Linux, and macOS pays a 2 s
       # librealsense teardown per case.
       - name: Run integration tests
-        if: matrix.coverage != true && runner.os == 'Linux' && env.TESTS != 'unit'
+        if: runner.os == 'Linux' && env.TESTS != 'unit'
         run: ./bin/integration-tests.sh ${{ inputs.integration_filter && format('-R {0}', inputs.integration_filter) || '' }}
 
       - name: Install lcov (coverage leg)
         if: matrix.coverage == true
         run: apt-get update && apt-get install -y lcov
 
-      # The coverage target runs ctest itself: unit and integration suites.
-      - name: Build and run tests with coverage
+      # Reports on the ctest runs above; the coverage target does not run tests.
+      - name: Coverage report
         if: matrix.coverage == true
-        run: |
-          cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
-          cmake --build --preset conan-release
-          cmake --build --preset conan-release --target coverage
+        run: cmake --build --preset conan-release --target coverage
 
       - name: Upload coverage reports to Codecov
         if: matrix.coverage == true
