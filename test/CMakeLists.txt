@@ -30,17 +30,12 @@ function(viamrealsense_add_gtest SOURCE_FILE_NAME)
     add_executable(${TEST_EXECUTABLE_NAME} ${SOURCE_FILE_NAME})
     target_link_libraries(${TEST_EXECUTABLE_NAME} PRIVATE viamrealsense_test_common)
 
-    set(TEST_PROPERTIES "")
-    if(ARG_LABELS)
-        set(TEST_PROPERTIES PROPERTIES LABELS "${ARG_LABELS}")
-    endif()
-
     # DISCOVERY_MODE PRE_TEST is required to avoid running the test at build-time
     # which fails because shared libraries aren't in the path yet.
     gtest_discover_tests(${TEST_EXECUTABLE_NAME}
         DISCOVERY_TIMEOUT 60
         DISCOVERY_MODE PRE_TEST
-        ${TEST_PROPERTIES})
+        PROPERTIES LABELS "${ARG_LABELS}")
 endfunction()
 
 viamrealsense_add_gtest(device_tests.cpp)

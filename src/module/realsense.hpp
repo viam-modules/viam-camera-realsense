@@ -113,9 +113,8 @@ public:
   // Restore the default devices changed callback
   void restoreDevicesChangedCallback() { setupCallback(); }
 
-  // Pipelines stream on this context (see device::PipelineFactory). Copying an
-  // rs2::context shares the underlying handle, so the pipeline sees the same
-  // devices and device-change subscription the module does.
+  // Pipelines are created here so they share the module's context and see
+  // the same devices it does (see device::PipelineFactory).
   std::shared_ptr<rs2::pipeline> makePipeline() const {
     auto rs_context = rs_context_->synchronize();
     return std::make_shared<rs2::pipeline>(*rs_context);
@@ -762,16 +761,11 @@ public:
       time::throwIfTooOld(nowMs, depth_frame.get_timestamp(), MAX_FRAME_AGE_MS,
                           "no recent depth frame: check USB connection");
 
-      // Size from the profile rather than get_data_size(): frames whose
-      // pixels live outside librealsense (software devices) report a data
-      // size of 0 while stride * height is correct.
-      if (color_frame.get_data() == nullptr or
-          color_frame.get_stride_in_bytes() * color_frame.get_height() == 0) {
+      if (color_frame.get_data() == nullptr) {
         throw std::runtime_error("[get_point_cloud] color data is null");
       }
 
-      if (depth_frame.get_data() == nullptr or
-          depth_frame.get_stride_in_bytes() * depth_frame.get_height() == 0) {
+      if (depth_frame.get_data() == nullptr) {
         throw std::runtime_error("[get_point_cloud] depth data is null");
       }
 
@@ -1753,9 +1747,8 @@ private:
   }
 
 public:
-  // The DeviceFunctions production runs with. Public so tests can drive the
-  // real device lifecycle (createDevice/startDevice/stopDevice/destroyDevice)
-  // against a software device on a test context.
+  // The DeviceFunctions the module runs with. Public so tests can drive the
+  // real device lifecycle against a software device.
   static DeviceFunctions createDefaultDeviceFunctions(
       std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx) {
     return DeviceFunctions{
