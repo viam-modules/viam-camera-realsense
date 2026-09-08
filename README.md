@@ -470,16 +470,18 @@ carry the ctest label `integration`:
 ctest --test-dir build/Release -LE integration   # unit tests only
 ```
 
-In CI they are a separate step of the Test workflow on the Linux legs;
+In CI they are a separate step of the Test workflow on both Linux legs;
 `workflow_dispatch` takes a `tests` input (`all`, `unit`, `integration`) and an
 `integration_filter` regex to run a subset.
 
 ### Coverage
-Reuses the `conan install` from above; only the configure step changes.
+Reuses the `conan install` from above; only the configure step changes. The
+`coverage` target reports on whatever `ctest` ran before it.
 
 ```
 cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_COVERAGE=ON
 cmake --build --preset conan-release
+ctest --test-dir build/Release --output-on-failure
 cmake --build --preset conan-release --target coverage
 ```
 
