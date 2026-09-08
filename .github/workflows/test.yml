@@ -11,10 +11,6 @@ on:
         type: choice
         default: all
         options: [all, unit, integration]
-      integration_filter:
-        description: ctest -R regex applied to the integration suite (empty = all)
-        type: string
-        default: ""
   # PRs for pre-merge validation; main pushes update baseline coverage
   pull_request:
   push:
@@ -107,7 +103,7 @@ jobs:
       # librealsense teardown per case.
       - name: Run integration tests
         if: runner.os == 'Linux' && (env.TESTS == 'all' || env.TESTS == 'integration')
-        run: ./bin/integration-tests.sh ${{ inputs.integration_filter && format('-R {0}', inputs.integration_filter) || '' }}
+        run: ./bin/integration-tests.sh
 
       - name: Install lcov (coverage leg)
         if: matrix.coverage == true

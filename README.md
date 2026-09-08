@@ -471,8 +471,7 @@ ctest --test-dir build/Release -LE integration   # unit tests only
 ```
 
 In CI they are a separate step of the Test workflow on both Linux legs;
-`workflow_dispatch` takes a `tests` input (`all`, `unit`, `integration`) and an
-`integration_filter` regex to run a subset.
+`workflow_dispatch` takes a `tests` input (`all`, `unit`, `integration`).
 
 ### Coverage
 Reuses the `conan install` from above; only the configure step changes. The
