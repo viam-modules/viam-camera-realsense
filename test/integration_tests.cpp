@@ -1,8 +1,10 @@
 // End to end tests: the production Realsense resource driven with a
 // librealsense software device in place of the camera. Everything below the
 // resource is real: createDevice/startDevice/stopDevice/destroyDevice, an
-// rs2::pipeline on the module's context, frameCallback, rs2::align,
-// rs2::pointcloud and the JPEG, depth map and PCD encoders. The context is
+// rs2::pipeline, frameCallback, rs2::align, rs2::pointcloud and the JPEG,
+// depth map and PCD encoders. The one substitution is how the pipeline is
+// built: on the test's context rather than a private one, because that is
+// the only context that knows the software device. The context is
 // software-only, so no USB is touched and this runs wherever the unit tests do.
 //
 // librealsense 2.57.7 quirks handled here:
@@ -379,11 +381,15 @@ protected:
     return attrs;
   }
 
-  // Same constructor main.cpp uses: production DeviceFunctions on the
-  // module context.
+  // Production DeviceFunctions, except that the pipeline is built on the
+  // test context so it can resolve the software device.
   SwRealsense &makeResource(ResourceConfig const &cfg) {
+    auto funcs = SwRealsense::createDefaultDeviceFunctions([ctx = ctx_] {
+      auto guard = ctx->synchronize();
+      return std::make_shared<rs2::pipeline>(*guard);
+    });
     resources_.push_back(std::make_unique<SwRealsense>(
-        Dependencies{}, cfg, moduleContext(), assigned_serials_));
+        Dependencies{}, cfg, moduleContext(), funcs, assigned_serials_));
     return *resources_.back();
   }
 
