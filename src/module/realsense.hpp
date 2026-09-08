@@ -113,13 +113,6 @@ public:
   // Restore the default devices changed callback
   void restoreDevicesChangedCallback() { setupCallback(); }
 
-  // Pipelines are created here so they share the module's context and see
-  // the same devices it does (see device::PipelineFactory).
-  std::shared_ptr<rs2::pipeline> makePipeline() const {
-    auto rs_context = rs_context_->synchronize();
-    return std::make_shared<rs2::pipeline>(*rs_context);
-  }
-
 private:
   std::shared_ptr<SynchronizedContextT> rs_context_;
   boost::synchronized_value<
@@ -231,7 +224,7 @@ public:
             std::shared_ptr<
                 boost::synchronized_value<std::unordered_set<std::string>>>
                 assigned_serials)
-      : Realsense(deps, cfg, ctx, createDefaultDeviceFunctions(ctx),
+      : Realsense(deps, cfg, ctx, createDefaultDeviceFunctions(),
                   assigned_serials) {}
   Realsense(viam::sdk::Dependencies deps, viam::sdk::ResourceConfig cfg,
             std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx,
@@ -1748,9 +1741,11 @@ private:
 
 public:
   // The DeviceFunctions the module runs with. Public so tests can drive the
-  // real device lifecycle against a software device.
+  // real device lifecycle against a software device; the only thing a test
+  // overrides is how the rs2::pipeline is built (see device::PipelineFactory).
   static DeviceFunctions createDefaultDeviceFunctions(
-      std::shared_ptr<RealsenseContext<SynchronizedContextT>> ctx) {
+      device::PipelineFactory<device::ViamRSDevice<>> make_pipeline =
+          device::defaultPipelineFactory<device::ViamRSDevice<>>()) {
     return DeviceFunctions{
         .stopDevice =
             [](std::shared_ptr<
@@ -1769,17 +1764,17 @@ public:
               device::printDeviceInfo(dev, logger);
             },
         .createDevice =
-            [ctx](std::string const &serial,
-                  std::shared_ptr<rs2::device> dev_ptr,
-                  std::unordered_set<std::string> const &supported_models,
-                  realsense::RsResourceConfig const &config,
-                  viam::sdk::LogSource &logger) {
+            [make_pipeline](
+                std::string const &serial, std::shared_ptr<rs2::device> dev_ptr,
+                std::unordered_set<std::string> const &supported_models,
+                realsense::RsResourceConfig const &config,
+                viam::sdk::LogSource &logger) {
               return device::createDevice<
                   realsense::RsResourceConfig, device::ViamRSDevice<>,
                   rs2::device, rs2::config, rs2::color_sensor,
                   rs2::depth_sensor, rs2::video_stream_profile>(
                   serial, dev_ptr, supported_models, config, logger,
-                  [ctx] { return ctx->makePipeline(); });
+                  make_pipeline);
             },
         .startDevice =
             [](const std::string &serial,
