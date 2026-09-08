@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# Run the software-device integration tests: ctest label "integration",
-# test/integration_tests.cpp. No camera needed. Expects a configured build
-# tree; see "Build and test" in the README.
+# Build and run the software-device integration tests (ctest label
+# "integration", test/integration_tests.cpp). No camera needed. Expects a
+# configured build tree; see "Build and test" in the README.
 #
 #   ./bin/integration-tests.sh                 # all
 #   ./bin/integration-tests.sh -R PointCloud   # extra args go to ctest
 #   BUILD_DIR=build-asan/build/Release ./bin/integration-tests.sh
 
-set -euo pipefail
+set -euxo pipefail
 
 cd "$(dirname "$0")/.."
 
 BUILD_DIR="${BUILD_DIR:-build/Release}"
-JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 
 # Every test binary, not just integration_tests: ctest discovers gtest cases
 # from all of them at test time.
