@@ -2,10 +2,10 @@
 // librealsense software device in place of the camera. Everything below the
 // resource is real: createDevice/startDevice/stopDevice/destroyDevice, an
 // rs2::pipeline, frameCallback, rs2::align, rs2::pointcloud and the JPEG,
-// depth map and PCD encoders. The one substitution is how the pipeline is
-// built: on the test's context rather than a private one, because that is
-// the only context that knows the software device. The context is
-// software-only, so no USB is touched and this runs wherever the unit tests do.
+// depth map and PCD encoders. The one substitution is the pipeline's
+// context: the test's instead of a private one, because that is the only
+// context that knows the software device. The context is software-only, so
+// no USB is touched and this runs wherever the unit tests do.
 //
 // librealsense 2.57.7 quirks handled here:
 //   * software_device::add_to leaves the device unowned; the context keeps
@@ -381,13 +381,24 @@ protected:
     return attrs;
   }
 
-  // Production DeviceFunctions, except that the pipeline is built on the
-  // test context so it can resolve the software device.
+  // Production DeviceFunctions, except that after createDevice the pipeline
+  // is swapped for one on the test context: librealsense only lists a
+  // software device in the context it was added to, and a default
+  // rs2::pipeline lives on a private one.
   SwRealsense &makeResource(ResourceConfig const &cfg) {
-    auto funcs = SwRealsense::createDefaultDeviceFunctions([ctx = ctx_] {
-      auto guard = ctx->synchronize();
-      return std::make_shared<rs2::pipeline>(*guard);
-    });
+    auto funcs = SwRealsense::createDefaultDeviceFunctions();
+    auto create = funcs.createDevice;
+    funcs.createDevice = [create, ctx = ctx_](auto const &serial, auto dev_ptr,
+                                              auto const &supported_models,
+                                              auto const &config,
+                                              auto &logger) {
+      auto device = create(serial, dev_ptr, supported_models, config, logger);
+      if (device) {
+        auto guard = device->synchronize();
+        guard->pipe = std::make_shared<rs2::pipeline>(*ctx->synchronize());
+      }
+      return device;
+    };
     resources_.push_back(std::make_unique<SwRealsense>(
         Dependencies{}, cfg, moduleContext(), funcs, assigned_serials_));
     return *resources_.back();

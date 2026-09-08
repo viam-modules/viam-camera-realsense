@@ -1741,11 +1741,8 @@ private:
 
 public:
   // The DeviceFunctions the module runs with. Public so tests can drive the
-  // real device lifecycle against a software device; the only thing a test
-  // overrides is how the rs2::pipeline is built (see device::PipelineFactory).
-  static DeviceFunctions createDefaultDeviceFunctions(
-      device::PipelineFactory<device::ViamRSDevice<>> make_pipeline =
-          device::defaultPipelineFactory<device::ViamRSDevice<>>()) {
+  // real device lifecycle against a software device.
+  static DeviceFunctions createDefaultDeviceFunctions() {
     return DeviceFunctions{
         .stopDevice =
             [](std::shared_ptr<
@@ -1764,17 +1761,15 @@ public:
               device::printDeviceInfo(dev, logger);
             },
         .createDevice =
-            [make_pipeline](
-                std::string const &serial, std::shared_ptr<rs2::device> dev_ptr,
-                std::unordered_set<std::string> const &supported_models,
-                realsense::RsResourceConfig const &config,
-                viam::sdk::LogSource &logger) {
+            [](std::string const &serial, std::shared_ptr<rs2::device> dev_ptr,
+               std::unordered_set<std::string> const &supported_models,
+               realsense::RsResourceConfig const &config,
+               viam::sdk::LogSource &logger) {
               return device::createDevice<
                   realsense::RsResourceConfig, device::ViamRSDevice<>,
                   rs2::device, rs2::config, rs2::color_sensor,
                   rs2::depth_sensor, rs2::video_stream_profile>(
-                  serial, dev_ptr, supported_models, config, logger,
-                  make_pipeline);
+                  serial, dev_ptr, supported_models, config, logger);
             },
         .startDevice =
             [](const std::string &serial,

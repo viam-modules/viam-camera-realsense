@@ -6,7 +6,6 @@
 #include "utils.hpp"
 
 #include <array>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -667,28 +666,13 @@ bool destroyDevice(std::shared_ptr<boost::synchronized_value<ViamDeviceT>> &dev,
   return true;
 }
 
-// How createDevice builds the rs2::pipeline a device streams through. The
-// default is a plain rs2::pipeline on its own private context, which is what
-// the module runs with. Tests pass a factory bound to their own rs2::context
-// because a software device is only visible in the context it was added to.
-template <typename ViamDeviceT>
-using PipelineFactory =
-    std::function<std::shared_ptr<typename ViamDeviceT::pipeline_type>()>;
-
-template <typename ViamDeviceT>
-PipelineFactory<ViamDeviceT> defaultPipelineFactory() {
-  return [] { return std::make_shared<typename ViamDeviceT::pipeline_type>(); };
-}
-
 template <typename ViamConfigT, typename ViamDeviceT, typename DeviceT,
           typename ConfigT, typename ColorSensorT, typename DepthSensorT,
           typename VideoStreamProfileT>
 std::shared_ptr<boost::synchronized_value<ViamDeviceT>>
 createDevice(std::string const &serial_number, std::shared_ptr<DeviceT> dev,
              std::unordered_set<std::string> const &supported_camera_models,
-             ViamConfigT const &viamConfig, viam::sdk::LogSource &logger,
-             PipelineFactory<ViamDeviceT> make_pipeline =
-                 defaultPipelineFactory<ViamDeviceT>()) {
+             ViamConfigT const &viamConfig, viam::sdk::LogSource &logger) {
   VIAM_DEVICE_LOG(logger, info)
       << "[createDevice] creating device serial number: " << serial_number;
   auto camera_model = getCameraModel(dev);
@@ -733,7 +717,7 @@ createDevice(std::string const &serial_number, std::shared_ptr<DeviceT> dev,
   VIAM_DEVICE_LOG(logger, info)
       << "[createDevice] Config created for: " << serial_number;
   auto my_dev = boost::synchronized_value<ViamDeviceT>();
-  my_dev->pipe = make_pipeline();
+  my_dev->pipe = std::make_shared<std::decay_t<decltype(*my_dev->pipe)>>();
   my_dev->device = dev;
   my_dev->serial_number = serial_number;
   my_dev->point_cloud_filter = std::make_shared<PointCloudFilter>();
