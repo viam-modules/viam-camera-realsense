@@ -27,7 +27,8 @@ jobs:
     timeout-minutes: 30
     runs-on: ${{ matrix.runner }}
     env:
-      # workflow_dispatch can pick a suite; PRs and pushes run everything.
+      # Which suites to run: the workflow_dispatch "tests" input, or all of
+      # them on pull requests and pushes.
       TESTS: ${{ inputs.tests || 'all' }}
     strategy:
       fail-fast: false
@@ -98,14 +99,14 @@ jobs:
           cmake --build --preset conan-release
 
       - name: Run unit tests
-        if: env.TESTS != 'integration'
+        if: env.TESTS == 'all' || env.TESTS == 'unit'
         run: ctest --test-dir build/Release --output-on-failure -LE integration
 
       # End to end against a librealsense software device (test/integration_tests.cpp).
       # Linux only: the module ships for Linux, and macOS pays a 2 s
       # librealsense teardown per case.
       - name: Run integration tests
-        if: runner.os == 'Linux' && env.TESTS != 'unit'
+        if: runner.os == 'Linux' && (env.TESTS == 'all' || env.TESTS == 'integration')
         run: ./bin/integration-tests.sh ${{ inputs.integration_filter && format('-R {0}', inputs.integration_filter) || '' }}
 
       - name: Install lcov (coverage leg)
