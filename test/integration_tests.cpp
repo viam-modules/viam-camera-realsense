@@ -1,33 +1,28 @@
-// End to end tests that drive the production Realsense resource with a
-// librealsense software device standing in for the camera. Everything below
-// the resource is real: the device lifecycle (createDevice, startDevice,
-// stopDevice, destroyDevice), an rs2::pipeline on the module's rs2::context,
-// the pipeline's syncer, frameCallback, rs2::align, rs2::pointcloud and the
-// JPEG, depth map and PCD encoders. No hardware and no USB: the context is
-// created software-only, so these run anywhere the unit tests run.
+// End to end tests: the production Realsense resource driven with a
+// librealsense software device in place of the camera. Everything below the
+// resource is real: createDevice/startDevice/stopDevice/destroyDevice, an
+// rs2::pipeline on the module's context, frameCallback, rs2::align,
+// rs2::pointcloud and the JPEG, depth map and PCD encoders. The context is
+// software-only, so no USB is touched and this runs wherever the unit tests do.
 //
-// librealsense 2.57.7 behaviors this file works around:
-//   * software_device::add_to registers a device_info the context holds only
-//     weakly and nobody owns. The synchronous devices-changed callback hands
-//     out an owning rs2::device_list; keeping it alive is what makes
+// librealsense 2.57.7 quirks handled here:
+//   * software_device::add_to leaves the device unowned; the context keeps
+//     only a weak_ptr. The synchronous devices-changed callback hands out an
+//     owning rs2::device_list, and keeping that alive is what makes
 //     query_devices() and the pipeline see the device.
-//   * A software sensor casts to rs2::depth_sensor only once it has an
-//     RS2_OPTION_DEPTH_UNITS option, and never to rs2::color_sensor. Sensor
-//     selection in device_impl.hpp goes by stream profile format for that
-//     reason (the D405 needs the same).
-//   * Software frames report get_data_size() == 0 because the pixels are
-//     caller owned; get_point_cloud sizes frames from the profile instead.
+//   * A software sensor is an rs2::depth_sensor only once it has an
+//     RS2_OPTION_DEPTH_UNITS option, and is never an rs2::color_sensor.
+//   * Software frames report get_data_size() == 0 (caller-owned pixels), so
+//     get_point_cloud only null-checks frame data.
 //
 // Stop feeding frames before destroying a resource: the software sensor does
 // not serialize on_video_frame against stop().
 //
-// On macOS each test case takes about two seconds longer than its
-// assertions: every rs2::software_device owns a private default rs2::context,
-// and destroying the last such context in a process stops librealsense's USB
-// polling watcher (backend-device-factory.cpp), which waits out its 2 s poll
-// interval. Linux tears down in well under a second. ctest runs each case as
-// its own process, so the cost is per case; run the integration label with
-// ctest -j to overlap it.
+// On macOS each case takes about 2 s longer than its assertions: every
+// rs2::software_device owns a private default context, and the last such
+// context in a process stops librealsense's USB polling watcher on the way
+// out, which waits out its 2 s interval. Linux tears down quickly. ctest runs
+// each case as its own process, so run the label with ctest -j to overlap it.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -45,7 +40,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>

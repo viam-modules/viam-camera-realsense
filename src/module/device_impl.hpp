@@ -667,13 +667,10 @@ bool destroyDevice(std::shared_ptr<boost::synchronized_value<ViamDeviceT>> &dev,
   return true;
 }
 
-// Builds the pipeline a device streams through. The default constructs the
-// pipeline type on its own. Production passes a factory bound to the module's
-// rs2::context (RealsenseContext::makePipeline) so one context serves
-// discovery, hot-plug callbacks and streaming. A default-constructed
-// rs2::pipeline creates a context of its own, which never lists user-added
-// devices (software, playback): those only exist in the context they were
-// added to.
+// How createDevice builds the rs2::pipeline a device streams through. The
+// module passes a factory bound to its own rs2::context so the pipeline sees
+// the same devices the module does. A default rs2::pipeline creates a private
+// context, which never lists user-added (software or playback) devices.
 template <typename ViamDeviceT>
 using PipelineFactory =
     std::function<std::shared_ptr<typename ViamDeviceT::pipeline_type>()>;
