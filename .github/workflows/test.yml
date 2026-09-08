@@ -5,6 +5,16 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      tests:
+        description: Which suites to run on the non-coverage legs
+        type: choice
+        default: all
+        options: [all, unit, integration]
+      integration_filter:
+        description: ctest -R regex applied to the integration suite (empty = all)
+        type: string
+        default: ""
   # PRs for pre-merge validation; main pushes update baseline coverage
   pull_request:
   push:
@@ -87,27 +97,38 @@ jobs:
             exit 1
           fi
 
-      - name: Build and run tests
-        if: matrix.coverage != true && matrix.sanitizer != true
+      - name: Build
+        if: matrix.coverage != true
         run: |
-          cmake --preset conan-release
+          cmake --preset conan-release ${{ matrix.sanitizer && '-DVIAM_REALSENSE_ENABLE_ASAN=ON' || '' }}
           cmake --build --preset conan-release
-          ctest --test-dir build/Release --output-on-failure
 
-      - name: Build and run tests under ASAN/UBSan
+      # The sanitized binaries read these at run time (#175); suppressions
+      # live in test/lsan.supp.
+      - name: Set sanitizer runtime options
         if: matrix.sanitizer == true
         run: |
-          cmake --preset conan-release -DVIAM_REALSENSE_ENABLE_ASAN=ON
-          cmake --build --preset conan-release
-          export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1
-          export LSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/test/lsan.supp:print_suppressions=0
-          export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
-          ctest --test-dir build/Release --output-on-failure
+          echo "ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1" >> "$GITHUB_ENV"
+          echo "LSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/test/lsan.supp:print_suppressions=0" >> "$GITHUB_ENV"
+          echo "UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1" >> "$GITHUB_ENV"
+
+      - name: Run unit tests
+        if: matrix.coverage != true && (inputs.tests == '' || inputs.tests == 'all' || inputs.tests == 'unit')
+        run: ctest --test-dir build/Release --output-on-failure -LE integration
+
+      # End to end against a librealsense software device; see
+      # test/integration_tests.cpp and bin/integration-tests.sh. Linux only:
+      # the module ships for Linux, and each case pays a 2 s librealsense
+      # teardown on macOS.
+      - name: Run integration tests
+        if: matrix.coverage != true && runner.os == 'Linux' && (inputs.tests == '' || inputs.tests == 'all' || inputs.tests == 'integration')
+        run: ./bin/integration-tests.sh ${{ inputs.integration_filter != '' && format('-R {0}', inputs.integration_filter) || '' }}
 
       - name: Install lcov (coverage leg)
         if: matrix.coverage == true
         run: apt-get update && apt-get install -y lcov
 
+      # The coverage target runs ctest itself: unit and integration suites.
       - name: Build and run tests with coverage
         if: matrix.coverage == true
         run: |

@@ -20,15 +20,27 @@ target_link_libraries(viamrealsense_test_common
         viam-cpp-sdk::viamsdk
 )
 
+# viamrealsense_add_gtest(<source> [LABELS <label>...])
+# Labels land on every discovered test, so `ctest -L integration` and
+# `ctest -LE integration` select or skip a suite.
 function(viamrealsense_add_gtest SOURCE_FILE_NAME)
+    cmake_parse_arguments(ARG "" "" "LABELS" ${ARGN})
     get_filename_component(TEST_EXECUTABLE_NAME ${SOURCE_FILE_NAME} NAME_WE)
 
     add_executable(${TEST_EXECUTABLE_NAME} ${SOURCE_FILE_NAME})
     target_link_libraries(${TEST_EXECUTABLE_NAME} PRIVATE viamrealsense_test_common)
 
+    set(TEST_PROPERTIES "")
+    if(ARG_LABELS)
+        set(TEST_PROPERTIES PROPERTIES LABELS "${ARG_LABELS}")
+    endif()
+
     # DISCOVERY_MODE PRE_TEST is required to avoid running the test at build-time
     # which fails because shared libraries aren't in the path yet.
-    gtest_discover_tests(${TEST_EXECUTABLE_NAME} DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST)
+    gtest_discover_tests(${TEST_EXECUTABLE_NAME}
+        DISCOVERY_TIMEOUT 60
+        DISCOVERY_MODE PRE_TEST
+        ${TEST_PROPERTIES})
 endfunction()
 
 viamrealsense_add_gtest(device_tests.cpp)
@@ -41,3 +53,6 @@ viamrealsense_add_gtest(discovery_tests.cpp)
 viamrealsense_add_gtest(sensors_tests.cpp)
 viamrealsense_add_gtest(utils_tests.cpp)
 viamrealsense_add_gtest(zip_utils_tests.cpp)
+
+# End to end against a librealsense software device (no hardware needed).
+viamrealsense_add_gtest(integration_tests.cpp LABELS integration)
