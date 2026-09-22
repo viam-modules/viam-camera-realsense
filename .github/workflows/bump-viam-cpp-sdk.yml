@@ -35,8 +35,8 @@ jobs:
           # Latest published release of the SDK, tag format "releases/vX.Y.Z".
           tag="$(gh release view --repo viamrobotics/viam-cpp-sdk --json tagName --jq .tagName)"
           latest="${tag#releases/v}"
-          # Currently pinned version in conanfile.py, e.g. viam-cpp-sdk/0.31.0
-          current="$(conan inspect . --format json | jq .version)"
+          # Currently pinned SDK requirement in conanfile.py, e.g. viam-cpp-sdk/0.31.0
+          current="$(grep -oP 'viam-cpp-sdk/\K[0-9]+\.[0-9]+\.[0-9]+' conanfile.py | head -n1)"
           echo "latest=$latest"   >> "$GITHUB_OUTPUT"
           echo "current=$current" >> "$GITHUB_OUTPUT"
           # Only bump forward (never downgrade).
