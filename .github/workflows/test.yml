@@ -117,14 +117,14 @@ jobs:
           echo "UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1" >> "$GITHUB_ENV"
 
       - name: Run unit tests
-        if: env.TESTS == 'all' || env.TESTS == 'unit'
+        if: matrix.coverage == true || env.TESTS == 'all' || env.TESTS == 'unit'
         run: ctest --test-dir build/Release --output-on-failure -LE integration
 
       # End to end against a librealsense software device (test/integration_tests.cpp).
       # Linux only: the module ships for Linux, and macOS pays a 2 s
       # librealsense teardown per case.
       - name: Run integration tests
-        if: runner.os == 'Linux' && (env.TESTS == 'all' || env.TESTS == 'integration')
+        if: runner.os == 'Linux' && (matrix.coverage == true || env.TESTS == 'all' || env.TESTS == 'integration')
         run: ./bin/integration-tests.sh
 
       # Reports on the ctest runs above; the coverage target does not run tests.
