@@ -1,0 +1,3 @@
+# LeakSanitizer suppressions for the ASAN/UBSan CI leg.
+# Dependencies are not instrumented; anything rooted in them is noise for us.
+# Keep entries narrow and add a comment explaining each one.
