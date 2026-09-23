@@ -250,18 +250,33 @@ struct DepthMap {
     return v;
   }
 
+  // Failures return an empty map (width/height 0) instead of reading out of
+  // bounds; the ASAN leg would otherwise turn a bad payload into a sanitizer
+  // abort rather than a test failure naming the regression.
   static DepthMap parse(std::vector<std::uint8_t> const &bytes) {
-    EXPECT_GE(bytes.size(), 24u);
+    if (bytes.size() < 24) {
+      ADD_FAILURE() << "depth map too short: " << bytes.size() << " bytes";
+      return {};
+    }
     EXPECT_EQ(std::string(bytes.begin(), bytes.begin() + 8), "DEPTHMAP");
     DepthMap m;
     m.width = be64(bytes.data() + 8);
     m.height = be64(bytes.data() + 16);
+    if (bytes.size() != 24 + m.width * m.height * 2) {
+      ADD_FAILURE() << "depth map size " << bytes.size() << " != 24 + "
+                    << m.width << "x" << m.height << "x2";
+      return {};
+    }
     m.bytes = bytes;
-    EXPECT_EQ(bytes.size(), 24 + m.width * m.height * 2);
     return m;
   }
 
   std::uint16_t at(std::uint64_t x, std::uint64_t y) const {
+    if (x >= width or y >= height) {
+      ADD_FAILURE() << "at(" << x << "," << y << ") outside " << width << "x"
+                    << height;
+      return 0;
+    }
     auto const *p = bytes.data() + 24 + (y * width + x) * 2;
     return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
   }
@@ -275,7 +290,10 @@ struct JpegHeader {
     JpegHeader h;
     int subsamp = 0, colorspace = 0;
     tjhandle tj = tjInitDecompress();
-    EXPECT_NE(tj, nullptr);
+    if (tj == nullptr) {
+      ADD_FAILURE() << "tjInitDecompress failed";
+      return h;
+    }
     EXPECT_EQ(tjDecompressHeader3(tj, bytes.data(), bytes.size(), &h.width,
                                   &h.height, &subsamp, &colorspace),
               0)
@@ -301,10 +319,16 @@ struct Pcd {
     std::string head(bytes.begin(),
                      bytes.begin() + std::min<std::size_t>(512, bytes.size()));
     auto data_pos = head.find(marker);
-    EXPECT_NE(data_pos, std::string::npos) << "no binary PCD data section";
+    if (data_pos == std::string::npos) {
+      ADD_FAILURE() << "no binary PCD data section";
+      return {};
+    }
     pcd.header = head.substr(0, data_pos + marker.size());
     auto points_pos = pcd.header.find("POINTS ");
-    EXPECT_NE(points_pos, std::string::npos);
+    if (points_pos == std::string::npos) {
+      ADD_FAILURE() << "no POINTS field in PCD header";
+      return {};
+    }
     pcd.points = std::stoul(pcd.header.substr(points_pos + 7));
     pcd.bytes = bytes;
     EXPECT_EQ(bytes.size(), pcd.header.size() + pcd.points * sizeof(PcdPoint));
@@ -312,7 +336,11 @@ struct Pcd {
   }
 
   PcdPoint at(std::size_t i) const {
-    PcdPoint p;
+    PcdPoint p{};
+    if (header.size() + (i + 1) * sizeof(PcdPoint) > bytes.size()) {
+      ADD_FAILURE() << "point " << i << " outside the PCD payload";
+      return p;
+    }
     std::memcpy(&p, bytes.data() + header.size() + i * sizeof(PcdPoint),
                 sizeof(PcdPoint));
     return p;
