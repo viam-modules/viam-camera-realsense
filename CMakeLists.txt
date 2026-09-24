@@ -78,6 +78,22 @@ target_link_libraries(viamrealsense
     PRIVATE
         ${CMAKE_DL_LIBS}
 )
+if (APPLE)
+    # usb_capture.hpp talks to libusb directly: the same static libusb that
+    # librealsense links, which is what makes the shared capture count work.
+    # The conan target exposes no include dir, so take the header from the
+    # package folder.
+    find_package(libusb REQUIRED)
+    find_path(VIAM_LIBUSB_INCLUDE_DIR NAMES libusb.h
+        HINTS "${libusb_PACKAGE_FOLDER_RELEASE}/include"
+              "${libusb_PACKAGE_FOLDER_RELWITHDEBINFO}/include"
+              "${libusb_PACKAGE_FOLDER_DEBUG}/include"
+        PATH_SUFFIXES libusb-1.0
+        REQUIRED)
+    target_include_directories(viamrealsense PUBLIC ${VIAM_LIBUSB_INCLUDE_DIR})
+    target_link_libraries(viamrealsense PUBLIC libusb::libusb)
+endif()
+
 add_executable(viam-camera-realsense src/module/main.cpp)
 target_link_libraries(viam-camera-realsense PRIVATE viamrealsense)
 

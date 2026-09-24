@@ -555,6 +555,33 @@ TEST_F(RealsenseTest, GetGeometriesReturnsExpectedGeometry) {
                 "box")});
 }
 
+// The devices-changed prelude is how main.cpp captures a newly attached
+// camera on macOS before any instance powers it up (usb_capture.hpp). It has
+// to run on every callback and must never be able to break the callback.
+TEST_F(RealsenseTest, DevicesChangedPrelude_RunsOnEveryCallback) {
+  int prelude_calls = 0;
+  mock_realsense_context_->setDevicesChangedPrelude([&] { prelude_calls++; });
+
+  rs2::event_information info(rs2::device_list{}, rs2::device_list{});
+  mock_context_->synchronize()->callback_(info);
+  mock_context_->synchronize()->callback_(info);
+
+  EXPECT_EQ(prelude_calls, 2);
+}
+
+TEST_F(RealsenseTest, DevicesChangedPrelude_ExceptionIsSwallowed) {
+  mock_realsense_context_->setDevicesChangedPrelude(
+      [] { throw std::runtime_error("capture failed"); });
+
+  rs2::event_information info(rs2::device_list{}, rs2::device_list{});
+  EXPECT_NO_THROW(mock_context_->synchronize()->callback_(info));
+}
+
+TEST_F(RealsenseTest, DevicesChangedPrelude_UnsetIsANoOp) {
+  rs2::event_information info(rs2::device_list{}, rs2::device_list{});
+  EXPECT_NO_THROW(mock_context_->synchronize()->callback_(info));
+}
+
 TEST(RealsenseStaticTest, ModelExists) {
   auto &model = Realsense<rs2::context>::model;
 

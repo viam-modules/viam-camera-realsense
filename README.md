@@ -377,7 +377,7 @@ Support for specific hardware is known for the following devices. The table is n
 | UP 4000               |      |  X   |       |      |
 | macOS                 |      |      |  (1)  |      |
 
-(1) macOS support is experimental and based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense. May have stability issues. Firmware updates are not supported on macOS.
+(1) macOS support is experimental. The module has to run as root (see [macOS Distribution Recommendation](#macos-distribution-recommendation)). Firmware updates are not supported on macOS.
 
 ## Linux distribution recommendation
 
@@ -409,9 +409,14 @@ The module only fails to start if the configured resolution is not available ove
 
 ## macOS Distribution Recommendation
 
-macOS support is based on [v2.57.6 (Beta)](https://github.com/realsenseai/librealsense/releases/tag/v2.57.6) from RealSense, and may have stability issues given its beta state. Binaries are built for Apple silicon on macOS 14 (Sonoma) or newer.
+macOS support is experimental. Binaries are built for Apple silicon on macOS 14 (Sonoma) or newer against the same librealsense the Linux builds use.
 
-**Note**: Firmware updates are not currently supported on macOS.
+The module must run as root, so viam-server has to be started with `sudo` (or installed as a system LaunchDaemon, which runs as root). macOS attaches its own UVC camera driver to every RealSense interface, and taking the camera away from that driver is a privileged operation. At startup the module takes every attached RealSense away from the macOS driver once and keeps it for as long as the module runs. Without that, librealsense's own USB handling makes macOS re-enumerate the camera several times during startup and the camera comes up only sporadically. While the module runs the camera is not available to other macOS applications; it is released when the module exits.
+
+Known limitations on macOS:
+- Firmware updates are not supported.
+- Calling the discovery service, or changing depth options with `DoCommand`, while a camera on the same module is streaming can fail: macOS allows one open per USB interface per process, and the streaming pipeline holds it.
+- Running the module at `debug` log level makes it exit at startup ([RSDK-13059](https://viam.atlassian.net/browse/RSDK-13059)).
 
 
 ### Troubleshooting

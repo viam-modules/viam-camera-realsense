@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.25)
+project(rs_mac_probe LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Threads REQUIRED)
+find_package(realsense2 REQUIRED)
+find_package(libusb REQUIRED)
+add_executable(rs_mac_probe rs_mac_probe.cpp)
+target_link_libraries(rs_mac_probe PRIVATE realsense2::realsense2 libusb::libusb Threads::Threads)
+# The conan libusb target exposes no include dir; take it from the package.
+target_include_directories(rs_mac_probe PRIVATE "${libusb_PACKAGE_FOLDER_RELEASE}/include/libusb-1.0")
