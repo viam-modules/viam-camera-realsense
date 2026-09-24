@@ -113,8 +113,17 @@ public:
   // Restore the default devices changed callback
   void restoreDevicesChangedCallback() { setupCallback(); }
 
+  // Runs at the start of every devices-changed callback, before any instance
+  // is notified. main.cpp uses it on macOS to capture a newly attached camera
+  // (usb_capture.hpp) before an instance powers it up. Exceptions are logged
+  // and swallowed so a prelude can never block the notification.
+  void setDevicesChangedPrelude(std::function<void()> prelude) {
+    devices_changed_prelude_ = std::move(prelude);
+  }
+
 private:
   std::shared_ptr<SynchronizedContextT> rs_context_;
+  boost::synchronized_value<std::function<void()>> devices_changed_prelude_;
   boost::synchronized_value<
       std::unordered_set<Realsense<SynchronizedContextT> *>>
       instances_{std::unordered_set<Realsense<SynchronizedContextT> *>{}};
@@ -126,7 +135,21 @@ private:
         [this](rs2::event_information &info) { notifyAllInstances(info); });
   }
 
+  void runDevicesChangedPrelude() {
+    std::function<void()> prelude = devices_changed_prelude_.get();
+    if (not prelude) {
+      return;
+    }
+    try {
+      prelude();
+    } catch (const std::exception &e) {
+      std::cerr << "[RealsenseContext] devices-changed prelude failed: "
+                << e.what() << std::endl;
+    }
+  }
+
   void notifyAllInstances(rs2::event_information &info) {
+    runDevicesChangedPrelude();
     auto instances_guard = instances_.synchronize();
     std::vector<Realsense<SynchronizedContextT> *> failed_instances;
 

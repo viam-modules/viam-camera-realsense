@@ -1,5 +1,6 @@
 #include "discovery.hpp"
 #include "realsense.hpp"
+#include "usb_capture.hpp"
 
 #include <viam/sdk/common/instance.hpp>
 #include <viam/sdk/components/camera.hpp>
@@ -78,6 +79,12 @@ int serve(int argc, char **argv) try {
       rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
     }
   }
+
+  // Take every attached RealSense away from macOS's UVC driver now, before
+  // librealsense builds its first device object, and keep it for the life of
+  // the process. Without this every sensor power cycle re-enumerates the
+  // camera and init fails most of the time. See usb_capture.hpp (APP-16649).
+  realsense::usb_capture::captureRealsenseDevices();
 #endif
 
   auto ctx = std::make_shared<boost::synchronized_value<rs2::context>>();
@@ -87,6 +94,13 @@ int serve(int argc, char **argv) try {
   auto rs_ctx = std::make_shared<
       realsense::RealsenseContext<boost::synchronized_value<rs2::context>>>(
       ctx);
+#if defined(__APPLE__)
+  // A camera plugged in (or re-enumerated after a reset) later must be
+  // captured before any instance powers it up; the prelude runs first in every
+  // devices-changed callback.
+  rs_ctx->setDevicesChangedPrelude(
+      [] { realsense::usb_capture::captureRealsenseDevices(); });
+#endif
 
   // This keeps track of serial numbers that have already been assigned to
   // Realsense instances, to avoid assigning the same physical camera to
