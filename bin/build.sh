@@ -20,6 +20,8 @@ conan create . \
     -o "&:with_tests=False" \
     -pr:a "${PROFILE}" \
     -s:a compiler.cppstd=17 \
+    -s:a build_type=Release \
+    -s:a "viam-cpp-sdk/*:build_type=RelWithDebInfo" \
     -s "viam-camera-realsense/*:build_type=RelWithDebInfo" \
     -c tools.system.package_manager:mode=install \
     --build=missing
@@ -27,6 +29,8 @@ conan create . \
 conan install --requires=viam-camera-realsense/0.0.1 \
     -pr:a "${PROFILE}" \
     -s:a compiler.cppstd=17 \
+    -s:a build_type=Release \
+    -s:a "viam-cpp-sdk/*:build_type=RelWithDebInfo" \
     -s "viam-camera-realsense/*:build_type=RelWithDebInfo" \
     --lockfile-partial \
     --deployer-package "&" \
