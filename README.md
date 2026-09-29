@@ -468,7 +468,7 @@ contact points for version bumps and/or recipe updates. If it changed, do
 ```
 ./bin/export-recipes.sh
 conan lock remove --requires="librealsense/*" --lockfile=conan.lock --lockfile-out=conan.lock
-conan lock create . --lockfile=conan.lock --lockfile-out=conan.lock -pr:a <your-profile>
+conan lock add --requires="librealsense/<version>#<rrev printed by export>" --lockfile=conan.lock --lockfile-out=conan.lock
 ```
 
 Push the PR (which will trigger CI), then run the
