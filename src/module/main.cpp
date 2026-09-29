@@ -68,17 +68,13 @@ int serve(int argc, char **argv) try {
               << std::endl;
     return EXIT_FAILURE;
   }
+#endif
 
-  // Enabling zlibrealsense debug logs for Mac only for now, as we don't count
-  // with libraries with BUILD_EASYLOGGINGPP enabled on Linux, which is required
-  // to enable debug logs.
-  // https://viam.atlassian.net/browse/RSDK-13059
   for (size_t i = 0; i < argc; i++) {
     if (std::string(argv[i]) == "--log-level=debug") {
       rs2::log_to_console(RS2_LOG_SEVERITY_DEBUG);
     }
   }
-#endif
 
   auto ctx = std::make_shared<boost::synchronized_value<rs2::context>>();
   // Wrap the context in a RealsenseContext, which will manage the callback for

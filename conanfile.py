@@ -16,7 +16,8 @@ class ViamRealsense(ConanFile):
     default_options = {
         "with_tests": False,
         "viam-cpp-sdk/*:shared": False,
-        "libzip/*:shared": False
+        "libzip/*:shared": False,
+        "librealsense/*:with_easylogging": True,
     }
 
     exports_sources = "CMakeLists.txt", "LICENSE", "src/*", "cmake/*", "meta.json", "test/*", "*.sh", "99-realsense-libusb.rules"

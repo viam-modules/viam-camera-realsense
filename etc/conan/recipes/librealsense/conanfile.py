@@ -26,12 +26,14 @@ class LibrealsenseConan(ConanFile):
         "fPIC": [True, False],
         "tools": [True, False],
         "rsusb_backend": [True, False],
+        "with_easylogging": [True, False],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
         "tools": True,
         "rsusb_backend": True, # TODO: change to False when CI gets MSVC ATL support
+        "with_easylogging": False,
     }
 
     def export_sources(self):
@@ -76,7 +78,8 @@ class LibrealsenseConan(ConanFile):
         tc = CMakeToolchain(self)
         tc.variables["CHECK_FOR_UPDATES"] = False
         tc.variables["BUILD_WITH_STATIC_CRT"] = False
-        tc.variables["BUILD_EASYLOGGINGPP"] = False
+        # Without it rs2::log_to_console/log_to_callback throw at runtime.
+        tc.variables["BUILD_EASYLOGGINGPP"] = self.options.with_easylogging
         tc.variables["BUILD_TOOLS"] = self.options.tools
         tc.variables["BUILD_EXAMPLES"] = False
         tc.variables["BUILD_GLSL_EXTENSIONS"] = False
