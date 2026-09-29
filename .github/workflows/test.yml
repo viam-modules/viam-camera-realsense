@@ -72,6 +72,9 @@ jobs:
       - name: Show conan profile
         run: conan profile show -pr:a ${{ matrix.profile }}
 
+      - name: Export vendored recipes
+        run: ./bin/export-recipes.sh
+
       - name: Install Conan dependencies
         run: >
           conan install . -o "&:with_tests=True" --build=missing

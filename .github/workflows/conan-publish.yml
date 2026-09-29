@@ -60,6 +60,7 @@ jobs:
       - name: Build dependency graph (conan create)
         # Same profile as bin/build.sh so published package_ids match the cloud builder's.
         run: |
+          ./bin/export-recipes.sh
           conan create . \
             -o "&:with_tests=False" \
             -pr:a ${{ matrix.profile }} \
