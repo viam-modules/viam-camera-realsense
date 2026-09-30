@@ -1,38 +1,22 @@
 #pragma once
 
-// macOS only. Takes every attached RealSense away from macOS's own UVC driver
-// once and keeps it for the life of the process. No-op on other platforms.
+// macOS only: take every attached RealSense away from macOS's UVC driver once
+// and hold it for the life of the process. No-op elsewhere.
 //
-// Why (APP-16649): librealsense powers a sensor on and off for every short
-// interaction before streaming (building the device object, listing stream
-// profiles, writing an option), about seven times per camera init. Its libusb
-// backend opens a fresh handle with auto kernel-driver detach on every power-on
-// and closes it on every power-off. libusb's darwin backend implements the
-// detach as a device capture (root required) and the re-attach on release as a
-// full USBDeviceReEnumerate of the camera. So on macOS every power-off is an
-// unplug/replug, macOS's UVC driver (UVCAssistant) races to grab the camera
-// back after each one, and init fails at whatever call loses that race
-// ("failed to set power state", "cannot access depth sensor", "No device
-// connected"). Measured on a D435i: 2 of 20 inits succeed.
+// Before streaming, librealsense powers each sensor on and off for every small
+// step, about seven times per init. On macOS each power-off makes libusb hand
+// the camera back to the OS driver with a full USB re-enumeration, and the
+// driver races to grab the camera back; whichever call loses that race fails
+// (APP-16649). libusb keeps one process-global capture count per device and
+// only re-enumerates when a release drops it to zero. This module links the
+// same static libusb as librealsense, so capturing here and pushing that count
+// far above zero means librealsense's releases never re-enumerate.
 //
-// How: libusb keeps one cached record per physical device, shared by every
-// libusb context in the process, with an integer capture count. detach
-// increments it (and captures on the 0 -> 1 edge); the re-attach that runs on
-// every interface release decrements it and only re-enumerates when it reaches
-// 0. This module links the same static libusb librealsense does, so capturing
-// the camera here and pushing that count far above zero means librealsense's
-// releases never reach 0 and never re-enumerate. Measured: 40 of 40 inits,
-// zero re-enumerations, every pre-start step faster.
-//
-// What it relies on, all pinned by conan.lock (libusb 1.0.26): the per-device
-// count is process-global and decremented once per interface release, and a
-// captured device shows no kernel driver on its interfaces so librealsense's
-// own claims never detach again. scripts/macos-probe/rs_mac_probe
-// --hold-capture is the regression check for a libusb bump.
-//
-// Side effects: the camera is invisible to macOS camera apps while the module
-// runs (already true while it streams) and comes back when the process exits.
-// Root is still required, this only moves the one capture earlier.
+// Relies on libusb 1.0.26 (conan.lock) behavior: process-global per-device
+// count, one decrement per interface release, no kernel driver left on a
+// captured device. scripts/macos-probe/rs_mac_probe --hold-capture is the
+// check after a libusb bump. Root is still required, and the camera is
+// unavailable to other macOS apps while the module runs.
 
 #include <cstdint>
 #include <cstdio>
@@ -53,11 +37,8 @@ namespace usb_capture {
 // Intel's USB vendor id; every RealSense enumerates under it.
 inline constexpr std::uint16_t kRealsenseVendorId = 0x8086;
 
-// Capture-count budget. A power cycle costs one decrement per released
-// interface (three for the depth handle, two for color), so this covers about
-// 200k power cycles. Every call for an already-captured camera adds kTopUp, so
-// the count only ever grows while the camera stays attached; overflow would
-// need more than 200k device-changed callbacks.
+// Capture-count budget: about 200k power cycles (up to five decrements each).
+// Held cameras get kTopUp on every call, so the count only grows.
 inline constexpr int kInitialBudget = 1000000;
 inline constexpr int kTopUp = 10000;
 
