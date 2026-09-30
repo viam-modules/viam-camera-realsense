@@ -1,22 +1,18 @@
 #pragma once
 
-// macOS only: take every attached RealSense away from macOS's UVC driver once
+// macOS only: capture every attached RealSense from macOS's UVC driver once
 // and hold it for the life of the process. No-op elsewhere.
 //
-// Before streaming, librealsense powers each sensor on and off for every small
-// step, about seven times per init. On macOS each power-off makes libusb hand
-// the camera back to the OS driver with a full USB re-enumeration, and the
-// driver races to grab the camera back; whichever call loses that race fails
-// (APP-16649). libusb keeps one process-global capture count per device and
-// only re-enumerates when a release drops it to zero. This module links the
-// same static libusb as librealsense, so capturing here and pushing that count
-// far above zero means librealsense's releases never re-enumerate.
+// librealsense powers sensors on and off before streaming, and on macOS each
+// power-off makes libusb hand the camera back to the OS with a USB
+// re-enumeration; init then fails at whatever call loses the race to grab it
+// back (APP-16649). libusb only re-enumerates when its per-device capture
+// count drops to zero, and this module shares librealsense's static libusb,
+// so capturing here with a large count keeps that from ever happening.
 //
-// Relies on libusb 1.0.26 (conan.lock) behavior: process-global per-device
-// count, one decrement per interface release, no kernel driver left on a
-// captured device. scripts/macos-probe/rs_mac_probe --hold-capture is the
-// check after a libusb bump. Root is still required, and the camera is
-// unavailable to other macOS apps while the module runs.
+// Depends on libusb 1.0.26 (conan.lock) internals; check with
+// scripts/macos-probe/rs_mac_probe --hold-capture after a libusb bump. Root
+// is still required.
 
 #include <cstdint>
 #include <cstdio>
