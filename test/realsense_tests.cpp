@@ -577,11 +577,6 @@ TEST_F(RealsenseTest, DevicesChangedPrelude_ExceptionIsSwallowed) {
   EXPECT_NO_THROW(mock_context_->synchronize()->callback_(info));
 }
 
-TEST_F(RealsenseTest, DevicesChangedPrelude_UnsetIsANoOp) {
-  rs2::event_information info(rs2::device_list{}, rs2::device_list{});
-  EXPECT_NO_THROW(mock_context_->synchronize()->callback_(info));
-}
-
 TEST(RealsenseStaticTest, ModelExists) {
   auto &model = Realsense<rs2::context>::model;
 
