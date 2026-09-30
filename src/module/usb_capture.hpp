@@ -1,18 +1,12 @@
 #pragma once
 
-// macOS only: capture every attached RealSense from macOS's UVC driver once
-// and hold it for the life of the process. No-op elsewhere.
+// macOS only: capture every attached RealSense from the OS UVC driver once and
+// hold it for the life of the process (APP-16649). No-op elsewhere.
 //
-// librealsense powers sensors on and off before streaming, and on macOS each
-// power-off makes libusb hand the camera back to the OS with a USB
-// re-enumeration; init then fails at whatever call loses the race to grab it
-// back (APP-16649). libusb only re-enumerates when its per-device capture
-// count drops to zero, and this module shares librealsense's static libusb,
-// so capturing here with a large count keeps that from ever happening.
-//
-// Depends on libusb 1.0.26 (conan.lock) internals; check with
-// scripts/macos-probe/rs_mac_probe --hold-capture after a libusb bump. Root
-// is still required.
+// librealsense's power cycles make libusb re-enumerate the camera whenever its
+// per-device capture count hits zero; a large count here prevents that. Relies
+// on libusb 1.0.26 internals (conan.lock): re-check with
+// scripts/macos-probe/rs_mac_probe --hold-capture after a bump. Needs root.
 
 #include <cstdint>
 #include <cstdio>
@@ -30,11 +24,10 @@
 namespace realsense {
 namespace usb_capture {
 
-// Intel's USB vendor id; every RealSense enumerates under it.
+// Intel's USB vendor id.
 inline constexpr std::uint16_t kRealsenseVendorId = 0x8086;
 
-// Capture-count budget: about 200k power cycles (up to five decrements each).
-// Held cameras get kTopUp on every call, so the count only grows.
+// About 200k power cycles; held cameras get kTopUp per call.
 inline constexpr int kInitialBudget = 1000000;
 inline constexpr int kTopUp = 10000;
 
@@ -47,10 +40,8 @@ struct Held {
 struct State {
   std::mutex mutex;
   libusb_context *ctx = nullptr;
-  // Keyed by libusb_device, which stays the same object while the camera is
-  // attached (a replug is a new device). libusb_open holds a reference to it.
-  // Handles are never closed while the camera is attached: the capture has to
-  // outlive every librealsense handle.
+  // libusb_device is stable while attached (a replug is a new one). Handles
+  // stay open so the capture outlives every librealsense handle.
   std::unordered_map<libusb_device *, Held> held;
 };
 inline State &state() {
@@ -58,7 +49,7 @@ inline State &state() {
   return s;
 }
 inline void addBudget(libusb_device_handle *handle, int amount) {
-  // Pure bookkeeping once the device is captured: no USB traffic.
+  // No USB traffic once captured.
   for (int i = 0; i < amount; i++) {
     libusb_detach_kernel_driver(handle, 0);
   }
@@ -71,11 +62,9 @@ inline std::string productIdHex(std::uint16_t id) {
 } // namespace detail
 #endif
 
-// Capture every RealSense on the bus that is not captured yet, top up the
-// budget of the ones that are, and forget cameras that left. Safe to call
-// repeatedly and from any thread; call it before librealsense builds its first
-// device object and again on every device-changed event. Returns how many
-// cameras were newly captured.
+// Capture new RealSenses, top up held ones, forget unplugged ones. Thread-safe;
+// call before librealsense's first device object and on every device change.
+// Returns the number newly captured.
 inline int captureRealsenseDevices() {
 #if !defined(__APPLE__)
   return 0;
@@ -124,8 +113,7 @@ inline int captureRealsenseDevices() {
                          << libusb_error_name(rc);
       continue;
     }
-    // Interface 0 is the depth UVC control interface on every D400. On macOS
-    // the interface number is ignored anyway: capture is per device.
+    // The interface number is ignored on macOS: capture is per device.
     rc = libusb_detach_kernel_driver(handle, 0);
     if (rc != 0) {
       VIAM_SDK_LOG(warn) << "[usb_capture] cannot capture RealSense "
@@ -146,8 +134,7 @@ inline int captureRealsenseDevices() {
         << " from macOS's UVC driver for the life of this process";
   }
 
-  // Cameras that left the bus. A replug comes back as a new libusb device and
-  // is captured on the next call (the device-changed callback).
+  // Unplugged cameras. A replug is a new device, captured on the next call.
   for (auto it = st.held.begin(); it != st.held.end();) {
     if (present.count(it->first) == 0) {
       VIAM_SDK_LOG(info) << "[usb_capture] RealSense "
