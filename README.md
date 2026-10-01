@@ -458,6 +458,22 @@ cmake --build --preset conan-release
 ctest --test-dir build/Release --output-on-failure
 ```
 
+### Vendored conan recipes
+Our version of `librealsense` is forked from a conancenter recipe; this should
+get picked up automatically when you add the `viamconan` remote. The recipe is in
+[`/etc/conan/recipes/librealsense`](etc/conan/recipes/librealsense), and the
+export script is [`bin/export-recipes.sh`](bin/export-recipes.sh). These are the
+contact points for version bumps and/or recipe updates. If it changed, do
+
+```
+./bin/export-recipes.sh
+conan lock remove --requires="librealsense/*" --lockfile=conan.lock --lockfile-out=conan.lock
+conan lock add --requires="librealsense/<version>#<rrev printed by export>" --lockfile=conan.lock --lockfile-out=conan.lock
+```
+
+Push the PR (which will trigger CI), then run the
+`Publish conan packages` workflow on the branch to upload the new revision.
+
 ### Integration tests
 `test/integration_tests.cpp` drives the module end to end (device lifecycle,
 `rs2::pipeline`, alignment, point cloud, encoders) against a librealsense

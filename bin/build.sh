@@ -16,6 +16,8 @@ else
     PROFILE=default
 fi
 
+./bin/export-recipes.sh
+
 conan create . \
     -o "&:with_tests=False" \
     -pr:a "${PROFILE}" \
