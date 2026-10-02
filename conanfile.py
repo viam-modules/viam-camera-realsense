@@ -32,7 +32,7 @@ class ViamRealsense(ConanFile):
         check_min_cppstd(self, 17)
 
     def requirements(self):
-        self.requires("viam-cpp-sdk/0.41.0")
+        self.requires("viam-cpp-sdk/0.41.1")
         self.requires("librealsense/2.57.7")
         self.requires("libjpeg-turbo/[>=2.1.0 <3]")
         self.requires("libcurl/[>=8.0.0 <9]")
