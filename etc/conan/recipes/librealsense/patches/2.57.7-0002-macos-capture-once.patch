@@ -1,0 +1,32 @@
+--- a/src/libusb/handle-libusb.h
++++ b/src/libusb/handle-libusb.h
+@@ -54,6 +54,21 @@ namespace librealsense
+                     throw std::runtime_error(msg.str());
+                 }
+ 
++#if defined(__APPLE__)
++                // On macOS libusb implements "re-attach the kernel driver" (which
++                // auto-detach does on every interface release) as a full USB
++                // re-enumeration of the device, and the OS UVC driver then races to
++                // grab the camera back. Every sensor power-off would unplug/replug
++                // the camera. Capture the device once instead and never hand it
++                // back; it returns to the OS when the process exits.
++                if(libusb_kernel_driver_active(_handle, interface->get_number()) == 1)
++                {
++                    sts = libusb_detach_kernel_driver(_handle, interface->get_number());
++                    if(sts != LIBUSB_SUCCESS)
++                        LOG_WARNING("failed to detach kernel driver from interface " << (int)interface->get_number()
++                                    << ", error: " << usb_status_to_string.at(libusb_status_to_rs(sts)));
++                }
++#else
+                 sts = libusb_set_auto_detach_kernel_driver(_handle, true); // detach from kernel driver when claimed and re-attach when released.
+                 if(sts != LIBUSB_SUCCESS)
+                 {
+@@ -63,6 +78,7 @@ namespace librealsense
+                     LOG_ERROR(msg.str());
+                     throw std::runtime_error(msg.str());
+                 }
++#endif
+ 
+                 claim_interface_or_throw(interface->get_number());
+                 for(auto&& i : interface->get_associated_interfaces())
