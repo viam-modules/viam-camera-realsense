@@ -416,7 +416,6 @@ The module must run as root, so viam-server has to be started with `sudo` (or in
 Known limitations on macOS:
 - Firmware updates are not supported.
 - Calling the discovery service, or changing depth options with `DoCommand`, while a camera on the same module is streaming can fail: macOS allows one open per USB interface per process, and the streaming pipeline holds it.
-- Running the module at `debug` log level makes it exit at startup ([RSDK-13059](https://viam.atlassian.net/browse/RSDK-13059)).
 
 
 ### Troubleshooting
