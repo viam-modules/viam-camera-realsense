@@ -806,6 +806,7 @@ public:
                              rs2_intrinsics const &props,
                              const rs2::stream_profile &reference_stream) {
         p.supports_pcd = true;
+        p.default_reference_frame = name();
         p.intrinsic_parameters.width_px = props.width;
         p.intrinsic_parameters.height_px = props.height;
         p.intrinsic_parameters.focal_x_px = props.fx;
