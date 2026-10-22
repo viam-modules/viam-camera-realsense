@@ -412,18 +412,22 @@ protected:
   // Production DeviceFunctions, except that after createDevice the pipeline
   // is swapped for one on the test context: librealsense only lists a
   // software device in the context it was added to, and a default
-  // rs2::pipeline lives on a private one.
+  // rs2::pipeline lives on a private one. With drop_aligner_ set, the device
+  // also gets no depth-to-color aligner, so any request that aligns throws.
   SwRealsense &makeResource(ResourceConfig const &cfg) {
     auto funcs = SwRealsense::createDefaultDeviceFunctions();
     auto create = funcs.createDevice;
-    funcs.createDevice = [create, ctx = ctx_](auto const &serial, auto dev_ptr,
-                                              auto const &supported_models,
-                                              auto const &config,
-                                              auto &logger) {
+    funcs.createDevice = [create, ctx = ctx_, drop_aligner = drop_aligner_](
+                             auto const &serial, auto dev_ptr,
+                             auto const &supported_models, auto const &config,
+                             auto &logger) {
       auto device = create(serial, dev_ptr, supported_models, config, logger);
       if (device) {
         auto guard = device->synchronize();
         guard->pipe = std::make_shared<rs2::pipeline>(*ctx->synchronize());
+        if (drop_aligner) {
+          guard->align.reset();
+        }
       }
       return device;
     };
@@ -470,6 +474,7 @@ protected:
       assigned_serials_;
   std::vector<std::unique_ptr<SoftwareCamera>> cameras_;
   std::vector<std::unique_ptr<SwRealsense>> resources_;
+  bool drop_aligner_{false};
 };
 
 // ---- get_images ----
@@ -550,6 +555,46 @@ TEST_F(SoftwareDeviceTest, GetImages_WithoutAlignReturnsRawDepth) {
   auto map = DepthMap::parse(findImage(rs.get_images({}, {}), "depth").bytes);
   EXPECT_EQ(map.at(2, kHeight / 2), kUniformDepthMm);
   EXPECT_EQ(map.at(kWidth / 2, kHeight / 2), kUniformDepthMm);
+}
+
+// Aligning only changes depth, so a request that doesn't return depth must
+// not run the aligner. The device here has none, so any aligning request
+// throws.
+TEST_F(SoftwareDeviceTest, GetImages_ColorOnlySkipsAlignment) {
+  drop_aligner_ = true;
+  auto &cam = addCamera();
+  auto attrs = bothSensors(cam.spec().serial);
+  attrs["align_color_depth"] = true;
+  auto &rs = makeResource(makeConfig(attrs));
+  cam.startFeeding();
+
+  // Streams start asynchronously: poll color until the first frameset lands.
+  std::string last_error;
+  bool served = false;
+  auto const deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(5000);
+  while (not served and std::chrono::steady_clock::now() < deadline) {
+    try {
+      auto color_only = rs.get_images({"color"}, {});
+      ASSERT_EQ(color_only.images.size(), 1u);
+      EXPECT_EQ(color_only.images[0].source_name, "color");
+      served = true;
+    } catch (std::exception const &e) {
+      last_error = e.what();
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+  ASSERT_TRUE(served) << "color-only request kept failing: " << last_error;
+
+  for (auto const &filter :
+       {std::vector<std::string>{}, std::vector<std::string>{"depth"}}) {
+    try {
+      rs.get_images(filter, {});
+      ADD_FAILURE() << "a request returning depth must align, and throw here";
+    } catch (std::exception const &e) {
+      EXPECT_THAT(e.what(), HasSubstr("aligner"));
+    }
+  }
 }
 
 // ---- get_point_cloud ----

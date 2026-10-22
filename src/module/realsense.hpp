@@ -593,8 +593,9 @@ public:
       // have different FOVs, so without this step a 2D mask drawn on the
       // color image cannot be used directly to look up depth values. This
       // is opt-in to preserve the historical behavior of returning the raw
-      // unaligned streams.
-      if (config_->align_color_depth) {
+      // unaligned streams. Aligning only changes the depth frame, so a
+      // request that doesn't return depth skips it.
+      if (config_->align_color_depth and should_process_depth) {
         // librealsense's align filter caches state keyed to the stream
         // profiles it has seen and is not thread safe, so an aligner must
         // never be shared across cameras (upstream guidance is one rs2::align
